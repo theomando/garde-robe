@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mesure du moteur</title>
+<style>
+  /* Couleurs d'interface : choix graphiques. */
+  :root { --fond: #f4f4f2; --texte: #1d1d1b; --ok: #2b6a30; --ko: #a4161a; }
+  body { margin: 0; padding: 1rem; font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--fond); color: var(--texte); }
+  main { max-width: 50rem; margin: 0 auto; }
+  pre { white-space: pre-wrap; font-size: .85rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Mesure du moteur</h1>
+  <p>Catalogue Wada + 450 harmonies de test (3 dominantes, 3 soutiens, faites de couleurs Wada), 100 vêtements
+    (couleurs Wada), 9 pièces visibles et la peau. Budget : moins d'une seconde sur iPhone (CLAUDE.md).
+    Le calcul bloque la page quelques instants : c'est voulu.</p>
+  <pre id="resultat">EN COURS</pre>
+</main>
+<script type="module">
+  // Entièrement synchrone (lecture des données par XHR synchrone) : le résultat est dans la page
+  // avant l'événement load, ce qui permet une mesure réelle dans Edge sans fenêtre.
+  import { construireWada, fusionnerCatalogues } from '../js/catalogue.js';
+  import { convertirPapierTigre } from '../js/papier-tigre.js';
+  import { hexVersRgb } from '../js/couleur.js';
+  import { TYPES } from '../js/constantes.js';
+  import { proposer } from '../js/moteur.js';
+
+  function lireJson(url) {
+    const requete = new XMLHttpRequest();
+    requete.open('GET', url, false);
+    requete.send();
+    if (requete.status !== 200) throw new Error(`${url} : HTTP ${requete.status}`);
+    return JSON.parse(requete.responseText);
+  }
+
+  const lignes = [`Navigateur : ${navigator.userAgent}`];
+  try {
+    const wada = construireWada(lireJson('../data/wada.json'));
+    const harmonies = [];
+    for (let h = 0; h < 450; h++) {
+      const rvb = (k) => hexVersRgb(wada.couleurs[(h * 6 + k) % wada.couleurs.length].hex);
+      harmonies.push({
+        volume: 1 + (h % 3), page: 1 + Math.floor(h / 3), nom: `Test ${h + 1}`,
+        dominantes: [rvb(0), rvb(1), rvb(2)], soutiens: [rvb(3), rvb(4), rvb(5)],
+      });
+    }
+    const complet = fusionnerCatalogues(wada, convertirPapierTigre({ format: 'papier-tigre', version: 1, harmonies }));
+    const seulWada = fusionnerCatalogues(wada);
+    const typesGarde = TYPES.filter((t) => t !== 'short');
+    const vetements = Array.from({ length: 100 }, (_, i) => ({
+      id: `b${i}`, type: typesGarde[i % typesGarde.length], hex: wada.couleurs[(i * 7) % wada.couleurs.length].hex,
+      origine: 'manuel', dateAjout: new Date(Date.UTC(2026, 0, 1) + i * 1000).toISOString(),
+    }));
+    const tenue = ['chaussures', 'pantalon', 'ceinture', 't-shirt', 'pull', 'chemise', 'veste', 'manteau', 'chapeau', 'bijoux'];
+    const reglages = { mst: 5, teintActif: true, tolerance: 10, favoris: [] };
+
+    const mediane = (xs) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+    const ms = (x) => `${x.toFixed(1)} ms`;
+    for (const [nom, catalogue] of [['Wada seul', seulWada], ['Wada + 450 harmonies', complet]]) {
+      const froid = [];
+      const chaud = [];
+      let resultat;
+      for (let r = 0; r < 7; r++) {
+        let t0 = performance.now();
+        resultat = proposer({ types: tenue, vetements, catalogue, reglages });
+        froid.push(performance.now() - t0);
+        t0 = performance.now();
+        proposer({ types: tenue, vetements, catalogue, reglages, cache: resultat.cache });
+        chaud.push(performance.now() - t0);
+      }
+      const pire = Math.max(...froid);
+      lignes.push(`${nom} : ${catalogue.combinaisons.length} combinaisons, ${catalogue.couleurs.length} couleurs, `
+        + `${resultat.visibles.length} pièces visibles + peau, ${resultat.retenues.length} retenues`);
+      lignes.push(`  sans cache (premier calcul) : médiane ${ms(mediane(froid))}, pire ${ms(pire)}`);
+      lignes.push(`  avec cache (calculs suivants) : médiane ${ms(mediane(chaud))}, pire ${ms(Math.max(...chaud))}`);
+      lignes.push(`  budget d'une seconde : ${pire < 1000 ? 'respecté' : 'DÉPASSÉ'}`);
+    }
+  } catch (erreur) {
+    lignes.push(`ERREUR : ${erreur.message}`);
+  }
+  document.getElementById('resultat').textContent = lignes.join('\n');
+  document.body.dataset.etat = 'fini';
+</script>
+</body>
+</html>

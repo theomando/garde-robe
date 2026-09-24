@@ -8,6 +8,18 @@ export const TYPES = [
 ];
 export const BAS = ['pantalon', 'short'];
 
+// Couches du haut, du corps vers l'extérieur (avatar). Chemise, veste et manteau sont portés ouverts.
+export const COUCHES = ['t-shirt', 'pull', 'chemise', 'veste', 'manteau'];
+
+// Occultation : type masqué → types qui le masquent. Une pièce masquée sort du calcul et du rendu.
+export const OCCULTATIONS = { 't-shirt': ['pull'] };
+
+// Moteur de propositions (CLAUDE.md, section Moteur).
+export const MANQUES_MAX = 2;
+export const PROPOSITIONS_MAX = 20;
+// Coût d'une pièce en joker = facteur × tolérance : le joker reste un repli derrière une couleur couverte.
+export const COUT_JOKER_EN_TOLERANCES = 1;
+
 // Monk Skin Tone Scale, MST 1 à 10 (indice 0 à 9).
 // Monk, Ellis. « Monk Skin Tone Scale », 2019. https://skintone.google (licence CC BY 4.0).
 // Vérifié le 2026-09-23 sur skintone.google/get-started et dans les fichiers officiels « MST Swatches.zip ».

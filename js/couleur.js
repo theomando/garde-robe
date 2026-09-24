@@ -83,6 +83,13 @@ export function estBlanc(lab) {
 const RAD = Math.PI / 180;
 const PUISSANCE_25_7 = 25 ** 7;
 
+// x⁷ par multiplications (plus rapide que ** dans la boucle de précalcul du moteur).
+function puissance7(x) {
+  const x2 = x * x;
+  const x3 = x2 * x;
+  return x3 * x3 * x;
+}
+
 function teinte(ap, b) {
   if (ap === 0 && b === 0) return 0;
   const h = Math.atan2(b, ap) / RAD;
@@ -95,7 +102,7 @@ export function deltaE00(lab1, lab2) {
 
   const C1 = Math.sqrt(a1 * a1 + b1 * b1);
   const C2 = Math.sqrt(a2 * a2 + b2 * b2);
-  const Cm7 = ((C1 + C2) / 2) ** 7;
+  const Cm7 = puissance7((C1 + C2) / 2);
   const G = 0.5 * (1 - Math.sqrt(Cm7 / (Cm7 + PUISSANCE_25_7)));
   const a1p = (1 + G) * a1;
   const a2p = (1 + G) * a2;
@@ -128,10 +135,11 @@ export function deltaE00(lab1, lab2) {
     + 0.24 * Math.cos(2 * hmp * RAD)
     + 0.32 * Math.cos((3 * hmp + 6) * RAD)
     - 0.20 * Math.cos((4 * hmp - 63) * RAD);
-  const dTheta = 30 * Math.exp(-(((hmp - 275) / 25) ** 2));
-  const Cmp7 = Cmp ** 7;
+  const u = (hmp - 275) / 25;
+  const dTheta = 30 * Math.exp(-(u * u));
+  const Cmp7 = puissance7(Cmp);
   const RC = 2 * Math.sqrt(Cmp7 / (Cmp7 + PUISSANCE_25_7));
-  const ecartL2 = (Lmp - 50) ** 2;
+  const ecartL2 = (Lmp - 50) * (Lmp - 50);
   const SL = 1 + (0.015 * ecartL2) / Math.sqrt(20 + ecartL2);
   const SC = 1 + 0.045 * Cmp;
   const SH = 1 + 0.015 * Cmp * T;
