@@ -1,0 +1,9 @@
+# Catalogue Papier Tigre saisi à la main : jamais publié (droits de redistribution non vérifiés).
+data/papier-tigre.json
+
+# Notes personnelles de cadrage, hors du site publié.
+contexte.txt
+projet.txt
+
+# Fichiers compilés de Python (outils/serveur.py).
+__pycache__/

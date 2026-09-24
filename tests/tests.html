@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Tests</title>
+<style>
+  body { font: 14px/1.4 ui-monospace, Consolas, monospace; margin: 1rem; }
+</style>
+</head>
+<body>
+<pre id="resultat">EN COURS</pre>
+<script type="module">
+  import { lancer } from './mini-test.js';
+
+  const fichiers = [
+    './harnais.test.js',
+  ];
+  if (new URLSearchParams(location.search).has('controle-echec')) {
+    fichiers.push('./controle-echec.test.js');
+  }
+  lancer(fichiers, document.getElementById('resultat'));
+</script>
+</body>
+</html>
