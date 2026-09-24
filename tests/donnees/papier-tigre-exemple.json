@@ -1,0 +1,29 @@
+{
+  "format": "papier-tigre",
+  "version": 1,
+  "harmonies": [
+    {
+      "volume": 2,
+      "page": 40,
+      "nom": "Exemple B",
+      "dominantes": [[0, 128, 255], [255, 128, 0]],
+      "soutiens": [[128, 128, 128]]
+    },
+    {
+      "volume": 1,
+      "page": 12,
+      "nom": "Exemple A",
+      "pays": "Pays test",
+      "dominantes": [[255, 0, 0], [0, 255, 0], [0, 0, 255]],
+      "soutiens": [[255, 255, 0], [0, 255, 255], [255, 0, 255]]
+    },
+    {
+      "volume": 1,
+      "page": 13,
+      "nom": "Exemple C",
+      "dominantes": [[10, 20, 30]],
+      "soutiens": [[240, 230, 220]],
+      "cmjn": { "dominantes": [[80, 60, 40, 90]], "soutiens": [[0, 3, 6, 4]] }
+    }
+  ]
+}

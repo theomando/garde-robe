@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Catalogues de couleurs : vérification</title>
+<style>
+  /* Couleurs d'interface : choix graphiques, pas des données colorimétriques. */
+  :root {
+    --fond: #f4f4f2;
+    --carte: #ffffff;
+    --texte: #1d1d1b;
+    --discret: #6b6b66;
+    --erreur: #a4161a;
+    --avertissement: #8a5a00;
+    --succes: #2b6a30;
+    --bord: #d9d9d4;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 1rem; font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--fond); color: var(--texte); }
+  main { max-width: 60rem; margin: 0 auto; }
+  h1 { font-size: 1.4rem; }
+  h2 { font-size: 1.15rem; margin-top: 2rem; }
+  section > h2:first-child { margin-top: 0; }
+  section, details { background: var(--carte); border: 1px solid var(--bord); border-radius: 8px; padding: 1rem; }
+  details { margin-top: 1rem; }
+  summary { cursor: pointer; font-weight: 600; }
+  pre { overflow-x: auto; background: var(--fond); padding: .75rem; border-radius: 6px; font-size: .9rem; }
+  #bilan { font-weight: 600; }
+  #bilan.ok { color: var(--succes); }
+  #bilan.ko { color: var(--erreur); }
+  #erreurs li { color: var(--erreur); }
+  #avertissements li { color: var(--avertissement); }
+  .harmonie { margin-top: 1rem; }
+  .harmonie h3 { font-size: 1rem; margin: 0 0 .35rem; }
+  .bande { display: flex; gap: 4px; }
+  .pastille { flex: 1 1 0; min-height: 4.5rem; border-radius: 4px; padding: .35rem; font-size: .75rem; display: flex; flex-direction: column; justify-content: flex-end; }
+  .pastille.soutien { flex-grow: .6; min-height: 3rem; }
+  .pastille.clair { color: #000000; }
+  .pastille.fonce { color: #ffffff; }
+  .wada { display: flex; align-items: center; gap: .5rem; margin: .25rem 0; }
+  .wada .num { width: 4rem; font-size: .8rem; color: var(--discret); flex: none; }
+  .wada .bande { flex: 1; }
+  .wada .pastille { min-height: 1.6rem; padding: 0; }
+</style>
+</head>
+<body data-etat="attente">
+<main>
+  <h1>Catalogues de couleurs</h1>
+
+  <section>
+    <h2>Vérifier un fichier Papier Tigre</h2>
+    <p>Choisis ton fichier <code>papier-tigre.json</code>. Rien n'est envoyé : la vérification se fait dans ce navigateur.</p>
+    <input type="file" id="fichier" accept=".json,application/json">
+    <p id="bilan" role="status"></p>
+    <ul id="erreurs"></ul>
+    <ul id="avertissements"></ul>
+    <div id="harmonies"></div>
+
+    <details>
+      <summary>Modèle de fichier et règles de saisie</summary>
+      <pre>{
+  "format": "papier-tigre",
+  "version": 1,
+  "harmonies": [
+    {
+      "volume": 1,
+      "page": 30,
+      "nom": "Nom de l'harmonie",
+      "pays": "Pays",
+      "dominantes": [[r, v, b], [r, v, b], [r, v, b]],
+      "soutiens":   [[r, v, b], [r, v, b], [r, v, b]]
+    }
+  ]
+}</pre>
+      <ul>
+        <li>Remplace <code>r, v, b</code> par les trois nombres imprimés après R, G et B sous chaque pastille, dans l'ordre du livre.</li>
+        <li><code>volume</code> : 1 à 3. <code>page</code> : numéro de la page de l'harmonie. Un même volume et une même page ne peuvent apparaître qu'une fois.</li>
+        <li>1 à 3 dominantes, 0 à 3 soutiens, 2 à 6 couleurs au total. <code>pays</code> et <code>soutiens</code> sont facultatifs.</li>
+        <li>Facultatif, pour contrôler la saisie : <code>"cmjn": { "dominantes": [[c, m, j, n], …], "soutiens": [[c, m, j, n], …] }</code>.</li>
+        <li>Harmonies séparées par une virgule ; pas de virgule après la dernière.</li>
+        <li>Enregistre le fichier sous <code>data/papier-tigre.json</code> (ce nom est exclu de git, il ne sera jamais publié).</li>
+      </ul>
+    </details>
+  </section>
+
+  <h2>Catalogue Wada</h2>
+  <details id="wada">
+    <summary>Afficher les 348 combinaisons</summary>
+    <p>Source : A Dictionary of Color Combinations, Sanzō Wada ; données de mattdesl/dictionary-of-colour-combinations et dblodorn/sanzo-wada (licence MIT). Survole une pastille pour son nom.</p>
+    <div id="grille-wada"></div>
+  </details>
+</main>
+
+<script type="module">
+  import { lirePapierTigre } from '../js/papier-tigre.js';
+  import { construireWada, fusionnerCatalogues } from '../js/catalogue.js';
+
+  const $ = (id) => document.getElementById(id);
+
+  function element(nom, classe, texte) {
+    const e = document.createElement(nom);
+    if (classe) e.className = classe;
+    if (texte !== undefined) e.textContent = texte;
+    return e;
+  }
+
+  function pastille(couleur, classe, legende) {
+    const p = element('div', `pastille ${classe} ${couleur.lab.L > 60 ? 'clair' : 'fonce'}`);
+    p.style.backgroundColor = couleur.hex;
+    p.title = `${couleur.nom} ${couleur.hex}`;
+    if (legende) p.textContent = legende;
+    return p;
+  }
+
+  function afficherPapierTigre(texte) {
+    const { erreurs, avertissements, catalogue } = lirePapierTigre(texte);
+    for (const id of ['erreurs', 'avertissements', 'harmonies']) $(id).replaceChildren();
+    const bilan = $('bilan');
+    if (erreurs.length > 0) {
+      bilan.className = 'ko';
+      bilan.textContent = `${erreurs.length} erreur${erreurs.length > 1 ? 's' : ''} : le fichier serait refusé par l'app.`;
+    } else {
+      const parVolume = new Map();
+      for (const c of catalogue.combinaisons) {
+        const volume = c.ref.split(',')[0];
+        parVolume.set(volume, (parVolume.get(volume) ?? 0) + 1);
+      }
+      const detail = [...parVolume].map(([v, n]) => `${v} : ${n}`).join(' ; ');
+      bilan.className = 'ok';
+      bilan.textContent = `Fichier valide : ${catalogue.combinaisons.length} harmonies, ${catalogue.couleurs.length} couleurs${detail ? ` (${detail})` : ''}.`;
+    }
+    for (const e of erreurs) $('erreurs').append(element('li', 'erreur', e));
+    for (const a of avertissements) $('avertissements').append(element('li', 'avertissement', a));
+    if (!catalogue) return;
+    const parId = new Map(catalogue.couleurs.map((c) => [c.id, c]));
+    for (const combinaison of catalogue.combinaisons) {
+      const bloc = element('div', 'harmonie');
+      bloc.append(element('h3', null, `${combinaison.ref} — ${combinaison.nom}`));
+      const bande = element('div', 'bande');
+      combinaison.couleurs.forEach((id, k) => {
+        const couleur = parId.get(id);
+        const rvb = couleur.hex.slice(1).match(/../g).map((x) => parseInt(x, 16)).join(' ');
+        bande.append(pastille(couleur, combinaison.roles[k], `${combinaison.roles[k]} · ${rvb} · ${couleur.hex}`));
+      });
+      bloc.append(bande);
+      $('harmonies').append(bloc);
+    }
+  }
+
+  async function afficherWada() {
+    const grille = $('grille-wada');
+    if (grille.childElementCount > 0) return;
+    const donnees = await (await fetch(new URL('../data/wada.json', import.meta.url))).json();
+    const catalogue = fusionnerCatalogues(construireWada(donnees));
+    for (const combinaison of catalogue.combinaisons) {
+      const ligne = element('div', 'wada');
+      ligne.append(element('span', 'num', combinaison.ref));
+      const bande = element('div', 'bande');
+      for (const id of combinaison.couleurs) bande.append(pastille(catalogue.couleurParId.get(id), ''));
+      ligne.append(bande);
+      grille.append(ligne);
+    }
+  }
+
+  $('fichier').addEventListener('change', async (evenement) => {
+    const fichier = evenement.target.files[0];
+    if (fichier) afficherPapierTigre(await fichier.text());
+    evenement.target.value = '';
+  });
+  $('wada').addEventListener('toggle', () => {
+    if ($('wada').open) afficherWada().then(() => { document.body.dataset.wada = 'fini'; });
+  });
+
+  // Pour les tests et le développement : ?fichier=<adresse relative> charge un fichier servi localement.
+  const adresse = new URLSearchParams(location.search).get('fichier');
+  if (adresse) {
+    try {
+      const reponse = await fetch(new URL(adresse, location.href));
+      if (!reponse.ok) throw new Error(`HTTP ${reponse.status}`);
+      afficherPapierTigre(await reponse.text());
+    } catch (erreur) {
+      $('bilan').className = 'ko';
+      $('bilan').textContent = `Impossible de lire ${adresse} : ${erreur.message}`;
+    }
+  }
+  document.body.dataset.etat = 'fini';
+</script>
+</body>
+</html>

@@ -2,3 +2,5 @@
 *.ps1 text eol=crlf
 *.png binary
 *.zip binary
+# Copie à l'identique de la source (empreinte SHA-256 vérifiée par les tests) : git n'y touche pas.
+data/wada.json -text

@@ -1,0 +1,12 @@
+{
+  "format": "papier-tigre",
+  "version": 1,
+  "harmonies": [
+    {
+      "volume": 4,
+      "page": 30,
+      "nom": "Exemple invalide",
+      "dominantes": [[300, 0, 0], [0, 0, 0]]
+    }
+  ]
+}
