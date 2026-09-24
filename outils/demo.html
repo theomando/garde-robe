@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Démo de la garde-robe</title>
+<link rel="stylesheet" href="../css/app.css">
+</head>
+<body>
+<main class="contenu">
+  <h1>Démo</h1>
+  <p>Ouvre l'app avec une garde-robe d'exemple (couleurs du catalogue Wada), dans un espace de stockage séparé :
+    tes vraies données ne sont pas touchées.</p>
+  <button type="button" class="bouton principal large" id="ouvrir">Ouvrir la démo</button>
+  <p class="discret" id="etat"></p>
+</main>
+<script type="module">
+  import { construireWada, fusionnerCatalogues, plusProches } from '../js/catalogue.js';
+  import { etatInitial, modifierReglages, ajouterVetement, basculerFavori, exporterEtat } from '../js/donnees.js';
+  import { labDepuisHex } from '../js/couleur.js';
+
+  const parametres = new URLSearchParams(location.search);
+  const wada = fusionnerCatalogues(construireWada(await (await fetch('../data/wada.json')).json()));
+  const parNom = (nom) => wada.couleurs.find((c) => c.nom === nom);
+  const plusProche = (hex) => plusProches(labDepuisHex(hex), wada, 1)[0].couleur;
+
+  function etatDemo() {
+    const pieces = [
+      ['chaussures', plusProche('#000000')], ['chaussures', plusProche('#ffffff')],
+      ['pantalon', parNom('Dull Violet Black')], ['pantalon', parNom('Peacock Blue')],
+      ['ceinture', plusProche('#000000')],
+      ['t-shirt', plusProche('#ffffff')], ['t-shirt', parNom('Apricot Yellow')],
+      ['pull', parNom('Burnt Sienna')], ['pull', parNom('Dusky Green')],
+      ['chemise', parNom('Hermosa Pink')], ['veste', parNom('Benzol Green')], ['manteau', parNom('Citrine')],
+    ].filter(([, couleur]) => couleur);
+    let etat = modifierReglages(etatInitial(), { mst: 5, teintActif: true });
+    pieces.forEach(([type, couleur], i) => {
+      etat = ajouterVetement(etat, { type, hex: couleur.hex, origine: 'manuel', idCouleurCatalogue: couleur.id },
+        { id: `demo-${i + 1}`, date: new Date(Date.UTC(2026, 0, 1 + i)) });
+    });
+    for (const nom of ['Burnt Sienna', 'Peacock Blue']) {
+      const couleur = parNom(nom);
+      if (couleur) etat = basculerFavori(etat, couleur.id);
+    }
+    return etat;
+  }
+
+  function ouvrir() {
+    localStorage.setItem('garde-robe-demo:etat', exporterEtat(etatDemo()));
+    const ecran = parametres.get('ecran');
+    location.replace(`../index.html?espace=demo${ecran ? `&ecran=${encodeURIComponent(ecran)}` : ''}`);
+  }
+
+  document.getElementById('ouvrir').addEventListener('click', ouvrir);
+  if (parametres.has('auto')) ouvrir();
+</script>
+</body>
+</html>

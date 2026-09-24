@@ -22,6 +22,12 @@ $oublies = @(Get-ChildItem $PSScriptRoot -Filter '*.test.js' | Where-Object {
 })
 if ($oublies.Count -gt 0) { Write-Output ('Fichiers de test absents de tests.html : ' + (($oublies | ForEach-Object Name) -join ', ')); exit 2 }
 
+# Garde : aucun caractere U+FEFF (BOM) invisible dans le code source.
+$avecBom = @(Get-ChildItem $racine -Recurse -File -Include *.js, *.html, *.css | Where-Object {
+    $_.FullName -notmatch '\\\.git\\' -and [IO.File]::ReadAllText($_.FullName).Contains([string][char]0xFEFF)
+})
+if ($avecBom.Count -gt 0) { Write-Output ('Caractere U+FEFF invisible dans : ' + (($avecBom | ForEach-Object Name) -join ', ')); exit 2 }
+
 $tmp = Join-Path $env:TEMP "garde-robe-tests-$Port"
 New-Item -ItemType Directory -Force $tmp | Out-Null
 $domFichier = Join-Path $tmp 'dom.html'

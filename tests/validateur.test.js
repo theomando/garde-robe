@@ -1,19 +1,5 @@
 // Tests de la page outils/validateur.html, chargée dans un cadre invisible.
-import { test, egal, vrai } from './mini-test.js';
-
-function attendre(condition, message) {
-  return new Promise((resoudre, rejeter) => {
-    let essais = 0;
-    const verifier = () => {
-      let valeur;
-      try { valeur = condition(); } catch { valeur = null; }
-      if (valeur) resoudre(valeur);
-      else if (++essais > 400) rejeter(new Error(`délai dépassé : ${message}`));
-      else setTimeout(verifier, 25);
-    };
-    verifier();
-  });
-}
+import { test, egal, vrai, attendre } from './mini-test.js';
 
 async function ouvrirValidateur(fichier) {
   const cadre = document.createElement('iframe');

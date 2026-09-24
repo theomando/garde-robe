@@ -43,6 +43,21 @@ export function leve(fn, message = 'une erreur était attendue') {
   throw new EchecAssertion(message);
 }
 
+// Attend qu'une condition renvoie une valeur vraie (interrogée toutes les 25 ms, 10 s au plus).
+export function attendre(condition, message = 'condition') {
+  return new Promise((resoudre, rejeter) => {
+    let essais = 0;
+    const verifier = () => {
+      let valeur;
+      try { valeur = condition(); } catch { valeur = null; }
+      if (valeur) resoudre(valeur);
+      else if (++essais > 400) rejeter(new EchecAssertion(`délai dépassé : ${message}`));
+      else setTimeout(verifier, 25);
+    };
+    verifier();
+  });
+}
+
 export async function lancer(fichiers, sortie) {
   const lignes = [];
   let reussis = 0;

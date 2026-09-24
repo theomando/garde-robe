@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Aperçu au format iPhone</title>
+<style>
+  body { margin: 0; padding: 1rem; background: #888888; }
+  iframe { border: 0; width: 390px; height: 844px; display: block; background: #ffffff; }
+</style>
+</head>
+<body>
+<!-- Affiche une page dans un cadre de 390 × 844 px (iPhone 13 Pro, en points CSS).
+     Usage : outils/apercu-iphone.html  (l'app)  ou  outils/apercu-iphone.html?src=demo.html%3Fauto  (la démo) -->
+<iframe id="cadre" title="Aperçu"></iframe>
+<script>
+  document.getElementById('cadre').src = new URLSearchParams(location.search).get('src') || '../index.html';
+</script>
+</body>
+</html>

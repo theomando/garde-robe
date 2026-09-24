@@ -1,0 +1,233 @@
+// Point d'entrée : chargement de l'état et du catalogue, navigation par onglets (sans # dans l'URL), actions.
+// ?espace=<nom> isole un jeu de clés de stockage (tests, démo) ; ?ecran=<nom> choisit l'onglet de départ.
+
+import { el, annoncer, ouvrirDialogue, confirmer, afficherErreurs, choisirFichier, estInstallee } from './ui.js';
+import { etatInitial, premierLancement, exporterEtat, lireExport, basculerFavori } from './donnees.js';
+import { creerStockage } from './stockage.js';
+import { construireWada, fusionnerCatalogues } from './catalogue.js';
+import { lirePapierTigre } from './papier-tigre.js';
+import { rendrePremierLancement } from './ecrans/premier-lancement.js';
+import { rendreGardeRobe } from './ecrans/garde-robe.js';
+import { rendreReglages } from './ecrans/reglages.js';
+
+function supportLocal() {
+  try {
+    return window.localStorage;
+  } catch {
+    const valeurs = new Map();
+    return { getItem: (c) => valeurs.get(c) ?? null, setItem: (c, v) => valeurs.set(c, String(v)), removeItem: (c) => valeurs.delete(c) };
+  }
+}
+
+const stockage = creerStockage(supportLocal(), new URLSearchParams(location.search).get('espace') ?? '');
+
+const app = {
+  etat: etatInitial(),
+  wada: null,
+  papierTigre: null,
+  catalogue: null,
+  ecran: 'garde-robe',
+  persistance: 'non demandé',
+};
+
+function rendreAVenir(titre, etape) {
+  return (conteneur) => conteneur.replaceChildren(
+    el('div', { class: 'entete-ecran' }, el('h1', {}, titre)),
+    el('p', { class: 'vide' }, `Cet écran arrive à l'étape ${etape} du plan.`));
+}
+
+const ECRANS = {
+  'garde-robe': rendreGardeRobe,
+  tenue: rendreAVenir('Tenue du jour', 6),
+  manques: rendreAVenir('Manques fréquents', 7),
+  reglages: rendreReglages,
+};
+
+function construireCatalogue() {
+  app.catalogue = fusionnerCatalogues(app.wada, app.papierTigre?.catalogue ?? null);
+}
+
+function rendre() {
+  const contenu = document.getElementById('contenu');
+  const onglets = document.getElementById('onglets');
+  if (premierLancement(app.etat)) {
+    onglets.hidden = true;
+    rendrePremierLancement(contenu, app, actions);
+    return;
+  }
+  onglets.hidden = false;
+  for (const bouton of onglets.querySelectorAll('[data-ecran]')) {
+    if (bouton.dataset.ecran === app.ecran) bouton.setAttribute('aria-current', 'page');
+    else bouton.removeAttribute('aria-current');
+  }
+  ECRANS[app.ecran](contenu, app, actions);
+}
+
+function nomFichierExport(date) {
+  return `garde-robe-${date.toISOString().slice(0, 10)}.json`;
+}
+
+const actions = {
+  // Écrit d'abord, puis met à jour la mémoire : une écriture refusée laisse tout inchangé.
+  mettreAJour(nouvelEtat, { sansRendu = false } = {}) {
+    try {
+      stockage.enregistrerEtat(nouvelEtat);
+    } catch (erreur) {
+      annoncer(`Enregistrement impossible (${erreur.name ?? 'erreur'}) : rien n'a été modifié.`, 'erreur');
+      return false;
+    }
+    app.etat = nouvelEtat;
+    if (!sansRendu) rendre();
+    return true;
+  },
+
+  rafraichir() {
+    rendre();
+  },
+
+  naviguer(ecran) {
+    app.ecran = ecran;
+    rendre();
+    window.scrollTo(0, 0);
+  },
+
+  favorisPourSelecteur() {
+    return {
+      estFavori: (id) => app.etat.reglages.favoris.includes(id),
+      basculerFavori: (id) => actions.mettreAJour(basculerFavori(app.etat, id), { sansRendu: true }),
+    };
+  },
+
+  demanderPersistance() {
+    if (!navigator.storage?.persist) { app.persistance = 'non disponible sur ce navigateur'; return; }
+    navigator.storage.persist()
+      .then((accorde) => { app.persistance = accorde ? 'accordé' : 'non accordé'; })
+      .catch(() => { app.persistance = 'non disponible'; });
+  },
+
+  async importerDonnees(accept = '.json,application/json') {
+    const texte = await choisirFichier(accept);
+    if (texte === null) return;
+    const { erreurs, etat } = lireExport(texte);
+    if (erreurs.length > 0) {
+      await afficherErreurs('Import refusé', 'Le fichier n\'a pas été importé : tes données n\'ont pas changé.', erreurs);
+      return;
+    }
+    if (!premierLancement(app.etat)) {
+      const n = etat.vetements.length;
+      const ok = await confirmer('Remplacer tes données ?',
+        `Le fichier contient ${n} vêtement${n > 1 ? 's' : ''}. Tes données actuelles (${app.etat.vetements.length} vêtement${app.etat.vetements.length > 1 ? 's' : ''}, réglages et favoris) seront remplacées.`,
+        'Remplacer');
+      if (!ok) return;
+    }
+    if (actions.mettreAJour(etat)) annoncer('Données importées');
+  },
+
+  exporterDonnees() {
+    const date = new Date();
+    const fichier = new File([exporterEtat(app.etat, date, 2)], nomFichierExport(date), { type: 'application/json' });
+    if (navigator.canShare?.({ files: [fichier] })) {
+      navigator.share({ files: [fichier], title: 'Garde-robe chromatique' }).catch((erreur) => {
+        if (erreur.name !== 'AbortError') actions.telecharger(fichier);
+      });
+      return;
+    }
+    actions.telecharger(fichier);
+  },
+
+  telecharger(fichier) {
+    const adresse = URL.createObjectURL(fichier);
+    const lien = el('a', { href: adresse, download: fichier.name, hidden: true });
+    document.body.append(lien);
+    lien.click();
+    lien.remove();
+    setTimeout(() => URL.revokeObjectURL(adresse), 60000);
+    annoncer(`Fichier ${fichier.name} créé. S'il n'apparaît pas, utilise « Afficher mes données en texte ».`);
+  },
+
+  afficherTexteDonnees() {
+    const zone = el('textarea', { class: 'texte-donnees', readonly: true, rows: 10, 'aria-label': 'Mes données au format JSON' });
+    zone.value = exporterEtat(app.etat, new Date(), 2);
+    const copier = el('button', {
+      type: 'button', class: 'bouton secondaire',
+      onclick: () => {
+        navigator.clipboard?.writeText(zone.value)
+          .then(() => annoncer('Données copiées'))
+          .catch(() => { zone.select(); annoncer('Sélectionne le texte puis copie-le.'); });
+      },
+    }, 'Copier');
+    return ouvrirDialogue({ titre: 'Mes données', contenu: [el('p', { class: 'discret' }, 'Colle ce texte dans un fichier .json pour le garder.'), zone, copier] });
+  },
+
+  async importerPapierTigre(accept) {
+    const texte = await choisirFichier(accept);
+    if (texte === null) return;
+    const resultat = lirePapierTigre(texte);
+    if (resultat.erreurs.length > 0) {
+      await afficherErreurs('Fichier Papier Tigre refusé', 'Le catalogue actuel n\'a pas changé. Corrige ces points (outils/validateur.html aide à vérifier le fichier) :', resultat.erreurs);
+      return;
+    }
+    try {
+      stockage.enregistrerPapierTigre(JSON.stringify(resultat.donnees));
+    } catch (erreur) {
+      annoncer(`Enregistrement impossible (${erreur.name ?? 'erreur'}) : le catalogue n'a pas changé.`, 'erreur');
+      return;
+    }
+    app.papierTigre = resultat;
+    construireCatalogue();
+    rendre();
+    const { combinaisons, couleurs } = resultat.catalogue;
+    annoncer(`Papier Tigre importé : ${combinaisons.length} harmonies, ${couleurs.length} couleurs.`);
+    if (resultat.avertissements.length > 0) {
+      await afficherErreurs('Import réussi, à vérifier', 'Le fichier est importé, mais ces points semblent suspects :', resultat.avertissements);
+    }
+  },
+
+  async retirerPapierTigre() {
+    if (!(await confirmer('Retirer le catalogue Papier Tigre ?', 'Ses harmonies ne seront plus proposées. Tes vêtements et favoris sont conservés.', 'Retirer'))) return;
+    try {
+      stockage.supprimerPapierTigre();
+    } catch {
+      annoncer('Suppression impossible.', 'erreur');
+      return;
+    }
+    app.papierTigre = null;
+    construireCatalogue();
+    rendre();
+    annoncer('Catalogue Papier Tigre retiré');
+  },
+};
+
+async function demarrer() {
+  const { etat, avertissement } = stockage.chargerEtat();
+  app.etat = etat;
+  try {
+    const reponse = await fetch('data/wada.json');
+    if (!reponse.ok) throw new Error(`HTTP ${reponse.status}`);
+    app.wada = construireWada(await reponse.json());
+  } catch (erreur) {
+    document.getElementById('contenu').replaceChildren(
+      el('p', { class: 'vide' }, `Impossible de charger le catalogue Wada (${erreur.message}). Vérifie la connexion puis relance l'app.`));
+    return;
+  }
+  const textePapierTigre = stockage.chargerPapierTigre();
+  if (textePapierTigre) {
+    const resultat = lirePapierTigre(textePapierTigre);
+    if (resultat.erreurs.length === 0) app.papierTigre = resultat;
+    else annoncer('Le catalogue Papier Tigre enregistré est illisible : réimporte-le depuis les Réglages.', 'erreur');
+  }
+  construireCatalogue();
+
+  const ecranDemande = new URLSearchParams(location.search).get('ecran');
+  if (Object.hasOwn(ECRANS, ecranDemande)) app.ecran = ecranDemande;
+  for (const bouton of document.querySelectorAll('#onglets [data-ecran]')) {
+    bouton.addEventListener('click', () => actions.naviguer(bouton.dataset.ecran));
+  }
+  rendre();
+  if (avertissement) annoncer(avertissement, 'erreur');
+  if (!premierLancement(app.etat) && estInstallee()) actions.demanderPersistance();
+  else navigator.storage?.persisted?.().then((oui) => { app.persistance = oui ? 'accordé' : 'non demandé'; });
+  document.body.dataset.etat = 'pret';
+}
+
+demarrer();

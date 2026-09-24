@@ -7,6 +7,13 @@ export const TYPES = [
   'pull', 'veste', 'manteau', 'chapeau', 'bijoux',
 ];
 export const BAS = ['pantalon', 'short'];
+export const LIBELLES_TYPES = {
+  chaussures: 'Chaussures', pantalon: 'Pantalon', short: 'Short', ceinture: 'Ceinture', 't-shirt': 'T-shirt',
+  chemise: 'Chemise', pull: 'Pull', veste: 'Veste', manteau: 'Manteau', chapeau: 'Chapeau', bijoux: 'Bijoux',
+};
+
+// Version affichée dans les réglages (numéro de l'étape du plan tant que l'app est en construction).
+export const VERSION_APP = '0.4';
 
 // Couches du haut, du corps vers l'extérieur (avatar). Chemise, veste et manteau sont portés ouverts.
 export const COUCHES = ['t-shirt', 'pull', 'chemise', 'veste', 'manteau'];
