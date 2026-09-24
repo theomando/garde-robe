@@ -112,7 +112,7 @@ Entrées : types de la tenue, garde-robe, catalogue, réglages.
 - Avant de coder : arborescence et plan d'étapes, chacune avec un critère de fin vérifiable. Attendre validation.
 - Ordre : socle et harnais de test, colorimétrie et tests, catalogue, moteur et tests, garde-robe, scan, tenue et avatar, statistiques, PWA et déploiement. Arrêts pour validation : après la colorimétrie, après le moteur, avant le déploiement.
 - Tests : Node est absent de la machine. Page tests/tests.html, lancée par tests/lancer-tests.ps1 (serveur outils/serveur.py sur 127.0.0.1, Edge sans fenêtre avec --virtual-time-budget et --dump-dom, ligne « RESULTAT ok/total », code de sortie non nul en cas d'échec). Mesures de temps dans outils/bench.html, car le mode sans fenêtre virtualise le temps.
-- Git : un commit local par étape terminée ; rien n'est envoyé en ligne avant l'étape déploiement.
+- Git : un commit par étape terminée, envoyé sur https://github.com/theomando/garde-robe (dépôt public depuis le 2026-09-24, adresse d'auteur privée 186628105+theomando@users.noreply.github.com). Le code est public, mais le site ne l'est pas : GitHub Pages n'est activé qu'à l'étape déploiement, après validation.
 - Demande contraire à une contrainte non négociable : le signaler et demander confirmation avant d'agir.
 - Information manquante (structure Papier Tigre, comportement iOS non vérifié) : le dire et proposer une hypothèse explicite. Toute valeur de couleur provient d'une source nommée (fichier de données ou mesure). Les couleurs de l'interface (texte, fonds, contours) sont des choix graphiques, regroupés dans des variables CSS nommées ; le joker utilise #000000 et #ffffff (bornes du codage sRGB).
 
