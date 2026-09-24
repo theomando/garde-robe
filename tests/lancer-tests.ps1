@@ -15,7 +15,14 @@ $edge = @(
 ) | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $edge) { Write-Output 'Edge introuvable'; exit 2 }
 
-$tmp = Join-Path $env:TEMP 'garde-robe-tests'
+# Garde : chaque tests/*.test.js doit etre reference dans tests.html, sinon il ne tournerait jamais.
+$page = Get-Content (Join-Path $PSScriptRoot 'tests.html') -Raw -Encoding UTF8
+$oublies = @(Get-ChildItem $PSScriptRoot -Filter '*.test.js' | Where-Object {
+    $_.Name -ne 'controle-echec.test.js' -and -not $page.Contains("'./$($_.Name)'")
+})
+if ($oublies.Count -gt 0) { Write-Output ('Fichiers de test absents de tests.html : ' + (($oublies | ForEach-Object Name) -join ', ')); exit 2 }
+
+$tmp = Join-Path $env:TEMP "garde-robe-tests-$Port"
 New-Item -ItemType Directory -Force $tmp | Out-Null
 $domFichier = Join-Path $tmp 'dom.html'
 if (Test-Path $domFichier) { Remove-Item $domFichier -Force }

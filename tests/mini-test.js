@@ -1,5 +1,6 @@
 // Mini-harnais de test : enregistre des tests, les exécute dans l'ordre
 // et écrit le bilan dans la page (dernière ligne : « RESULTAT ok/total »).
+// Un test peut renvoyer une chaîne : elle s'affiche comme note à côté de « ok ».
 
 const tests = [];
 
@@ -57,9 +58,9 @@ export async function lancer(fichiers, sortie) {
   for (const { nom, fn } of tests) {
     total++;
     try {
-      await fn();
+      const note = await fn();
       reussis++;
-      lignes.push(`ok     ${nom}`);
+      lignes.push(`ok     ${nom}${typeof note === 'string' ? ` (${note})` : ''}`);
     } catch (erreur) {
       lignes.push(`ECHEC  ${nom} : ${erreur.message}`);
     }
