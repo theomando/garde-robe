@@ -34,7 +34,7 @@ function estTripletRvb(x) {
 
 function suggestion(cle, connues) {
   const proche = connues.find((k) => k === `${cle}s` || `${k}s` === cle || k === cle.toLowerCase());
-  return proche ? ` (vouliez-vous dire « ${proche} » ?)` : '';
+  return proche ? ` (vouliez-vous dire « ${proche} » ?)` : '';
 }
 
 function localiser(h, i) {
@@ -63,16 +63,16 @@ export function validerPapierTigre(donnees) {
     return { erreurs, avertissements };
   }
   for (const cle of Object.keys(donnees)) {
-    if (!CLES_RACINE.includes(cle)) erreurs.push(`champ inconnu à la racine : « ${cle} »${suggestion(cle, CLES_RACINE)}`);
+    if (!CLES_RACINE.includes(cle)) erreurs.push(`champ inconnu à la racine : « ${cle} »${suggestion(cle, CLES_RACINE)}`);
   }
-  if (donnees.format !== FORMAT_PAPIER_TIGRE) erreurs.push('« format » doit valoir "papier-tigre"');
+  if (donnees.format !== FORMAT_PAPIER_TIGRE) erreurs.push('« format » doit valoir "papier-tigre"');
   if (Number.isInteger(donnees.version) && donnees.version > VERSION_PAPIER_TIGRE) {
     erreurs.push(`version ${donnees.version} non prise en charge (cette app lit la version ${VERSION_PAPIER_TIGRE})`);
   } else if (donnees.version !== VERSION_PAPIER_TIGRE) {
-    erreurs.push(`« version » doit valoir ${VERSION_PAPIER_TIGRE}`);
+    erreurs.push(`« version » doit valoir ${VERSION_PAPIER_TIGRE}`);
   }
   if (!Array.isArray(donnees.harmonies)) {
-    erreurs.push('« harmonies » doit être une liste');
+    erreurs.push('« harmonies » doit être une liste');
     return { erreurs, avertissements };
   }
   if (donnees.harmonies.length === 0) avertissements.push('aucune harmonie dans le fichier');
@@ -85,17 +85,17 @@ export function validerPapierTigre(donnees) {
       return;
     }
     for (const cle of Object.keys(h)) {
-      if (!CLES_HARMONIE.includes(cle)) erreurs.push(`${ou} : champ inconnu « ${cle} »${suggestion(cle, CLES_HARMONIE)}`);
+      if (!CLES_HARMONIE.includes(cle)) erreurs.push(`${ou} : champ inconnu « ${cle} »${suggestion(cle, CLES_HARMONIE)}`);
     }
-    if (!estEntierEntre(h.volume, 1, 3)) erreurs.push(`${ou} : « volume » doit être un entier de 1 à 3`);
-    if (!(Number.isInteger(h.page) && h.page >= 1)) erreurs.push(`${ou} : « page » doit être un entier supérieur ou égal à 1`);
-    if (!estTexteNonVide(h.nom)) erreurs.push(`${ou} : « nom » manquant ou vide`);
-    if (h.pays !== undefined && !estTexteNonVide(h.pays)) erreurs.push(`${ou} : « pays » doit être un texte non vide (ou absent)`);
+    if (!estEntierEntre(h.volume, 1, 3)) erreurs.push(`${ou} : « volume » doit être un entier de 1 à 3`);
+    if (!(Number.isInteger(h.page) && h.page >= 1)) erreurs.push(`${ou} : « page » doit être un entier supérieur ou égal à 1`);
+    if (!estTexteNonVide(h.nom)) erreurs.push(`${ou} : « nom » manquant ou vide`);
+    if (h.pays !== undefined && !estTexteNonVide(h.pays)) erreurs.push(`${ou} : « pays » doit être un texte non vide (ou absent)`);
 
     const dominantesOk = Array.isArray(h.dominantes) && h.dominantes.length >= 1 && h.dominantes.length <= 3;
     const soutiensOk = h.soutiens === undefined || (Array.isArray(h.soutiens) && h.soutiens.length <= 3);
-    if (!dominantesOk) erreurs.push(`${ou} : « dominantes » doit être une liste de 1 à 3 couleurs`);
-    if (!soutiensOk) erreurs.push(`${ou} : « soutiens » doit être une liste de 0 à 3 couleurs`);
+    if (!dominantesOk) erreurs.push(`${ou} : « dominantes » doit être une liste de 1 à 3 couleurs`);
+    if (!soutiensOk) erreurs.push(`${ou} : « soutiens » doit être une liste de 0 à 3 couleurs`);
     const couleurs = listeCouleurs(h);
     // Au plus 6 découle des bornes 3 + 3 : seul le minimum reste à contrôler.
     if (dominantesOk && soutiensOk && couleurs.length < 2) {
@@ -116,16 +116,16 @@ export function validerPapierTigre(donnees) {
 
     if (h.cmjn !== undefined) {
       if (!estObjet(h.cmjn)) {
-        erreurs.push(`${ou} : « cmjn » doit être un objet { "dominantes": […], "soutiens": […] }`);
+        erreurs.push(`${ou} : « cmjn » doit être un objet { "dominantes": […], "soutiens": […] }`);
       } else {
         for (const cle of Object.keys(h.cmjn)) {
-          if (!CLES_CMJN.includes(cle)) erreurs.push(`${ou} : champ inconnu dans « cmjn » : « ${cle} »${suggestion(cle, CLES_CMJN)}`);
+          if (!CLES_CMJN.includes(cle)) erreurs.push(`${ou} : champ inconnu dans « cmjn » : « ${cle} »${suggestion(cle, CLES_CMJN)}`);
         }
         for (const partie of CLES_CMJN) {
           const rvb = partie === 'dominantes' ? h.dominantes : (h.soutiens ?? []);
           const cmjn = h.cmjn[partie] ?? [];
           if (!Array.isArray(cmjn) || !Array.isArray(rvb) || cmjn.length !== rvb.length) {
-            erreurs.push(`${ou} : « cmjn.${partie} » doit avoir autant d'éléments que « ${partie} »`);
+            erreurs.push(`${ou} : « cmjn.${partie} » doit avoir autant d'éléments que « ${partie} »`);
             continue;
           }
           cmjn.forEach((q, k) => {

@@ -1,8 +1,8 @@
-// Sélecteur de catalogue : composant commun au choix manuel, à « Ajuster » et aux favoris.
+// Sélecteur de catalogue : composant commun au choix manuel, à « Ajuster » et aux favoris.
 // mode 'choisir' : toucher une couleur la renvoie ; mode 'favoris' : toucher une couleur bascule son étoile.
 // reference (Lab) : couleurs triées du ΔE00 le plus petit au plus grand, écart affiché.
 
-import { el, pastille, terminaison } from '../ui.js';
+import { el, pastille, terminaison, armerDialogue } from '../ui.js';
 import { plusProches } from '../catalogue.js';
 
 const PAR_PAGE = 240;
@@ -103,6 +103,7 @@ export function ouvrirSelecteur({ catalogue, titre, mode = 'choisir', reference 
       plus);
     terminer = terminaison(dialogue, resoudre);
     document.body.append(dialogue);
+    armerDialogue(dialogue);
     afficher();
     dialogue.showModal();
   });

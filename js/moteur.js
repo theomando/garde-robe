@@ -1,5 +1,5 @@
 // Moteur de propositions : pour une tenue (liste de types), évalue chaque combinaison du catalogue.
-// Module pur, sans DOM. Règles : CLAUDE.md, section « Moteur de propositions ».
+// Module pur, sans DOM. Règles : CLAUDE.md, section « Moteur de propositions ».
 //
 // Pour une combinaison, chaque pièce visible reçoit une couleur de la combinaison ou le joker ;
 // la peau (teint actif) peut porter une couleur à ΔE00 ≤ tolérance. Chaque couleur obligatoire
@@ -106,7 +106,7 @@ function evaluer(combinaison, rang, pieces, peau, tolerance, index, favoris) {
   const peauPeutCouvrir = peau !== null && indices.some((c, j) => obligatoire[j] && peau[c] <= tolerance);
   if (nbObligatoires > pieces.length + (peauPeutCouvrir ? 1 : 0)) return null;
 
-  // Options de chaque porteur, dans l'ordre : couleurs de la combinaison, puis joker (ou « aucune » pour la peau).
+  // Options de chaque porteur, dans l'ordre : couleurs de la combinaison, puis joker (ou « aucune » pour la peau).
   const coutJoker = micro(tolerance * COUT_JOKER_EN_TOLERANCES);
   const porteurs = pieces.map((piece) => {
     const options = [];
@@ -219,7 +219,7 @@ export function proposer({ types, vetements, catalogue, reglages, cache }) {
   return { visibles, retenues, gardeRobeVide: vetements.length === 0, cache: cacheValide };
 }
 
-// Propositions affichées : filtre « avec mes favoris » (au moins une couleur favorite), puis coupe.
+// Propositions affichées : filtre « avec mes favoris » (au moins une couleur favorite), puis coupe.
 export function selectionner(retenues, { avecFavoris = false, max = PROPOSITIONS_MAX } = {}) {
   return (avecFavoris ? retenues.filter((p) => p.nbFavoris > 0) : retenues).slice(0, max);
 }

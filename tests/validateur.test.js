@@ -26,7 +26,7 @@ test('validateur : fichier invalide, liste des erreurs et aucune carte', async (
   egal(doc.getElementById('bilan').textContent, '2 erreurs : le fichier serait refusé par l\'app.');
   const erreurs = [...doc.querySelectorAll('.erreur')].map((li) => li.textContent);
   egal(erreurs.length, 2);
-  vrai(erreurs[0].includes('« volume » doit être un entier de 1 à 3'), erreurs[0]);
+  vrai(erreurs[0].includes('« volume » doit être un entier de 1 à 3'), erreurs[0]);
   vrai(erreurs[1].includes('dominante 1 : [300,0,0]'), erreurs[1]);
   egal(doc.querySelectorAll('.harmonie').length, 0);
 });

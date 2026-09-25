@@ -1,4 +1,4 @@
-// Constantes de l'app. Les valeurs marquées « à calibrer » n'ont pas de source :
+// Constantes de l'app. Les valeurs marquées « à calibrer » n'ont pas de source :
 // ce sont des points de départ, à ajuster à l'usage.
 
 // Types de vêtements. L'ordre sert au départage dans le moteur et à l'affichage.
@@ -28,8 +28,8 @@ export const PROPOSITIONS_MAX = 20;
 export const COUT_JOKER_EN_TOLERANCES = 1;
 
 // Monk Skin Tone Scale, MST 1 à 10 (indice 0 à 9).
-// Monk, Ellis. « Monk Skin Tone Scale », 2019. https://skintone.google (licence CC BY 4.0).
-// Vérifié le 2026-09-23 sur skintone.google/get-started et dans les fichiers officiels « MST Swatches.zip ».
+// Monk, Ellis. « Monk Skin Tone Scale », 2019. https://skintone.google (licence CC BY 4.0).
+// Vérifié le 2026-09-23 sur skintone.google/get-started et dans les fichiers officiels « MST Swatches.zip ».
 export const MST = [
   '#f6ede4', '#f3e7db', '#f7ead0', '#eadaba', '#d7bd96',
   '#a07e56', '#825c43', '#604134', '#3a312a', '#292420',

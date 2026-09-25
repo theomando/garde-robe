@@ -29,7 +29,7 @@ function lineaire(c8) {
 }
 
 // Matrice sRGB linéaire → XYZ (D65) de la norme IEC 61966-2-1, à 4 décimales
-// (reprise dans l'article Wikipédia « sRGB », consulté le 2026-09-24).
+// (reprise dans l'article Wikipédia « sRGB », consulté le 2026-09-24).
 const M = [
   [0.4124, 0.3576, 0.1805],
   [0.2126, 0.7152, 0.0722],

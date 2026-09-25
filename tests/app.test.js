@@ -18,11 +18,13 @@ function cliquer(selecteur, racine = doc) {
   return element;
 }
 
-const dialogueOuvert = (selecteur = 'dialog[open]') => attendre(() => doc.querySelector(selecteur), `dialogue ${selecteur}`);
+// Un dialogue ignore les clics pendant 400 ms (anti double tape) : on attend qu'il soit « prêt ».
+const dialogueOuvert = (selecteur = 'dialog[open]') => attendre(
+  () => [...doc.querySelectorAll(selecteur)].find((d) => 'pret' in d.dataset), `dialogue ${selecteur} prêt`);
 // L'événement close d'un <dialog> est différé : on attend le résultat attendu, pas seulement la fermeture.
 const dialoguesFermes = () => attendre(() => doc.querySelector('dialog') === null, 'retrait des dialogues')
   .catch((erreur) => {
-    const restants = [...doc.querySelectorAll('dialog')].map((d) => `« ${d.querySelector('h2')?.textContent} » (open=${d.open})`);
+    const restants = [...doc.querySelectorAll('dialog')].map((d) => `« ${d.querySelector('h2')?.textContent} » (open=${d.open})`);
     throw new Error(`${erreur.message} ; restants : ${restants.join(', ')}`);
   });
 const quand = (condition, message) => attendre(condition, message);
@@ -64,7 +66,18 @@ test('app : premier lancement, teint obligatoire, puis garde-robe vide', async (
   vrai(doc.querySelector('.vide').textContent.includes('garde-robe est vide'));
 });
 
-test('app : ajout d\'un pull choisi dans le catalogue (recherche « burnt sienna »)', async () => {
+test('app : double tape, le second toucher ne choisit rien dans le dialogue qui vient de s\'ouvrir', async () => {
+  cliquer('[data-action="ajouter-vetement"]');
+  const dialogue = doc.querySelector('dialog[open]');
+  cliquer('[data-choix="bijoux"]', dialogue);
+  vrai(dialogue.open && dialogue.isConnected, 'le clic immédiat est ignoré');
+  egal(doc.querySelector('dialog.selecteur'), null, 'aucun sélecteur ouvert');
+  cliquer('.dialogue-boutons button', await dialogueOuvert());
+  await dialoguesFermes();
+  egal(stocke().vetements.length, 0);
+});
+
+test('app : ajout d\'un pull choisi dans le catalogue (recherche « burnt sienna »)', async () => {
   cliquer('[data-action="ajouter-vetement"]');
   cliquer('[data-choix="pull"]', await dialogueOuvert());
   const selecteur = await dialogueOuvert('dialog.selecteur[open]');
@@ -148,7 +161,7 @@ test('app : suppression depuis la fenêtre de modification, après confirmation'
   cliquer('[data-type="chaussures"] [data-action="modifier"]');
   cliquer('[data-action="supprimer"]', await dialogueOuvert());
   const dialogue = await attendre(() => [...doc.querySelectorAll('dialog[open]')]
-    .find((d) => d.querySelector('h2').textContent === 'Supprimer ce vêtement ?'), 'confirmation');
+    .find((d) => d.querySelector('h2').textContent === 'Supprimer ce vêtement ?' && 'pret' in d.dataset), 'confirmation');
   cliquer('[data-valeur="oui"]', dialogue);
   await dialoguesFermes();
   await quand(() => doc.querySelector('[data-type="chaussures"]') === null, 'chaussures retirées');

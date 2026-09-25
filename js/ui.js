@@ -53,8 +53,22 @@ export function ouvrirDialogue({ titre, contenu = [], boutons = [{ libelle: 'Fer
       if (cible && dialogue.contains(cible)) terminer(cible.dataset.choix);
     });
     document.body.append(dialogue);
+    armerDialogue(dialogue);
     dialogue.showModal();
   });
+}
+
+// Anti double tape : un dialogue s'ouvre sous le doigt, le second toucher d'un double tape ne doit rien
+// y choisir. Les clics sont ignorés pendant DELAI_ARMEMENT ms, puis data-pret est posé (utile aux tests).
+const DELAI_ARMEMENT = 400;
+export function armerDialogue(dialogue) {
+  dialogue.addEventListener('click', (evenement) => {
+    if (!('pret' in dialogue.dataset)) {
+      evenement.stopPropagation();
+      evenement.preventDefault();
+    }
+  }, true);
+  setTimeout(() => { dialogue.dataset.pret = ''; }, DELAI_ARMEMENT);
 }
 
 // Termine un dialogue une seule fois : fermeture, retrait du document, résolution de la promesse.
@@ -92,13 +106,24 @@ export function afficherErreurs(titre, introduction, erreurs) {
   });
 }
 
+// La zone d'annonces est un popover : il passe dans la couche supérieure, au-dessus des dialogues modaux
+// (sinon un message émis pendant un dialogue resterait caché dessous). Masquer puis réafficher le remonte.
 let minuterie = null;
+function montrer(zone, visible) {
+  if (typeof zone.showPopover !== 'function') return;
+  try {
+    if (zone.matches(':popover-open')) zone.hidePopover();
+    if (visible) zone.showPopover();
+  } catch { /* popover non pris en charge : la zone reste en position fixe */ }
+}
+
 export function annoncer(message, genre = 'info') {
   const zone = document.getElementById('annonces');
   if (!zone) return;
   zone.replaceChildren(el('p', { class: `annonce ${genre}` }, message));
+  montrer(zone, true);
   clearTimeout(minuterie);
-  minuterie = setTimeout(() => zone.replaceChildren(), genre === 'erreur' ? 8000 : 4000);
+  minuterie = setTimeout(() => { zone.replaceChildren(); montrer(zone, false); }, genre === 'erreur' ? 8000 : 4000);
 }
 
 // Sélection d'un fichier par l'utilisateur. accept vide = aucun filtre (repli iOS si le fichier apparaît grisé).
@@ -108,7 +133,13 @@ export function choisirFichier(accept) {
     champ.addEventListener('change', async () => {
       const fichier = champ.files?.[0];
       champ.remove();
-      resoudre(fichier ? await fichier.text() : null);
+      try {
+        resoudre(fichier ? await fichier.text() : null);
+      } catch (erreur) {
+        // Par exemple un fichier iCloud Drive non téléchargé (NotReadableError).
+        annoncer(`Lecture du fichier impossible (${erreur.name ?? 'erreur'}).`, 'erreur');
+        resoudre(null);
+      }
     });
     champ.addEventListener('cancel', () => { champ.remove(); resoudre(null); });
     document.body.append(champ);

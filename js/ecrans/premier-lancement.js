@@ -1,4 +1,4 @@
-// Premier lancement : choix du teint (MST 1 à 10, obligatoire) et interrupteur « teint dans les combinaisons ».
+// Premier lancement : choix du teint (MST 1 à 10, obligatoire) et interrupteur « teint dans les combinaisons ».
 
 import { el, estInstallee } from '../ui.js';
 import { MST } from '../constantes.js';
@@ -32,11 +32,14 @@ export function rendrePremierLancement(conteneur, app, actions) {
       el('span', {}, 'Teint dans les combinaisons',
         el('small', { class: 'discret' }, 'La peau peut alors porter l\'une des couleurs, si elle est proche de ton teint.')),
       interrupteur),
+    // Chemin d'installation de Safari sous iOS 26 (menu « ⋯ », puis Partager) : à vérifier sur l'iPhone à l'étape 8.
     estInstallee() ? null : el('p', { class: 'encart' },
-      'Conseil : installe d\'abord l\'app sur l\'écran d\'accueil (Partager, puis « Sur l\'écran d\'accueil »). ',
-      'Les données saisies dans Safari restent séparées de celles de l\'app installée.'),
+      'Conseil : installe d\'abord l\'app sur l\'écran d\'accueil. Dans Safari, touche « ⋯ », puis Partager, ',
+      'puis « Sur l\'écran d\'accueil ». Les données saisies dans Safari restent séparées de celles de l\'app installée.'),
     commencer,
     el('button', { type: 'button', class: 'bouton lien', 'data-action': 'restaurer', onclick: () => actions.importerDonnees() },
       'Restaurer une sauvegarde'),
-    el('p', { class: 'credit discret' }, 'Teintes : Monk, Ellis. « Monk Skin Tone Scale », 2019, skintone.google, licence CC BY 4.0.')));
+    el('button', { type: 'button', class: 'bouton lien', onclick: () => actions.importerDonnees('') },
+      'Le fichier apparaît grisé ? Restaurer sans filtre'),
+    el('p', { class: 'credit discret' }, 'Teintes : Monk, Ellis. « Monk Skin Tone Scale », 2019, skintone.google, licence CC BY 4.0.')));
 }

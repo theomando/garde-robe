@@ -2,7 +2,7 @@
 // État : { vetements: [vêtement…], reglages: { mst, teintActif, tolerance, favoris }, tenuesTypes: [[type…]…] }.
 // Le même document JSON sert à l'export et au stockage local : { format, version, dateExport, …état }.
 
-import { TYPES, BAS, TOLERANCE_DEFAUT, TOLERANCE_MIN, TOLERANCE_MAX } from './constantes.js';
+import { TYPES, BAS, TOLERANCE_DEFAUT, TOLERANCE_MIN, TOLERANCE_MAX, TOLERANCE_PAS } from './constantes.js';
 import { estHexValide } from './couleur.js';
 
 export const FORMAT_DONNEES = 'garde-robe-chromatique';
@@ -20,6 +20,11 @@ function estObjet(x) {
 
 function estTexteNonVide(x) {
   return typeof x === 'string' && x.trim() !== '';
+}
+
+// Tolérance valide : de TOLERANCE_MIN à TOLERANCE_MAX, par pas de TOLERANCE_PAS (1, 1,5, 2… 30).
+export function estToleranceValide(t) {
+  return Number.isFinite(t) && t >= TOLERANCE_MIN && t <= TOLERANCE_MAX && Number.isInteger((t - TOLERANCE_MIN) / TOLERANCE_PAS);
 }
 
 export function estDateIso(x) {
@@ -41,7 +46,7 @@ export function premierLancement(etat) {
 // Tenue canonique : types uniques dans l'ordre de TYPES. Lève une erreur si la tenue est invalide.
 export function normaliserTenue(types) {
   if (!Array.isArray(types) || types.length === 0) throw new Error('tenue vide');
-  for (const type of types) if (!TYPES.includes(type)) throw new Error(`type « ${type} » inconnu`);
+  for (const type of types) if (!TYPES.includes(type)) throw new Error(`type « ${type} » inconnu`);
   if (new Set(types).size !== types.length) throw new Error('type en double dans la tenue');
   if (BAS.every((bas) => types.includes(bas))) throw new Error('pantalon et short ensemble');
   return TYPES.filter((type) => types.includes(type));
@@ -49,7 +54,7 @@ export function normaliserTenue(types) {
 
 function champsInconnus(objet, connues, ou, erreurs) {
   for (const cle of Object.keys(objet)) {
-    if (!connues.includes(cle)) erreurs.push(`${ou} : champ inconnu « ${cle} »`);
+    if (!connues.includes(cle)) erreurs.push(`${ou} : champ inconnu « ${cle} »`);
   }
 }
 
@@ -58,7 +63,7 @@ function champsInconnus(objet, connues, ou, erreurs) {
 export function validerEtat({ vetements, reglages, tenuesTypes }) {
   const erreurs = [];
 
-  if (!Array.isArray(vetements)) erreurs.push('« vetements » doit être une liste');
+  if (!Array.isArray(vetements)) erreurs.push('« vetements » doit être une liste');
   else {
     const ids = new Set();
     vetements.forEach((v, i) => {
@@ -66,37 +71,37 @@ export function validerEtat({ vetements, reglages, tenuesTypes }) {
       if (!estObjet(v)) { erreurs.push(`${ou} : un objet est attendu`); return; }
       champsInconnus(v, CLES_VETEMENT, ou, erreurs);
       if (!estTexteNonVide(v.id)) erreurs.push(`${ou} : identifiant manquant`);
-      else if (ids.has(v.id)) erreurs.push(`${ou} : identifiant « ${v.id} » en double`);
+      else if (ids.has(v.id)) erreurs.push(`${ou} : identifiant « ${v.id} » en double`);
       else ids.add(v.id);
-      if (!TYPES.includes(v.type)) erreurs.push(`${ou} : type « ${v.type} » inconnu`);
-      if (!estHexValide(v.hex)) erreurs.push(`${ou} : couleur « ${v.hex} » invalide (#rrggbb attendu)`);
-      if (!ORIGINES.includes(v.origine)) erreurs.push(`${ou} : origine « ${v.origine} » inconnue (scan ou manuel)`);
+      if (!TYPES.includes(v.type)) erreurs.push(`${ou} : type « ${v.type} » inconnu`);
+      if (!estHexValide(v.hex)) erreurs.push(`${ou} : couleur « ${v.hex} » invalide (#rrggbb attendu)`);
+      if (!ORIGINES.includes(v.origine)) erreurs.push(`${ou} : origine « ${v.origine} » inconnue (scan ou manuel)`);
       if (v.idCouleurCatalogue !== undefined && !estTexteNonVide(v.idCouleurCatalogue)) {
         erreurs.push(`${ou} : idCouleurCatalogue doit être un texte non vide ou absent`);
       }
-      if (!estDateIso(v.dateAjout)) erreurs.push(`${ou} : date d'ajout « ${v.dateAjout} » invalide`);
+      if (!estDateIso(v.dateAjout)) erreurs.push(`${ou} : date d'ajout « ${v.dateAjout} » invalide`);
     });
   }
 
-  if (!estObjet(reglages)) erreurs.push('« reglages » doit être un objet');
+  if (!estObjet(reglages)) erreurs.push('« reglages » doit être un objet');
   else {
     champsInconnus(reglages, CLES_REGLAGES, 'réglages', erreurs);
     if (!(Number.isInteger(reglages.mst) && reglages.mst >= 1 && reglages.mst <= 10)) {
-      erreurs.push('réglages : « mst » doit être un entier de 1 à 10');
+      erreurs.push('réglages : « mst » doit être un entier de 1 à 10');
     }
-    if (typeof reglages.teintActif !== 'boolean') erreurs.push('réglages : « teintActif » doit valoir true ou false');
-    if (!(Number.isFinite(reglages.tolerance) && reglages.tolerance >= TOLERANCE_MIN && reglages.tolerance <= TOLERANCE_MAX)) {
-      erreurs.push(`réglages : « tolerance » doit être un nombre de ${TOLERANCE_MIN} à ${TOLERANCE_MAX}`);
+    if (typeof reglages.teintActif !== 'boolean') erreurs.push('réglages : « teintActif » doit valoir true ou false');
+    if (!estToleranceValide(reglages.tolerance)) {
+      erreurs.push(`réglages : « tolerance » doit être un nombre de ${TOLERANCE_MIN} à ${TOLERANCE_MAX}, par pas de ${String(TOLERANCE_PAS).replace('.', ',')}`);
     }
     if (!Array.isArray(reglages.favoris) || !reglages.favoris.every(estTexteNonVide)) {
-      erreurs.push('réglages : « favoris » doit être une liste d\'identifiants de couleurs');
+      erreurs.push('réglages : « favoris » doit être une liste d\'identifiants de couleurs');
     } else if (new Set(reglages.favoris).size !== reglages.favoris.length) {
       erreurs.push('réglages : favori en double');
     }
   }
 
   const tenues = [];
-  if (!Array.isArray(tenuesTypes)) erreurs.push('« tenuesTypes » doit être une liste');
+  if (!Array.isArray(tenuesTypes)) erreurs.push('« tenuesTypes » doit être une liste');
   else {
     const vues = new Set();
     tenuesTypes.forEach((tenue, i) => {
@@ -149,10 +154,10 @@ export function lireExport(texte) {
   if (Number.isInteger(doc.version) && doc.version > VERSION_DONNEES) {
     erreurs.push(`version ${doc.version} plus récente que cette app (version ${VERSION_DONNEES}) : mets l'app à jour`);
   } else if (doc.version !== VERSION_DONNEES) {
-    erreurs.push(`« version » doit valoir ${VERSION_DONNEES}`);
+    erreurs.push(`« version » doit valoir ${VERSION_DONNEES}`);
   }
   champsInconnus(doc, CLES_DOCUMENT, 'document', erreurs);
-  if (!estDateIso(doc.dateExport)) erreurs.push('« dateExport » invalide');
+  if (!estDateIso(doc.dateExport)) erreurs.push('« dateExport » invalide');
   const resultat = validerEtat(doc);
   erreurs.push(...resultat.erreurs);
   return { erreurs, etat: erreurs.length > 0 ? null : resultat.etat };
@@ -161,9 +166,9 @@ export function lireExport(texte) {
 // ---- Opérations : chacune renvoie un nouvel état (l'état reçu n'est jamais modifié). ----
 
 function verifierVetement({ type, hex, origine, idCouleurCatalogue }) {
-  if (!TYPES.includes(type)) throw new Error(`type « ${type} » inconnu`);
-  if (!estHexValide(hex)) throw new Error(`couleur « ${hex} » invalide`);
-  if (!ORIGINES.includes(origine)) throw new Error(`origine « ${origine} » inconnue`);
+  if (!TYPES.includes(type)) throw new Error(`type « ${type} » inconnu`);
+  if (!estHexValide(hex)) throw new Error(`couleur « ${hex} » invalide`);
+  if (!ORIGINES.includes(origine)) throw new Error(`origine « ${origine} » inconnue`);
   if (idCouleurCatalogue !== undefined && !estTexteNonVide(idCouleurCatalogue)) throw new Error('idCouleurCatalogue invalide');
 }
 
@@ -210,9 +215,7 @@ export function modifierReglages(etat, modifications) {
   const reglages = { ...etat.reglages, ...modifications };
   if (!(Number.isInteger(reglages.mst) && reglages.mst >= 1 && reglages.mst <= 10)) throw new Error('teint MST invalide');
   if (typeof reglages.teintActif !== 'boolean') throw new Error('interrupteur du teint invalide');
-  if (!(Number.isFinite(reglages.tolerance) && reglages.tolerance >= TOLERANCE_MIN && reglages.tolerance <= TOLERANCE_MAX)) {
-    throw new Error('tolérance hors bornes');
-  }
+  if (!estToleranceValide(reglages.tolerance)) throw new Error('tolérance hors bornes ou hors du pas');
   return { ...etat, reglages };
 }
 

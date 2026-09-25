@@ -2,7 +2,7 @@ import { test, vrai, egal, egalProfond } from './mini-test.js';
 import { creerStockage } from '../js/stockage.js';
 import { etatInitial, modifierReglages, ajouterVetement, lireExport } from '../js/donnees.js';
 
-// Support factice de type localStorage ; « plein » simule un quota dépassé.
+// Support factice de type localStorage ; « plein » simule un quota dépassé.
 function supportFactice() {
   const valeurs = new Map();
   return {

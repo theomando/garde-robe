@@ -10,12 +10,18 @@ import { rendrePremierLancement } from './ecrans/premier-lancement.js';
 import { rendreGardeRobe } from './ecrans/garde-robe.js';
 import { rendreReglages } from './ecrans/reglages.js';
 
+// localStorage peut être inaccessible (Safari avec « Bloquer tous les cookies », données de site bloquées).
+// On ne bascule pas en mémoire en silence : chaque accès échoue, l'app le signale et n'enregistre rien.
+let stockageAccessible = true;
 function supportLocal() {
   try {
-    return window.localStorage;
+    const support = window.localStorage;
+    support.getItem('garde-robe:sonde');
+    return support;
   } catch {
-    const valeurs = new Map();
-    return { getItem: (c) => valeurs.get(c) ?? null, setItem: (c, v) => valeurs.set(c, String(v)), removeItem: (c) => valeurs.delete(c) };
+    stockageAccessible = false;
+    const refus = () => { throw new Error('stockage local inaccessible'); };
+    return { getItem: refus, setItem: refus, removeItem: refus };
   }
 }
 
@@ -47,20 +53,44 @@ function construireCatalogue() {
   app.catalogue = fusionnerCatalogues(app.wada, app.papierTigre?.catalogue ?? null);
 }
 
+// Sélecteur qui retrouve, après un nouveau rendu, l'élément qui avait le focus (curseur, interrupteur, teinte…) :
+// sans cela le focus retombe sur <body>, ce qui perd VoiceOver à chaque réglage.
+function selecteurDuFocus(element) {
+  const contenu = document.getElementById('contenu');
+  if (!element || !contenu.contains(element) || element === contenu) return null;
+  if (element.id) return `#${CSS.escape(element.id)}`;
+  for (const attribut of ['data-mst', 'data-vetement', 'data-action']) {
+    if (element.hasAttribute(attribut)) return `[${attribut}="${CSS.escape(element.getAttribute(attribut))}"]`;
+  }
+  return null;
+}
+
 function rendre() {
   const contenu = document.getElementById('contenu');
   const onglets = document.getElementById('onglets');
+  const focus = selecteurDuFocus(document.activeElement);
+  document.getElementById('bandeau').hidden = stockageAccessible;
   if (premierLancement(app.etat)) {
     onglets.hidden = true;
     rendrePremierLancement(contenu, app, actions);
-    return;
+  } else {
+    onglets.hidden = false;
+    for (const bouton of onglets.querySelectorAll('[data-ecran]')) {
+      if (bouton.dataset.ecran === app.ecran) bouton.setAttribute('aria-current', 'page');
+      else bouton.removeAttribute('aria-current');
+    }
+    ECRANS[app.ecran](contenu, app, actions);
   }
-  onglets.hidden = false;
-  for (const bouton of onglets.querySelectorAll('[data-ecran]')) {
-    if (bouton.dataset.ecran === app.ecran) bouton.setAttribute('aria-current', 'page');
-    else bouton.removeAttribute('aria-current');
-  }
-  ECRANS[app.ecran](contenu, app, actions);
+  if (focus) contenu.querySelector(focus)?.focus({ preventScroll: true });
+}
+
+function chargerPapierTigre() {
+  const texte = stockage.chargerPapierTigre();
+  app.papierTigre = null;
+  if (!texte) return;
+  const resultat = lirePapierTigre(texte);
+  if (resultat.erreurs.length === 0) app.papierTigre = resultat;
+  else annoncer('Le catalogue Papier Tigre enregistré est illisible : réimporte-le depuis les Réglages.', 'erreur');
 }
 
 function nomFichierExport(date) {
@@ -74,6 +104,8 @@ const actions = {
       stockage.enregistrerEtat(nouvelEtat);
     } catch (erreur) {
       annoncer(`Enregistrement impossible (${erreur.name ?? 'erreur'}) : rien n'a été modifié.`, 'erreur');
+      // Redessiner remet curseurs et interrupteurs sur les valeurs réellement enregistrées.
+      if (!sansRendu) rendre();
       return false;
     }
     app.etat = nouvelEtat;
@@ -142,7 +174,7 @@ const actions = {
     lien.click();
     lien.remove();
     setTimeout(() => URL.revokeObjectURL(adresse), 60000);
-    annoncer(`Fichier ${fichier.name} créé. S'il n'apparaît pas, utilise « Afficher mes données en texte ».`);
+    annoncer(`Fichier ${fichier.name} créé. S'il n'apparaît pas, utilise « Afficher mes données en texte ».`);
   },
 
   afficherTexteDonnees() {
@@ -210,13 +242,18 @@ async function demarrer() {
       el('p', { class: 'vide' }, `Impossible de charger le catalogue Wada (${erreur.message}). Vérifie la connexion puis relance l'app.`));
     return;
   }
-  const textePapierTigre = stockage.chargerPapierTigre();
-  if (textePapierTigre) {
-    const resultat = lirePapierTigre(textePapierTigre);
-    if (resultat.erreurs.length === 0) app.papierTigre = resultat;
-    else annoncer('Le catalogue Papier Tigre enregistré est illisible : réimporte-le depuis les Réglages.', 'erreur');
-  }
+  chargerPapierTigre();
   construireCatalogue();
+
+  // Un autre onglet de l'app a écrit : on relit, pour ne pas écraser ses changements à la prochaine écriture.
+  window.addEventListener('storage', (evenement) => {
+    if (evenement.key === null || evenement.key === `${stockage.prefixe}etat`) app.etat = stockage.chargerEtat().etat;
+    if (evenement.key === null || evenement.key === `${stockage.prefixe}papier-tigre`) {
+      chargerPapierTigre();
+      construireCatalogue();
+    }
+    rendre();
+  });
 
   const ecranDemande = new URLSearchParams(location.search).get('ecran');
   if (Object.hasOwn(ECRANS, ecranDemande)) app.ecran = ecranDemande;

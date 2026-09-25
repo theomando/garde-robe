@@ -96,8 +96,9 @@ export function rendreReglages(conteneur, app, actions) {
       el('ul', { class: 'credits' },
         el('li', {}, 'Combinaisons : Sanzō Wada, A Dictionary of Color Combinations. Données de Matt DesLauriers ',
           '(mattdesl/dictionary-of-colour-combinations) et Dain M. Blodorn Kim (dblodorn/sanzo-wada), licence MIT : ',
-          el('a', { href: 'data/LICENSE-wada.md' }, 'texte des licences'), '.'),
-        el('li', {}, 'Teintes : Monk, Ellis. « Monk Skin Tone Scale », 2019, skintone.google, licence CC BY 4.0.'),
+          // Nouvel onglet : dans l'app installée, une navigation sur place n'aurait pas de bouton retour.
+          el('a', { href: 'data/LICENSE-wada.md', target: '_blank', rel: 'noopener' }, 'texte des licences'), '.'),
+        el('li', {}, 'Teintes : Monk, Ellis. « Monk Skin Tone Scale », 2019, skintone.google, licence CC BY 4.0.'),
         el('li', {}, 'Harmonies Papier Tigre : Color Inspiration, volumes 1 à 3, saisies par l\'utilisateur, jamais publiées.')),
       el('p', { class: 'discret' }, `Version ${VERSION_APP}`)));
 }

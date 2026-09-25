@@ -57,7 +57,7 @@ test('cas limite : garde-robe vide, rien au-delà de 2 pièces visibles', () => 
   const deux = lancer(['pantalon', 't-shirt'], [], combos);
   egalProfond(deux.retenues.map((p) => p.combinaison.id), ['k1']);
   egalProfond(manques(deux.retenues[0]), [`pantalon:${id(ROUGE)}`, `t-shirt:${id(BLEU)}`]);
-  egal(deux.retenues[0].ecartMoyen, Infinity, 'moyenne « — »');
+  egal(deux.retenues[0].ecartMoyen, Infinity, 'moyenne « — »');
   const avecPeau = lancer(['pantalon', 't-shirt'], [], combos, { teintActif: true, mst: 5 });
   egalProfond(avecPeau.retenues.map((p) => p.combinaison.id), ['k2', 'k1'], 'k2 : la peau porte MST 5 ; k3 écartée');
   egalProfond(avecPeau.retenues[0].peau, { couleurId: id(MST5), ecart: 0 });
@@ -197,7 +197,7 @@ test('coût du joker : une couleur couverte passe devant le joker', () => {
   egal(piece(p, 'chaussures').joker, true);
 });
 
-test('tri, filtre « avec mes favoris » et coupe', () => {
+test('tri, filtre « avec mes favoris » et coupe', () => {
   const garde = [vet('pantalon', ROUGE), vet('t-shirt', BLEU), vet('t-shirt', VERT)];
   const r = lancer(['pantalon', 't-shirt'], garde, [[ROUGE, BLEU], [ROUGE, VERT], [ROUGE, JAUNE], [BLEU, VERT]], { favoris: [id(VERT)] });
   egalProfond(r.retenues.map((p) => p.combinaison.id), ['k2', 'k1', 'k4', 'k3']);
@@ -205,7 +205,7 @@ test('tri, filtre « avec mes favoris » et coupe', () => {
   egalProfond(selectionner(r.retenues, { max: 1 }).map((p) => p.combinaison.id), ['k2']);
   const base = { nbManques: 0, peauUtilisee: false, nbFavoris: 0, ecartMoyen: 3, rang: 5 };
   vrai(comparerPropositions({ ...base, ecartMoyen: 2 }, base) < 0, 'moyenne plus faible devant');
-  vrai(comparerPropositions(base, { ...base, ecartMoyen: Infinity }) < 0, 'moyenne « — » derrière');
+  vrai(comparerPropositions(base, { ...base, ecartMoyen: Infinity }) < 0, 'moyenne « — » derrière');
   egal(comparerPropositions({ ...base, ecartMoyen: Infinity }, { ...base, ecartMoyen: Infinity, rang: 6 }), -1, 'rang départage');
 });
 

@@ -40,19 +40,19 @@ test('Papier Tigre : soutiens absents acceptés si 2 dominantes ou plus', () => 
 test('Papier Tigre : chaque erreur de saisie est refusée avec un message précis', () => {
   const cas = [
     ['racine non objet', () => [], 'doit contenir un objet'],
-    ['format', (d) => { d.format = 'autre'; }, '« format » doit valoir'],
+    ['format', (d) => { d.format = 'autre'; }, '« format » doit valoir'],
     ['version future', (d) => { d.version = 2; }, 'version 2 non prise en charge'],
-    ['version absente', (d) => { delete d.version; }, '« version » doit valoir 1'],
-    ['harmonies non liste', (d) => { d.harmonies = {}; }, '« harmonies » doit être une liste'],
-    ['champ racine inconnu', (d) => { d.harmonie = []; }, 'vouliez-vous dire « harmonies »'],
-    ['volume 4', (d) => { d.harmonies[0].volume = 4; }, '« volume » doit être un entier de 1 à 3'],
-    ['page 0', (d) => { d.harmonies[0].page = 0; }, '« page » doit être un entier'],
-    ['page décimale', (d) => { d.harmonies[0].page = 1.5; }, '« page » doit être un entier'],
-    ['nom vide', (d) => { d.harmonies[0].nom = '  '; }, '« nom » manquant ou vide'],
-    ['pays vide', (d) => { d.harmonies[0].pays = ''; }, '« pays » doit être un texte non vide'],
-    ['aucune dominante', (d) => { d.harmonies[0].dominantes = []; }, '« dominantes » doit être une liste de 1 à 3'],
-    ['4 dominantes', (d) => { d.harmonies[1].dominantes.push([1, 1, 1]); }, '« dominantes » doit être une liste de 1 à 3'],
-    ['4 soutiens', (d) => { d.harmonies[1].soutiens.push([1, 1, 1]); }, '« soutiens » doit être une liste de 0 à 3'],
+    ['version absente', (d) => { delete d.version; }, '« version » doit valoir 1'],
+    ['harmonies non liste', (d) => { d.harmonies = {}; }, '« harmonies » doit être une liste'],
+    ['champ racine inconnu', (d) => { d.harmonie = []; }, 'vouliez-vous dire « harmonies »'],
+    ['volume 4', (d) => { d.harmonies[0].volume = 4; }, '« volume » doit être un entier de 1 à 3'],
+    ['page 0', (d) => { d.harmonies[0].page = 0; }, '« page » doit être un entier'],
+    ['page décimale', (d) => { d.harmonies[0].page = 1.5; }, '« page » doit être un entier'],
+    ['nom vide', (d) => { d.harmonies[0].nom = '  '; }, '« nom » manquant ou vide'],
+    ['pays vide', (d) => { d.harmonies[0].pays = ''; }, '« pays » doit être un texte non vide'],
+    ['aucune dominante', (d) => { d.harmonies[0].dominantes = []; }, '« dominantes » doit être une liste de 1 à 3'],
+    ['4 dominantes', (d) => { d.harmonies[1].dominantes.push([1, 1, 1]); }, '« dominantes » doit être une liste de 1 à 3'],
+    ['4 soutiens', (d) => { d.harmonies[1].soutiens.push([1, 1, 1]); }, '« soutiens » doit être une liste de 0 à 3'],
     ['1 couleur au total', (d) => { d.harmonies[2].soutiens = []; }, '1 couleur(s) au total, 2 à 6 attendues'],
     ['RVB 256', (d) => { d.harmonies[0].dominantes[0] = [256, 0, 0]; }, 'dominante 1 : [256,0,0] n\'est pas un RVB valide'],
     ['RVB négatif', (d) => { d.harmonies[0].soutiens[0] = [0, -1, 0]; }, 'soutien 1 : [0,-1,0] n\'est pas un RVB valide'],
@@ -61,17 +61,17 @@ test('Papier Tigre : chaque erreur de saisie est refusée avec un message préci
     ['RVB à 4 valeurs', (d) => { d.harmonies[0].dominantes[0] = [1, 2, 3, 4]; }, 'dominante 1 : [1,2,3,4]'],
     ['RVB en texte', (d) => { d.harmonies[0].dominantes[0] = ['1', '2', '3']; }, 'n\'est pas un RVB valide'],
     ['doublon volume et page', (d) => { d.harmonies[2].page = 12; }, 'même volume et même page que l\'harmonie 2'],
-    ['champ inconnu', (d) => { d.harmonies[0].dominante = d.harmonies[0].dominantes; }, 'vouliez-vous dire « dominantes »'],
-    ['cmjn de longueur différente', (d) => { d.harmonies[2].cmjn.soutiens = []; }, '« cmjn.soutiens » doit avoir autant'],
+    ['champ inconnu', (d) => { d.harmonies[0].dominante = d.harmonies[0].dominantes; }, 'vouliez-vous dire « dominantes »'],
+    ['cmjn de longueur différente', (d) => { d.harmonies[2].cmjn.soutiens = []; }, '« cmjn.soutiens » doit avoir autant'],
     ['cmjn hors bornes', (d) => { d.harmonies[2].cmjn.dominantes = [[101, 0, 0, 0]]; }, 'cmjn de la dominante 1'],
-    ['cmjn non objet', (d) => { d.harmonies[2].cmjn = [[0, 0, 0, 0]]; }, '« cmjn » doit être un objet'],
+    ['cmjn non objet', (d) => { d.harmonies[2].cmjn = [[0, 0, 0, 0]]; }, '« cmjn » doit être un objet'],
   ];
   for (const [nom, modifier, attendu] of cas) {
     let d = exemple();
     const remplacement = modifier(d);
     if (remplacement !== undefined) d = remplacement;
     const { erreurs } = validerPapierTigre(d);
-    vrai(erreurs.some((e) => e.includes(attendu)), `${nom} : message « ${attendu} » absent de ${JSON.stringify(erreurs)}`);
+    vrai(erreurs.some((e) => e.includes(attendu)), `${nom} : message « ${attendu} » absent de ${JSON.stringify(erreurs)}`);
     leve(() => convertirPapierTigre(d), `${nom} : la conversion doit être refusée`);
   }
 });

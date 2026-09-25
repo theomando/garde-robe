@@ -1,6 +1,6 @@
 // Mini-harnais de test : enregistre des tests, les exécute dans l'ordre
-// et écrit le bilan dans la page (dernière ligne : « RESULTAT ok/total »).
-// Un test peut renvoyer une chaîne : elle s'affiche comme note à côté de « ok ».
+// et écrit le bilan dans la page (dernière ligne : « RESULTAT ok/total »).
+// Un test peut renvoyer une chaîne : elle s'affiche comme note à côté de « ok ».
 
 const tests = [];
 

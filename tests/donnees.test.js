@@ -48,6 +48,7 @@ test('données : opérations invalides refusées', () => {
   leve(() => modifierReglages(etat, { mst: 11 }));
   leve(() => modifierReglages(etat, { tolerance: 0.5 }));
   leve(() => modifierReglages(etat, { tolerance: 31 }));
+  leve(() => modifierReglages(etat, { tolerance: 12.3 }), 'hors du pas de 0,5');
   leve(() => modifierReglages(etat, { teintActif: 'oui' }));
 });
 
@@ -81,21 +82,22 @@ test('import : chaque document invalide est refusé avec un message', () => {
     ['tableau', '[]', 'pas un export'],
     ['autre format', JSON.stringify({ ...base(), format: 'autre' }), 'pas un export'],
     ['version future', (d) => { d.version = 999; }, 'version 999 plus récente'],
-    ['version absente', (d) => { delete d.version; }, '« version » doit valoir 1'],
-    ['champ inconnu', (d) => { d.extra = 1; }, 'champ inconnu « extra »'],
-    ['date d\'export', (d) => { d.dateExport = 'hier'; }, '« dateExport » invalide'],
-    ['type inconnu', (d) => { d.vetements[0].type = 'robe'; }, 'type « robe » inconnu'],
-    ['hex à 5 chiffres', (d) => { d.vetements[0].hex = '#12345'; }, 'couleur « #12345 » invalide'],
-    ['origine inconnue', (d) => { d.vetements[0].origine = 'photo'; }, 'origine « photo » inconnue'],
-    ['identifiant en double', (d) => { d.vetements[1].id = d.vetements[0].id; }, 'identifiant « v1 » en double'],
+    ['version absente', (d) => { delete d.version; }, '« version » doit valoir 1'],
+    ['champ inconnu', (d) => { d.extra = 1; }, 'champ inconnu « extra »'],
+    ['date d\'export', (d) => { d.dateExport = 'hier'; }, '« dateExport » invalide'],
+    ['type inconnu', (d) => { d.vetements[0].type = 'robe'; }, 'type « robe » inconnu'],
+    ['hex à 5 chiffres', (d) => { d.vetements[0].hex = '#12345'; }, 'couleur « #12345 » invalide'],
+    ['origine inconnue', (d) => { d.vetements[0].origine = 'photo'; }, 'origine « photo » inconnue'],
+    ['identifiant en double', (d) => { d.vetements[1].id = d.vetements[0].id; }, 'identifiant « v1 » en double'],
     ['date d\'ajout', (d) => { d.vetements[0].dateAjout = '2026-13-45'; }, 'date d\'ajout'],
-    ['champ inconnu de vêtement', (d) => { d.vetements[0].marque = 'x'; }, 'vêtement 1 : champ inconnu « marque »'],
-    ['vêtements non liste', (d) => { d.vetements = {}; }, '« vetements » doit être une liste'],
-    ['mst 11', (d) => { d.reglages.mst = 11; }, '« mst » doit être un entier de 1 à 10'],
-    ['mst absent', (d) => { d.reglages.mst = null; }, '« mst » doit être un entier'],
-    ['tolérance négative', (d) => { d.reglages.tolerance = -1; }, '« tolerance » doit être un nombre de 1 à 30'],
-    ['teintActif texte', (d) => { d.reglages.teintActif = 'oui'; }, '« teintActif »'],
-    ['favori numérique', (d) => { d.reglages.favoris = [42]; }, '« favoris » doit être une liste'],
+    ['champ inconnu de vêtement', (d) => { d.vetements[0].marque = 'x'; }, 'vêtement 1 : champ inconnu « marque »'],
+    ['vêtements non liste', (d) => { d.vetements = {}; }, '« vetements » doit être une liste'],
+    ['mst 11', (d) => { d.reglages.mst = 11; }, '« mst » doit être un entier de 1 à 10'],
+    ['mst absent', (d) => { d.reglages.mst = null; }, '« mst » doit être un entier'],
+    ['tolérance négative', (d) => { d.reglages.tolerance = -1; }, '« tolerance » doit être un nombre de 1 à 30'],
+    ['tolérance hors du pas', (d) => { d.reglages.tolerance = 12.3; }, 'par pas de 0,5'],
+    ['teintActif texte', (d) => { d.reglages.teintActif = 'oui'; }, '« teintActif »'],
+    ['favori numérique', (d) => { d.reglages.favoris = [42]; }, '« favoris » doit être une liste'],
     ['favori en double', (d) => { d.reglages.favoris = ['a', 'a']; }, 'favori en double'],
     ['tenue pantalon et short', (d) => { d.tenuesTypes = [['pantalon', 'short']]; }, 'pantalon et short ensemble'],
     ['tenue en double', (d) => { d.tenuesTypes = [['pull'], ['pull']]; }, 'en double'],
@@ -110,7 +112,7 @@ test('import : chaque document invalide est refusé avec un message', () => {
     }
     const { erreurs, etat } = lireExport(texte);
     egal(etat, null, `${nom} : doit être refusé`);
-    vrai(erreurs.some((e) => e.includes(attendu)), `${nom} : message « ${attendu} » absent de ${JSON.stringify(erreurs)}`);
+    vrai(erreurs.some((e) => e.includes(attendu)), `${nom} : message « ${attendu} » absent de ${JSON.stringify(erreurs)}`);
   }
 });
 

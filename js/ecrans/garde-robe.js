@@ -67,7 +67,7 @@ async function modifier(app, actions, vetement) {
 }
 
 async function supprimer(app, actions, vetement) {
-  const message = `${LIBELLES_TYPES[vetement.type]} « ${nomCouleurVetement(vetement, app.catalogue)} » sera retiré de ta garde-robe.`;
+  const message = `${LIBELLES_TYPES[vetement.type]} « ${nomCouleurVetement(vetement, app.catalogue)} » sera retiré de ta garde-robe.`;
   if (!(await confirmer('Supprimer ce vêtement ?', message, 'Supprimer'))) return;
   if (actions.mettreAJour(supprimerVetement(app.etat, vetement.id))) annoncer('Vêtement supprimé');
 }

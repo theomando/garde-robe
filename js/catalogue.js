@@ -48,7 +48,7 @@ export function construireWada(donnees) {
 }
 
 // Réunit des parties { couleurs, combinaisons } (Wada, puis Papier Tigre s'il est importé).
-// L'ordre obtenu est « l'ordre du catalogue » utilisé pour les départages.
+// L'ordre obtenu est « l'ordre du catalogue » utilisé pour les départages.
 export function fusionnerCatalogues(...parties) {
   const couleurs = [];
   const combinaisons = [];
@@ -76,7 +76,7 @@ export function fusionnerCatalogues(...parties) {
   return { couleurs, combinaisons, couleurParId, combinaisonParId };
 }
 
-// Couleurs du catalogue triées par ΔE00 croissant depuis un Lab (dépliant « Ajuster »).
+// Couleurs du catalogue triées par ΔE00 croissant depuis un Lab (dépliant « Ajuster »).
 // À écart égal, l'ordre du catalogue départage. nombre = Infinity pour tout le catalogue.
 export function plusProches(lab, catalogue, nombre = 12) {
   return catalogue.couleurs

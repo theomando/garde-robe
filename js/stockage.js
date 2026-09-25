@@ -1,6 +1,6 @@
 // Stockage local (localStorage). Deux clés préfixées : l'état utilisateur et le catalogue Papier Tigre.
 // Chaque enregistrement est une seule écriture : si elle échoue, l'ancienne valeur reste intacte.
-// « espace » isole un jeu de clés (tests) : garde-robe-<espace>:… au lieu de garde-robe:…
+// « espace » isole un jeu de clés (tests) : garde-robe-<espace>:… au lieu de garde-robe:…
 
 import { etatInitial, exporterEtat, lireExport } from './donnees.js';
 
