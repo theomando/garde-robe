@@ -5,6 +5,7 @@ import { test, vrai, egal, egalProfond, attendre } from './mini-test.js';
 import { photoSynthetique, photoUnie, attendreReel, avecTempsReel } from './aides.js';
 import { ouvrirPhotos } from '../js/photos.js';
 import { labDepuisHex } from '../js/couleur.js';
+import { lireExport } from '../js/donnees.js';
 
 const ESPACE = 'garde-robe-tests-ui:';
 // Base de photos de l'espace de test (IndexedDB), lue en temps réel (le temps virtuel ne l'attend pas).
@@ -674,4 +675,47 @@ test('app : balayer une ligne vers la gauche découvre « Supprimer », puis s
   cliquer('[data-valeur="oui"]', alerte);
   await dialoguesFermes();
   await quand(() => stocke().vetements.length === avant - 1, 'vêtement supprimé');
+});
+
+test('app : rappel de sauvegarde (jamais sauvegardé), « Plus tard », puis export complet avec les photos', async () => {
+  // Un vêtement ajouté il y a longtemps, avec sa photo, jamais sauvegardé : le rappel est dû.
+  const PHOTO = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2w==';
+  const { derniereSauvegarde, rappelSauvegarde, ...reglages } = stocke().reglages;
+  const sauvegarde = {
+    format: 'garde-robe-chromatique', version: 2, dateExport: '2026-01-02T10:00:00.000Z', reglages, tenuesTypes: [], tenuesGardees: [],
+    vetements: [{ id: 'ancien', type: 'pull', hex: '#ae5224', origine: 'manuel', dateAjout: '2026-01-01T10:00:00.000Z', marque: 'Petit Bateau', photo: true }],
+    photos: { ancien: PHOTO },
+  };
+  cliquer('#onglets [data-ecran="reglages"]');
+  cliquer('[data-action="importer"]');
+  await fournirFichier(JSON.stringify(sauvegarde));
+  cliquer('[data-valeur="oui"]', await dialogueOuvert());
+  await dialoguesFermes();
+  await quand(() => stocke().vetements.length === 1 && stocke().vetements[0].id === 'ancien', 'données importées');
+  vrai(doc.querySelector('[data-info="derniere-sauvegarde"]').textContent.startsWith('Jamais sauvegardé'));
+  let enBase = null;
+  for (let essai = 0; essai < 30 && !enBase?.get('ancien'); essai++) enBase = await photosDeTest();
+  egal(enBase.get('ancien'), PHOTO, 'photo importée dans IndexedDB');
+
+  cliquer('#onglets [data-ecran="garde-robe"]');
+  vrai(doc.querySelector('[data-info="rappel-sauvegarde"]'), 'rappel affiché');
+  cliquer('[data-action="rappel-plus-tard"]');
+  await quand(() => stocke().reglages.rappelSauvegarde, 'rappel reporté');
+  egal(doc.querySelector('[data-info="rappel-sauvegarde"]'), null, 'rappel masqué pour une semaine');
+  egal(Math.round((Date.parse(stocke().reglages.rappelSauvegarde) - Date.now()) / 86400000), 7);
+
+  // Export complet par le partage d'iOS (simulé) : le fichier contient la photo ; la sauvegarde est notée.
+  const partages = simulerPartage();
+  cliquer('#onglets [data-ecran="reglages"]');
+  cliquer('[data-action="exporter"]');
+  await attendreReel(() => partages.length === 1, 'export partagé');
+  const fichier = partages[0].files[0];
+  vrai(fichier.name.startsWith('garde-robe-') && fichier.name.endsWith('.json'), fichier.name);
+  const relu = lireExport(await avecTempsReel(fichier.text(), 'lecture du fichier'));
+  egal(relu.erreurs.length, 0);
+  egal(relu.photos.get('ancien'), PHOTO, 'photo dans le fichier exporté');
+  egal(relu.etat.vetements[0].marque, 'Petit Bateau');
+  await quand(() => stocke().reglages.derniereSauvegarde, 'sauvegarde notée');
+  egal(stocke().reglages.rappelSauvegarde, undefined, 'report effacé');
+  await quand(() => doc.querySelector('[data-info="derniere-sauvegarde"]')?.textContent.startsWith('Dernière sauvegarde : le '), 'date affichée');
 });

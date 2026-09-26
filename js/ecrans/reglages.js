@@ -122,7 +122,10 @@ export function rendreReglages(conteneur, app, actions) {
       ligneAction('Afficher mes données en texte', { action: 'copier-texte', onclick: () => actions.afficherTexteDonnees() }),
       ligneAction('Fichier grisé ? Importer sans filtre', { onclick: () => actions.importerDonnees('') }),
     ], [
-      'Tes vêtements et réglages restent sur cet appareil. Exporte-les régulièrement pour les sauvegarder ou les passer sur un autre appareil. ',
+      'Tes vêtements, photos, tenues et réglages restent sur cet appareil. Exporte-les régulièrement pour les sauvegarder ou les passer sur un autre appareil. ',
+      el('span', { 'data-info': 'derniere-sauvegarde' }, reglages.derniereSauvegarde
+        ? `Dernière sauvegarde : le ${new Date(reglages.derniereSauvegarde).toLocaleDateString('fr-FR')}. `
+        : 'Jamais sauvegardé. '),
       el('span', { 'data-info': 'persistance' }, `Stockage persistant : ${app.persistance}.`),
     ]),
 
@@ -134,7 +137,7 @@ export function rendreReglages(conteneur, app, actions) {
           '(mattdesl/dictionary-of-colour-combinations) et Dain M. Blodorn Kim (dblodorn/sanzo-wada), licence MIT : ',
           // Nouvel onglet : dans l'app installée, une navigation sur place n'aurait pas de bouton retour.
           el('a', { href: 'data/LICENSE-wada.md', target: '_blank', rel: 'noopener' }, 'texte des licences'), '.'),
-        el('li', {}, 'Teintes : Monk, Ellis. « Monk Skin Tone Scale », 2019, skintone.google, licence CC BY 4.0.'),
+        el('li', {}, 'Teintes : Monk, Ellis. « Monk Skin Tone Scale », 2019, skintone.google, licence CC BY 4.0.'),
         el('li', {}, 'Harmonies Papier Tigre : Color Inspiration, volumes 1 à 3, saisies par l\'utilisateur, jamais publiées.'))),
     ], null, { 'data-section': 'a-propos' }));
 }

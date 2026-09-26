@@ -2,7 +2,10 @@
 // ?espace=<nom> isole un jeu de clés de stockage (tests, démo) ; ?ecran=<nom> choisit l'onglet de départ.
 
 import { el, annoncer, ouvrirDialogue, confirmer, afficherErreurs, choisirFichier, estInstallee } from './ui.js';
-import { etatInitial, premierLancement, exporterEtat, lireExport, basculerFavori } from './donnees.js';
+import {
+  etatInitial, premierLancement, exporterEtat, lireExport, basculerFavori, noterSauvegarde, reporterRappelSauvegarde,
+} from './donnees.js';
+import { partagerFichier } from './partage.js';
 import { creerStockage } from './stockage.js';
 import { ouvrirPhotos } from './photos.js';
 import { construireWada, fusionnerCatalogues } from './catalogue.js';
@@ -213,13 +216,14 @@ const actions = {
     const date = new Date();
     const photos = new Map(app.etat.vetements.filter((v) => v.photo && app.photos.has(v.id)).map((v) => [v.id, app.photos.get(v.id)]));
     const fichier = new File([exporterEtat(app.etat, date, 2, photos)], nomFichierExport(date), { type: 'application/json' });
-    if (navigator.canShare?.({ files: [fichier] })) {
-      navigator.share({ files: [fichier], title: 'Garde-robe chromatique' }).catch((erreur) => {
-        if (erreur.name !== 'AbortError') actions.telecharger(fichier);
-      });
-      return;
-    }
-    actions.telecharger(fichier);
+    const issue = await partagerFichier(fichier, { titre: 'Garde-robe chromatique', telecharger: (f) => actions.telecharger(f) });
+    if (issue === 'refuse') actions.telecharger(fichier);
+    // Sauvegarde notée (rappel de sauvegarde), sauf si l'utilisateur a fermé la feuille de partage sans rien choisir.
+    if (issue !== 'annule') actions.mettreAJour(noterSauvegarde(app.etat, date));
+  },
+
+  reporterRappelSauvegarde() {
+    actions.mettreAJour(reporterRappelSauvegarde(app.etat, new Date()));
   },
 
   telecharger(fichier) {
@@ -312,7 +316,7 @@ const actions = {
   },
 };
 
-// Service worker : hors ligne et mises à jour (bandeau « Nouvelle version »). Son échec n'empêche pas l'app de marcher.
+// Service worker : hors ligne et mises à jour (bandeau « Nouvelle version »). Son échec n'empêche pas l'app de marcher.
 let miseAJour = null;
 function preparerMisesAJour() {
   if (estDeveloppementLocal(location.hostname) || !navigator.serviceWorker) return;

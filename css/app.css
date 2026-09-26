@@ -310,6 +310,16 @@ input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--accent)
 .encart { background: var(--carte); border-radius: var(--rayon); padding: 0.9rem 1rem; font-size: 0.88rem; }
 .encart.astuce { background: color-mix(in srgb, var(--accent) 12%, var(--carte)); }
 
+/* Rappel de sauvegarde (haut de la Garde-robe). */
+.encart-sauvegarde {
+  display: flex; gap: 0.8rem; align-items: flex-start; margin: 0 0 1rem; padding: 0.9rem 1rem;
+  border-radius: var(--rayon); background: color-mix(in srgb, var(--accent) 12%, var(--carte));
+}
+.encart-sauvegarde > .icone { width: 26px; height: 26px; color: var(--accent); flex: none; margin-top: 2px; }
+.texte-sauvegarde { flex: 1; min-width: 0; }
+.texte-sauvegarde p { margin: 0.2rem 0 0.5rem; font-size: 0.88rem; }
+.texte-sauvegarde .rangee-boutons { margin: 0; }
+
 /* Grandes cartes d'action (garde-robe vide). */
 .cartes-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin: 0.5rem 0 1rem; }
 .carte-action {

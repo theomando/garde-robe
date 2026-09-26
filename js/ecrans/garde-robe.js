@@ -1,10 +1,10 @@
-// Écran Garde-robe : liste groupée par type, ajout (bouton « + » : mesure à la caméra ou choix dans le catalogue),
+// Écran Garde-robe : liste groupée par type, ajout (bouton « + » : mesure à la caméra ou choix dans le catalogue),
 // modification (type, couleur, marque, photo), suppression.
 
 import { el, pastille, ouvrirDialogue, confirmer, annoncer, nouvelIdentifiant, barreNavigation, boutonRond, ouvrirMenu, tuile } from '../ui.js';
 import { icone } from '../icones.js';
 import { TYPES, LIBELLES_TYPES } from '../constantes.js';
-import { ajouterVetement, modifierVetement, supprimerVetement } from '../donnees.js';
+import { ajouterVetement, modifierVetement, supprimerVetement, rappelSauvegardeDu } from '../donnees.js';
 import { labDepuisHex } from '../couleur.js';
 import { ouvrirSelecteur } from './selecteur-catalogue.js';
 import { ouvrirScan, remplirResultatVetement } from './scan.js';
@@ -13,8 +13,8 @@ import { epinglerVetement } from './tenue.js';
 import { champMarque, choisirPhoto, visuelVetement } from './fiche-vetement.js';
 
 // Mesure tout-en-un : caméra plein écran, puis feuille du résultat (ajustement, type, Enregistrer). La couleur
-// mesurée est gardée par défaut (origine « scan ») ; un choix dans le catalogue la remplace (hex du catalogue,
-// idCouleurCatalogue, origine toujours « scan »). Si la caméra est étalonnée pour la façon de mesurer utilisée,
+// mesurée est gardée par défaut (origine « scan ») ; un choix dans le catalogue la remplace (hex du catalogue,
+// idCouleurCatalogue, origine toujours « scan »). Si la caméra est étalonnée pour la façon de mesurer utilisée,
 // la mesure est corrigée (la brute reste affichée).
 async function scanner(app, actions) {
   const corriger = correcteur(app);
@@ -68,7 +68,7 @@ async function ajouter(app, actions) {
   if (actions.mettreAJour(nouvelEtat)) annoncer(`${LIBELLES_TYPES[type]} ajouté : ${couleur.nom}`);
 }
 
-// « + » : menu près du bouton, comme dans les apps d'iOS 26.
+// « + » : menu près du bouton, comme dans les apps d'iOS 26.
 async function menuAjout(app, actions, ancre) {
   const choix = await ouvrirMenu(ancre, [
     { libelle: 'Mesurer avec la caméra', icone: 'camera', valeur: 'scanner', action: 'scanner' },
@@ -85,7 +85,7 @@ async function modifier(app, actions, vetement) {
   let photoChangee = false;
   const lignePhoto = el('div', { class: 'ligne ligne-photo' });
   function afficherPhoto() {
-    // replaceChildren écrirait « null » en texte : le bouton facultatif passe par un tableau filtré.
+    // replaceChildren écrirait « null » en texte : le bouton facultatif passe par un tableau filtré.
     lignePhoto.replaceChildren(...[
       photo ? el('img', { class: 'vignette-fiche', src: photo, alt: 'Photo du vêtement' }) : el('span', { class: 'vignette-fiche sans-photo' }, icone('camera')),
       el('span', { class: 'texte-ligne' }, photo ? 'Photo' : 'Aucune photo'),
@@ -158,7 +158,7 @@ async function modifier(app, actions, vetement) {
 }
 
 async function supprimer(app, actions, vetement) {
-  const message = `${LIBELLES_TYPES[vetement.type]} « ${nomCouleurVetement(vetement, app.catalogue)} » sera retiré de ta garde-robe.`;
+  const message = `${LIBELLES_TYPES[vetement.type]} « ${nomCouleurVetement(vetement, app.catalogue)} » sera retiré de ta garde-robe.`;
   if (!(await confirmer('Supprimer ce vêtement ?', message, 'Supprimer'))) return;
   if (actions.mettreAJour(supprimerVetement(app.etat, vetement.id))) {
     actions.supprimerPhoto(vetement.id);
@@ -166,7 +166,7 @@ async function supprimer(app, actions, vetement) {
   }
 }
 
-// Balayer une ligne vers la gauche découvre « Supprimer », comme dans Mail. Une seule ligne ouverte à la fois ;
+// Balayer une ligne vers la gauche découvre « Supprimer », comme dans Mail. Une seule ligne ouverte à la fois ;
 // toucher une ligne ouverte la referme. La suppression reste aussi dans la fenêtre de modification (VoiceOver).
 const LARGEUR_ACTION = 92; // px découverts par le balayage
 const SEUIL_BALAYAGE = 10; // px avant de décider entre balayage horizontal et défilement vertical
@@ -259,6 +259,22 @@ function ligne(app, actions, vetement) {
   return li;
 }
 
+// Rappel de sauvegarde (demande de Théo, 2026-09-26) : les données ne sont que sur ce téléphone.
+function encartSauvegarde(app, actions) {
+  const { derniereSauvegarde } = app.etat.reglages;
+  const jours = derniereSauvegarde ? Math.floor((Date.now() - Date.parse(derniereSauvegarde)) / 86400000) : null;
+  return el('div', { class: 'encart-sauvegarde', 'data-info': 'rappel-sauvegarde', role: 'status' },
+    icone('partager'),
+    el('div', { class: 'texte-sauvegarde' },
+      el('strong', {}, 'Pense à sauvegarder tes données'),
+      el('p', {}, jours === null
+        ? 'Tes vêtements et tes tenues ne sont que sur ce téléphone : exporte-les pour ne pas les perdre.'
+        : `Dernière sauvegarde il y a ${jours} jours. Depuis, tu as ajouté des vêtements ou des tenues.`),
+      el('div', { class: 'rangee-boutons' },
+        el('button', { type: 'button', class: 'bouton principal petit', 'data-action': 'rappel-exporter', onclick: () => actions.exporterDonnees() }, 'Exporter'),
+        el('button', { type: 'button', class: 'bouton petit', 'data-action': 'rappel-plus-tard', onclick: () => actions.reporterRappelSauvegarde() }, 'Plus tard'))));
+}
+
 function carteAction({ icone: nom, titre, detail, action, onclick }) {
   return el('button', { type: 'button', class: 'carte-action', 'data-action': action, onclick },
     icone(nom), el('span', {}, el('strong', {}, titre), el('span', { class: 'discret' }, ` ${detail}`)));
@@ -272,6 +288,7 @@ export function rendreGardeRobe(conteneur, app, actions) {
     sousTitre: n > 0 ? `${n} vêtement${n > 1 ? 's' : ''}` : null,
     droite: [boutonRond({ icone: 'plus', libelle: 'Ajouter un vêtement', action: 'ajouter', onclick: (e) => menuAjout(app, actions, e.currentTarget) })],
   });
+  if (rappelSauvegardeDu(app.etat, new Date())) contenu.push(encartSauvegarde(app, actions));
   if (n === 0) {
     contenu.push(
       el('p', { class: 'vide' }, 'Ta garde-robe est vide. Ajoute tes vêtements pour obtenir des propositions de tenues.'),
