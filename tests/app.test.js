@@ -58,6 +58,14 @@ async function menuAjout(action) {
   option.click();
 }
 
+// Partage d'iOS simulé dans l'app : les données partagées sont gardées pour vérification.
+function simulerPartage() {
+  const partages = [];
+  Object.defineProperty(fenetre.navigator, 'canShare', { value: () => true, configurable: true });
+  Object.defineProperty(fenetre.navigator, 'share', { value: async (donnees) => { partages.push(donnees); }, configurable: true });
+  return partages;
+}
+
 // Photo fournie à l'appareil photo (repli du scan, et étalonnage).
 async function fournirPhoto(blob) {
   const champ = await attendre(() => doc.querySelector('input[data-choix-fichier="image"]'), 'appareil photo');
@@ -175,7 +183,7 @@ test('app : modification du type (pull → veste) en touchant la ligne', async (
   cliquer('[data-type="pull"] [data-action="modifier"]');
   const dialogue = await dialogueOuvert();
   dialogue.querySelector('[data-action="type-vetement"]').value = 'veste';
-  vrai(!dialogue.querySelector('.ligne-photo').textContent.includes('null'), 'aucun « null » affiché');
+  vrai(!dialogue.querySelector('.ligne-photo').textContent.includes('null'), 'aucun « null » affiché');
   const marque = dialogue.querySelector('#marque-vetement');
   marque.value = '  Uniqlo ';
   // Photo depuis la fiche : iOS propose appareil photo ou photothèque (pas d'attribut capture).
@@ -510,6 +518,12 @@ test('app : ♡ garder une tenue, la retrouver dans Mes tenues avec son avatar, 
   egal(doc.querySelector('.panneau-avatar [data-action="garder-tenue"]').getAttribute('aria-pressed'), 'true', 'cœur plein');
   const gardee = stocke().tenuesGardees[0];
   egal(`Combinaison ${gardee.combinaison.ref}`, reference);
+  // Partager depuis la tenue du jour : image PNG par le partage d'iOS.
+  const partages = simulerPartage();
+  cliquer('.panneau-avatar [data-action="partager-tenue"]');
+  await attendreReel(() => partages.length === 1, 'partage depuis la tenue du jour');
+  egal(partages[0].files[0].type, 'image/png');
+  vrai(partages[0].files[0].size > 10000, 'image non vide');
   vrai(gardee.pieces.every((p) => /^#[0-9a-f]{6}$/.test(p.hex)), 'couleurs figées');
 
   cliquer('#onglets [data-ecran="mes-tenues"]');
@@ -527,6 +541,14 @@ test('app : ♡ garder une tenue, la retrouver dans Mes tenues avec son avatar, 
   cliquer('[data-action="fermer-feuille"]', feuille);
   await dialoguesFermes();
   await quand(() => doc.querySelector(`[data-tenue-gardee="${gardee.id}"] .nom-tenue`)?.textContent === 'Dîner chez Julie', 'nom sur la carte');
+
+  cliquer(`[data-tenue-gardee="${gardee.id}"]`);
+  const detail = await dialogueOuvert('dialog.detail-tenue[open]');
+  cliquer('[data-action="partager-tenue-gardee"]', detail);
+  await attendreReel(() => partages.length === 2, 'partage depuis Mes tenues');
+  egal(partages[1].files[0].name, 'tenue-diner-chez-julie.png', 'fichier nommé d\'après la tenue');
+  cliquer('[data-action="fermer-feuille"]', detail);
+  await dialoguesFermes();
 
   cliquer(`[data-tenue-gardee="${gardee.id}"]`);
   cliquer('[data-action="retirer-tenue-gardee"]', await dialogueOuvert('dialog.detail-tenue[open]'));

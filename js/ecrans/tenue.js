@@ -12,6 +12,7 @@ import { proposer, selectionner, piecesVisibles } from '../moteur.js';
 import { dessinerAvatar, planAvatar } from '../avatar.js';
 import { estNoir, labDepuisHex } from '../couleur.js';
 import { nomCouleurVetement } from './garde-robe.js';
+import { partagerTenue } from './partage-tenue.js';
 
 const ecartTexte = (ecart) => ecart.toFixed(1).replace('.', ',');
 
@@ -162,7 +163,14 @@ export function rendreTenue(conteneur, app, actions) {
         choisie ? el('strong', {}, reference(choisie.combinaison)) : el('span', {}, 'Aucune proposition'),
         choisie ? el('span', { class: 'discret' }, resume(choisie)) : null,
         el('span', { class: 'discret' }, '⚠ : pièce qui te manque (dessinée dans sa couleur).'),
-        choisie ? boutonGarder(choisie) : null));
+        choisie ? el('div', { class: 'actions-tenue' }, boutonGarder(choisie), boutonPartager(choisie)) : null));
+  }
+
+  function boutonPartager(proposition) {
+    return el('button', {
+      type: 'button', class: 'bouton petit', 'data-action': 'partager-tenue', 'aria-label': 'Partager cette tenue',
+      onclick: () => partagerTenue(app, actions, instantaneTenue(proposition, app.catalogue, ecran.types)),
+    }, icone('partager'), 'Partager');
   }
 
   // ♡ Garder : la tenue proposée rejoint Mes tenues (instantané) ; touchée à nouveau, elle en sort.

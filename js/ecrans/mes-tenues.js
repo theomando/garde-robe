@@ -11,6 +11,7 @@ import { piecesAvatar, referenceCombinaison } from '../tenues.js';
 import { nomCouleurVetement } from './garde-robe.js';
 import { sectionManques } from './manques.js';
 import { visuelVetement } from './fiche-vetement.js';
+import { partagerTenue } from './partage-tenue.js';
 
 const dateCourte = (iso) => new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -77,6 +78,10 @@ async function ouvrirTenue(app, actions, tenue) {
       el('div', { class: 'groupe liste-pieces-tenue' }, tenue.pieces.map((piece) => lignePiece(app, tenue, piece))),
       tenue.peau ? el('p', { class: 'pied-groupe' }, `Peau : porte ${tenue.peau.nom}.`) : null,
       el('div', { class: 'groupe' },
+        el('button', {
+          type: 'button', class: 'ligne ligne-action', 'data-action': 'partager-tenue-gardee',
+          onclick: () => partagerTenue(app, actions, app.etat.tenuesGardees.find((t) => t.id === tenue.id) ?? tenue),
+        }, icone('partager'), el('span', { class: 'texte-ligne' }, 'Partager cette tenue')),
         el('button', { type: 'button', class: 'ligne ligne-action danger', 'data-choix': 'retirer', 'data-action': 'retirer-tenue-gardee' },
           icone('poubelle'), el('span', { class: 'texte-ligne' }, 'Retirer de mes tenues'))),
     ],
