@@ -9,6 +9,7 @@ import { lirePapierTigre } from './papier-tigre.js';
 import { rendrePremierLancement } from './ecrans/premier-lancement.js';
 import { rendreGardeRobe } from './ecrans/garde-robe.js';
 import { rendreReglages } from './ecrans/reglages.js';
+import { rendreTenue } from './ecrans/tenue.js';
 
 // localStorage peut être inaccessible (Safari avec « Bloquer tous les cookies », données de site bloquées).
 // On ne bascule pas en mémoire en silence : chaque accès échoue, l'app le signale et n'enregistre rien.
@@ -34,6 +35,8 @@ const app = {
   catalogue: null,
   ecran: 'garde-robe',
   persistance: 'non demandé',
+  cacheEcarts: null, // ΔE00 vêtement × catalogue, gardé d'un calcul de propositions à l'autre
+  tenue: null, // état de l'écran Tenue du jour (types cochés, sélection, filtre)
 };
 
 function rendreAVenir(titre, etape) {
@@ -44,7 +47,7 @@ function rendreAVenir(titre, etape) {
 
 const ECRANS = {
   'garde-robe': rendreGardeRobe,
-  tenue: rendreAVenir('Tenue du jour', 6),
+  tenue: rendreTenue,
   manques: rendreAVenir('Manques fréquents', 7),
   reglages: rendreReglages,
 };

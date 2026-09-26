@@ -97,7 +97,7 @@ Entrées : types de la tenue, garde-robe, catalogue, réglages.
 ## Écrans
 1. Premier lancement : 10 pastilles MST (choix obligatoire) et interrupteur « teint dans les combinaisons » (désactivé par défaut). Hors mode installé : inviter à installer l'app avant de saisir, car le stockage de l'app installée est séparé de celui de Safari.
 2. Garde-robe : liste par type, ajout (scan ou manuel), édition, suppression.
-3. Tenue du jour : cases des types (pantalon et short exclusifs), bouton « Proposer », avatar, propositions, filtre favoris.
+3. Tenue du jour : cases des types (pantalon et short exclusifs), bouton « Proposer », avatar, propositions, filtre favoris. Cases préremplies avec la dernière tenue type ; repliées après « Proposer » ; avatar fixe en haut pendant le défilement ; la proposition touchée affiche son détail (vêtement à porter pour chaque pièce, manques, peau) et les étoiles de ses couleurs.
 4. Manques fréquents.
 5. Réglages : teint, interrupteur, tolérance, favoris, import du catalogue Papier Tigre, export et import des données, crédits (Wada via mattdesl et dblodorn sous MIT ; Monk, Ellis, « Monk Skin Tone Scale », 2019, sous CC BY 4.0 ; Papier Tigre, Color Inspiration).
 - Composant commun : sélecteur de catalogue (couleurs par source, étoile, recherche par nom), utilisé par le choix manuel, « Ajuster > tout le catalogue » et Réglages > Favoris.

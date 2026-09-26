@@ -79,6 +79,18 @@ test('app : double tape, le second toucher ne choisit rien dans le dialogue qui 
   egal(stocke().vetements.length, 0);
 });
 
+test('app : tenue du jour avec une garde-robe vide, message d\'invitation et aucune proposition', async () => {
+  cliquer('#onglets [data-ecran="tenue"]');
+  vrai(doc.querySelector('[data-action="proposer"]').disabled, 'Proposer désactivé sans pièce');
+  for (const type of ['chaussures', 'pantalon', 't-shirt']) cliquer(`[data-type-tenue="${type}"]`);
+  cliquer('[data-action="proposer"]');
+  await quand(() => doc.querySelector('[data-info="garde-robe-vide"]'), 'message garde-robe vide');
+  egal(doc.querySelectorAll('.proposition').length, 0, '3 pièces sans vêtement : 3 manques, tout est écarté');
+  vrai(doc.querySelector('[data-info="compte"]').textContent.startsWith('Aucune combinaison ne convient'));
+  egalProfond(stocke().tenuesTypes, [['chaussures', 'pantalon', 't-shirt']], 'tenue type enregistrée');
+  cliquer('#onglets [data-ecran="garde-robe"]');
+});
+
 test('app : ajout d\'un pull choisi dans le catalogue (recherche « burnt sienna »)', async () => {
   cliquer('[data-action="ajouter-vetement"]');
   cliquer('[data-choix="pull"]', await dialogueOuvert());
@@ -314,4 +326,38 @@ test('app : étalonnage par photos (blanc, noir), puis un vêtement noir corrig�
   await dialoguesFermes();
   await quand(() => stocke().vetements.length === 3, 'pantalon enregistré');
   egal(stocke().vetements[2].hex, '#111314');
+});
+
+test('app : tenue du jour, propositions, avatar, sélection, favoris et filtre', async () => {
+  cliquer('#onglets [data-ecran="tenue"]');
+  cliquer('[data-type-tenue="short"]');
+  egal(doc.querySelector('[data-type-tenue="pantalon"]').getAttribute('aria-pressed'), 'false', 'short et pantalon exclusifs');
+  cliquer('[data-type-tenue="pantalon"]');
+  egal(doc.querySelector('[data-type-tenue="short"]').getAttribute('aria-pressed'), 'false');
+  cliquer('[data-type-tenue="t-shirt"]');
+  cliquer('[data-type-tenue="pull"]');
+  cliquer('[data-action="proposer"]');
+  await quand(() => doc.querySelector('.proposition'), 'propositions');
+  const cartes = [...doc.querySelectorAll('.proposition')];
+  vrai(cartes.length >= 2 && cartes.length <= 20, `entre 2 et 20 propositions (${cartes.length})`);
+  egal(cartes[0].getAttribute('aria-pressed'), 'true', 'la première est sélectionnée');
+  vrai(stocke().tenuesTypes.some((tenue) => tenue.join(',') === 'chaussures,pantalon,pull'), 'tenue type enregistrée');
+  const panneau = doc.querySelector('.panneau-avatar');
+  egal(panneau.dataset.selection, cartes[0].dataset.combinaison);
+  const zones = [...panneau.querySelectorAll('svg g[data-type]')].map((g) => g.dataset.type);
+  egalProfond(zones.filter((z) => z !== 'ceinture').sort(), ['chaussures', 'pantalon', 'pull'], 'avatar : les pièces de la tenue');
+  vrai(doc.querySelector('.details .pieces'), 'détail de la proposition choisie');
+  cartes[1].click();
+  egal(doc.querySelector('.panneau-avatar').dataset.selection, cartes[1].dataset.combinaison, 'l\'avatar suit la proposition touchée');
+  egal(doc.querySelectorAll('.proposition[aria-pressed="true"]').length, 1);
+  const favorisAvant = stocke().reglages.favoris.length;
+  const etoile = doc.querySelector('[data-action="etoile-proposition"][aria-pressed="false"]');
+  const idEtoile = etoile.dataset.couleur;
+  etoile.click();
+  await quand(() => stocke().reglages.favoris.length === favorisAvant + 1, 'favori ajouté');
+  vrai(stocke().reglages.favoris.includes(idEtoile));
+  doc.getElementById('filtre-favoris').click();
+  await quand(() => doc.getElementById('filtre-favoris')?.checked, 'filtre actif');
+  const filtrees = [...doc.querySelectorAll('.proposition')];
+  vrai(filtrees.length > 0 && filtrees.every((c) => c.textContent.includes('★')), 'filtre : seulement des propositions avec un favori');
 });

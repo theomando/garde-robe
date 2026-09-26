@@ -16,7 +16,7 @@
 </main>
 <script type="module">
   import { construireWada, fusionnerCatalogues, plusProches } from '../js/catalogue.js';
-  import { etatInitial, modifierReglages, ajouterVetement, basculerFavori, exporterEtat } from '../js/donnees.js';
+  import { etatInitial, modifierReglages, ajouterVetement, basculerFavori, enregistrerTenueType, exporterEtat } from '../js/donnees.js';
   import { labDepuisHex } from '../js/couleur.js';
 
   const parametres = new URLSearchParams(location.search);
@@ -42,7 +42,7 @@
       const couleur = parNom(nom);
       if (couleur) etat = basculerFavori(etat, couleur.id);
     }
-    return etat;
+    return enregistrerTenueType(etat, ['chaussures', 'pantalon', 't-shirt', 'veste']);
   }
 
   function ouvrir() {
