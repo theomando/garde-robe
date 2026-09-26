@@ -13,7 +13,7 @@ export const LIBELLES_TYPES = {
 };
 
 // Version affichée dans les réglages (numéro de l'étape du plan tant que l'app est en construction).
-export const VERSION_APP = '0.10.1'; // à reporter dans sw.js (VERSION), vérifié par les tests
+export const VERSION_APP = '0.11.0'; // à reporter dans sw.js (VERSION), vérifié par les tests
 
 // Couches du haut, du corps vers l'extérieur (avatar). Chemise, veste et manteau sont portés ouverts.
 export const COUCHES = ['t-shirt', 'pull', 'chemise', 'veste', 'manteau'];
@@ -50,6 +50,11 @@ export const SCAN_PART_VALIDE_MIN = 0.5; // sous cette part de pixels valides : 
 export const SCAN_DELAI_BALANCE_MS = 1500; // attente sous la torche avant de verrouiller la balance des blancs
 export const SCAN_DELAI_SANS_IMAGE_MS = 5000; // sans image de la caméra passé ce délai : repli photo proposé
 export const SCAN_APERCU_MS = 300; // rafraîchissement de la couleur affichée en direct
+// Mesure stable (demande de Théo, 2026-09-26) : « Mesurer » combine plusieurs images (médiane par canal).
+export const SCAN_IMAGES_PAR_MESURE = 10; // images combinées par mesure
+export const SCAN_INTERVALLE_IMAGES_MS = 100; // entre deux images : la mesure dure environ une seconde
+export const SCAN_STABLE_FENETRE = 4; // mesures en direct comparées pour l'indicateur « stable » (≈ 1,2 s)
+export const SCAN_STABLE_DELTA_E = 2; // écart ΔE00 maximal entre elles pour afficher « stable » ; à calibrer
 
 // Étalonnage de la caméra (demande de Théo, 2026-09-26) : un vêtement blanc et un noir scannés une fois,
 // puis correction par deux points canal par canal. Un étalonnage par façon de mesurer (l'exposition diffère).

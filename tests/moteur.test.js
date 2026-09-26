@@ -39,6 +39,32 @@ const trouver = (resultat, k) => resultat.retenues.find((p) => p.combinaison.id 
 const piece = (proposition, type) => proposition.pieces.find((p) => p.type === type);
 const manques = (proposition) => proposition.manques.map((m) => `${m.type}:${m.couleurId ?? 'joker'}`);
 
+test('épingle : la pièce porte le vêtement choisi, sans manque ; combinaison écartée s\'il ne va pas', () => {
+  const pantalonBleu = vet('pantalon', BLEU);
+  const garde = [pantalonBleu, vet('pantalon', ROUGE), vet('t-shirt', ROUGE), vet('t-shirt', VERT)];
+  const catalogue = catalogueDe([[ROUGE, BLEU], [ROUGE, VERT], [VERT, JAUNE]]);
+  const libre = proposer({ types: ['pantalon', 't-shirt'], vetements: garde, catalogue, reglages: reglages() });
+  egalProfond(libre.retenues.map((p) => p.combinaison.id).sort(), ['k1', 'k2', 'k3'], 'sans épingle : les trois');
+  const r = proposer({ types: ['pantalon', 't-shirt'], vetements: garde, catalogue, reglages: reglages(), epingles: { pantalon: pantalonBleu.id } });
+  // k1 rouge-bleu : pantalon bleu porte le bleu, t-shirt rouge le rouge. k2 et k3 : le pantalon bleu n'y va pas.
+  egalProfond(r.retenues.map((p) => p.combinaison.id), ['k1']);
+  egal(piece(r.retenues[0], 'pantalon').vetement.id, pantalonBleu.id);
+  egal(r.retenues[0].nbManques, 0);
+});
+
+test('épingle : un vêtement noir épinglé sert de joker ; épingle vers un vêtement absent ignorée', () => {
+  const pantalonNoir = vet('pantalon', NOIR);
+  const garde = [pantalonNoir, vet('pantalon', VERT), vet('t-shirt', ROUGE), vet('veste', VERT)];
+  const catalogue = catalogueDe([[ROUGE, VERT]]);
+  const r = proposer({ types: ['pantalon', 't-shirt', 'veste'], vetements: garde, catalogue, reglages: reglages(), epingles: { pantalon: pantalonNoir.id } });
+  egal(r.retenues.length, 1);
+  const p = piece(r.retenues[0], 'pantalon');
+  vrai(p.joker && p.vetement.id === pantalonNoir.id, 'le pantalon noir épinglé est porté en joker');
+  const sans = proposer({ types: ['pantalon', 't-shirt'], vetements: garde, catalogue, reglages: reglages(), epingles: { pantalon: 'disparu' } });
+  const libre = proposer({ types: ['pantalon', 't-shirt'], vetements: garde, catalogue, reglages: reglages() });
+  egalProfond(sans.retenues.map(manques), libre.retenues.map(manques), 'épingle vers un vêtement absent : sans effet');
+});
+
 test('occultation : le pull masque le t-shirt, ordre des TYPES, tenues invalides refusées', () => {
   egalProfond(piecesVisibles(['pull', 't-shirt', 'pantalon', 'ceinture', 'chaussures']), ['chaussures', 'pantalon', 'ceinture', 'pull']);
   egalProfond(piecesVisibles(['chemise', 't-shirt']), ['t-shirt', 'chemise'], 'la chemise ne masque rien');

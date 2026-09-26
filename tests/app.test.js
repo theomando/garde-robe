@@ -278,6 +278,22 @@ const resultatPret = () => [...doc.querySelectorAll('dialog.scan[open]')]
   .find((d) => d.dataset.etape === 'resultat' && 'pret' in d.dataset);
 const cartesChoix = (feuille) => [...feuille.querySelectorAll('.rangee-choix [data-couleur]:not([data-couleur="mesure"])')];
 
+// La caméra simulée d'Edge montre une forme vert vif qui tourne : quand elle couvre le réticule pendant la mesure,
+// l'app répond (à raison) « reflet trop fort ». On recommence alors, comme le ferait l'utilisateur (5 essais au plus).
+async function mesurerCamera(scan) {
+  for (let essai = 1; essai <= 5; essai++) {
+    const mesurer = await attendreReel(() => {
+      const bouton = scan.querySelector('[data-action="mesurer"]');
+      return bouton && !bouton.disabled ? bouton : null;
+    }, 'déclencheur disponible');
+    mesurer.click();
+    const fin = await attendreReel(() => resultatPret()
+      ?? (!mesurer.disabled && scan.querySelector('.etat-scan').textContent.startsWith('Reflet') ? 'reflet' : null), 'fin de la mesure');
+    if (fin !== 'reflet') return fin;
+  }
+  throw new Error('reflet à chaque essai');
+}
+
 test('app : mesure par photo, feuille tout-en-un (couleur, ajustement, type) sans défilement, puis enregistrement', async () => {
   cliquer('#onglets [data-ecran="garde-robe"]');
   await menuAjout('scanner');
@@ -325,12 +341,17 @@ test('app : mesure à la caméra (simulée, sans torche), plein écran, Recommen
   const zone = mesurer.getBoundingClientRect();
   vrai(zone.top >= 0 && zone.bottom <= fenetre.innerHeight, 'déclencheur visible sans défiler');
   mesurer.click();
-  await attendreReel(() => resultatPret(), `résultat (état : ${scan.querySelector('.etat-scan')?.textContent})`);
+  vrai(mesurer.classList.contains('en-cours') && mesurer.disabled, 'mesure en cours : déclencheur occupé');
+  egal(scan.querySelector('.etat-scan').textContent, 'Mesure en cours : ne bouge pas…');
+  const fin = await attendreReel(() => resultatPret()
+    ?? (!mesurer.disabled && scan.querySelector('.etat-scan').textContent.startsWith('Reflet') ? 'reflet' : null), 'fin de la première mesure');
+  if (fin === 'reflet') await mesurerCamera(scan);
+  const images = Number(scan.querySelector('.feuille-resultat').dataset.images);
+  vrai(images >= 5 && images <= 10, `mesure combinée sur plusieurs images (${images} sur 10)`);
   egal(scan.querySelector('canvas.image-figee').hidden, false, 'image figée');
   cliquer('[data-action="recommencer"]', scan.querySelector('.feuille-resultat'));
   vrai(scan.querySelector('.feuille-resultat').hidden, 'Recommencer : feuille retirée');
-  (await pret()).click();
-  await attendreReel(() => resultatPret(), 'second résultat');
+  await mesurerCamera(scan);
   const feuille = scan.querySelector('.feuille-resultat');
   vrai(feuille.scrollHeight <= feuille.clientHeight + 1, `tout tient sans défiler (${feuille.scrollHeight} ≤ ${feuille.clientHeight})`);
 
@@ -440,6 +461,35 @@ test('app : tenue du jour, propositions, avatar, sélection, favoris et filtre',
   await quand(() => doc.getElementById('filtre-favoris')?.checked, 'filtre actif');
   const filtrees = [...doc.querySelectorAll('.proposition')];
   vrai(filtrees.length > 0 && filtrees.every((c) => c.textContent.includes('★')), 'filtre : seulement des propositions avec un favori');
+});
+
+test('app : partir d\'un vêtement (depuis la garde-robe), porté dans chaque proposition ; retrait puis épingle depuis la tenue', async () => {
+  cliquer('#onglets [data-ecran="garde-robe"]');
+  const pantalon = stocke().vetements.find((v) => v.type === 'pantalon');
+  cliquer(`[data-vetement="${pantalon.id}"]`);
+  cliquer('[data-action="composer-tenue"]', await dialogueOuvert());
+  await dialoguesFermes();
+  await quand(() => doc.querySelector('#onglets [aria-current="page"]')?.dataset.ecran === 'tenue', 'onglet Tenue');
+  vrai(doc.querySelector('.puce-epingle[data-epingle="pantalon"]'), 'pantalon épinglé');
+  vrai(doc.querySelector('.choix-tenue summary').textContent.includes(`avec Couleur mesurée ${pantalon.hex}`), 'rappel dans le résumé');
+  cliquer('[data-action="proposer"]');
+  await quand(() => doc.getElementById('filtre-favoris'), 'propositions');
+  if (doc.getElementById('filtre-favoris').checked) doc.getElementById('filtre-favoris').click(); // filtre du test précédent
+  await quand(() => doc.querySelector('.proposition'), 'propositions sans filtre');
+  const nb = Math.min(3, doc.querySelectorAll('.proposition').length);
+  for (let i = 0; i < nb; i++) {
+    doc.querySelectorAll('.proposition')[i].click();
+    const ligne = await attendre(() => doc.querySelector('.details [data-epingle="pantalon"]'), `pantalon épinglé dans le détail ${i + 1}`);
+    vrai(ligne.textContent.includes(pantalon.hex), `proposition ${i + 1} : le pantalon choisi est porté`);
+  }
+  doc.querySelector('.choix-tenue').open = true;
+  cliquer('.puce-epingle [data-action="retirer-epingle"]');
+  egal(doc.querySelector('.puce-epingle'), null, 'épingle retirée');
+  cliquer('[data-action="epingler"]');
+  cliquer(`[data-choix="${pantalon.id}"]`, await dialogueOuvert());
+  await dialoguesFermes();
+  vrai(doc.querySelector('.puce-epingle[data-epingle="pantalon"]'), 'épinglé depuis la tenue');
+  cliquer('.puce-epingle [data-action="retirer-epingle"]');
 });
 
 test('app : manques fréquents, top 10 trié, résultat gardé en mémoire puis recalculé après un réglage', async () => {

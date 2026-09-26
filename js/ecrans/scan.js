@@ -5,9 +5,12 @@
 
 import { el, pastille, terminaison, armerDialogue, rearmerDialogue, choisirImage, boutonRond, tuile } from '../ui.js';
 import { icone } from '../icones.js';
-import { TYPES, LIBELLES_TYPES, SCAN_DELAI_SANS_IMAGE_MS, SCAN_APERCU_MS, NEUTRE_C_MAX } from '../constantes.js';
+import {
+  TYPES, LIBELLES_TYPES, SCAN_DELAI_SANS_IMAGE_MS, SCAN_APERCU_MS, NEUTRE_C_MAX,
+  SCAN_IMAGES_PAR_MESURE, SCAN_INTERVALLE_IMAGES_MS, SCAN_STABLE_FENETRE,
+} from '../constantes.js';
 import { rgbVersHex, labDepuisHex, deltaE00, chroma } from '../couleur.js';
-import { carreCentral } from '../mesure.js';
+import { carreCentral, combinerMesures, viseeStable } from '../mesure.js';
 import { plusProches } from '../catalogue.js';
 import { creerCamera, ErreurCamera, mesurerSource, mesurerPhoto } from '../scan.js';
 import { ouvrirSelecteur } from './selecteur-catalogue.js';
@@ -60,7 +63,10 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
     const reticule = el('div', { class: 'reticule', 'aria-hidden': 'true', hidden: true });
     const direct = el('span', { class: 'pastille', 'aria-hidden': 'true' });
     const texteDirect = el('span', { class: 'texte-direct' }, '—');
-    const capsuleDirect = el('div', { class: 'scan-direct', hidden: true }, direct, texteDirect);
+    const etiquetteStable = el('span', { class: 'etiquette-stable' }, 'stable');
+    const capsuleDirect = el('div', { class: 'scan-direct', hidden: true }, direct, texteDirect, etiquetteStable);
+    let historique = []; // dernières mesures en direct (Lab), pour l'indicateur « stable »
+    let mesureEnCours = false;
     const etat = el('p', { class: 'etat-scan', role: 'status' }, 'Ouverture de la caméra…');
     const boutonTorche = boutonRond({ icone: 'eclair', libelle: 'Torche', action: 'torche' });
     boutonTorche.hidden = true;
@@ -124,10 +130,13 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
     const modeCourant = () => (camera?.etat().torche ? 'torche' : 'sans-torche');
 
     function apercu() {
+      if (mesureEnCours) return;
       const mesure = mesurerSource(video, video.videoWidth, video.videoHeight, canvas);
       const rgb = mesure.rgb && corriger ? corriger(mesure.rgb, modeCourant()) : mesure.rgb;
       direct.style.backgroundColor = rgb ? rgbVersHex(rgb) : '';
       texteDirect.textContent = rgb ? rgbVersHex(rgb) : (mesure.erreur === 'reflet' ? 'reflet' : '—');
+      historique = rgb ? [...historique, labDepuisHex(rgbVersHex(rgb))].slice(-SCAN_STABLE_FENETRE) : [];
+      capsuleDirect.classList.toggle('stable', historique.length === SCAN_STABLE_FENETRE && viseeStable(historique));
     }
 
     function surPerte(raison) {
@@ -153,6 +162,8 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
       reticule.hidden = true;
       capsuleDirect.hidden = true;
       etat.textContent = 'Ouverture de la caméra…';
+      historique = [];
+      capsuleDirect.classList.remove('stable');
       const courante = creerCamera({ mediaDevices, surPerte });
       camera = courante;
       try {
@@ -196,6 +207,7 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
       capsuleDirect.hidden = true;
       panneauAide.hidden = true;
       dialogue.dataset.etape = 'resultat';
+      feuille.dataset.images = String(mesure.images ?? 1);
       feuille.replaceChildren();
       feuille.hidden = false;
       resultat(mesure, feuille, { valider: (valeur) => terminer(valeur), recommencer: () => lancer() });
@@ -212,15 +224,36 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
       if (obtenu !== voulu) etat.textContent = voulu ? 'La torche n\'a pas pu s\'allumer (surchauffe ?).' : 'La torche n\'a pas pu s\'éteindre.';
     });
 
-    mesurer.addEventListener('click', () => {
-      const mesure = mesurerSource(video, video.videoWidth, video.videoHeight, canvas);
-      if (mesure.erreur) { etat.textContent = MESSAGES_MESURE[mesure.erreur]; return; }
+    // Mesure stable : SCAN_IMAGES_PAR_MESURE images en une seconde environ, combinées par médiane (js/mesure.js).
+    mesurer.addEventListener('click', async () => {
+      if (mesureEnCours) return;
+      mesureEnCours = true;
+      const courante = camera;
+      const consigneAvant = etat.textContent;
+      mesurer.disabled = true;
+      mesurer.classList.add('en-cours');
+      etat.textContent = 'Mesure en cours : ne bouge pas…';
+      const mesures = [];
+      for (let i = 0; i < SCAN_IMAGES_PAR_MESURE; i++) {
+        if (i > 0) await new Promise((suite) => { setTimeout(suite, SCAN_INTERVALLE_IMAGES_MS); });
+        if (camera !== courante || !dialogue.isConnected) { mesureEnCours = false; return; }
+        mesures.push(mesurerSource(video, video.videoWidth, video.videoHeight, canvas));
+      }
+      mesureEnCours = false;
+      mesurer.classList.remove('en-cours');
+      const mesure = combinerMesures(mesures);
+      if (mesure.erreur) {
+        mesurer.disabled = false;
+        etat.textContent = MESSAGES_MESURE[mesure.erreur] ?? consigneAvant;
+        return;
+      }
       const mode = modeCourant();
       figee.width = video.videoWidth;
       figee.height = video.videoHeight;
       figee.getContext('2d').drawImage(video, 0, 0);
       figee.hidden = false;
-      afficherResultat({ rgb: mesure.rgb, source: 'camera', mode });
+      etat.textContent = consigneAvant;
+      afficherResultat({ rgb: mesure.rgb, source: 'camera', mode, images: mesure.images });
     });
 
     relancer.addEventListener('click', () => lancer());

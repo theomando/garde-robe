@@ -70,10 +70,12 @@ function parAnciennete(a, b) {
 }
 
 // Pour chaque pièce visible : meilleur écart et vêtement retenu par couleur du catalogue, joker éventuel.
-function preparerPieces(visibles, vetements, cache) {
+// Pièce épinglée (« partir d'un vêtement », demande de Théo, 2026-09-26) : seul le vêtement choisi compte.
+function preparerPieces(visibles, vetements, cache, epingles) {
   const n = cache.catalogue.couleurs.length;
   return visibles.map((type) => {
-    const siens = vetements.filter((v) => v.type === type).sort(parAnciennete);
+    const epingle = epingles[type] ? vetements.find((v) => v.id === epingles[type] && v.type === type) : null;
+    const siens = epingle ? [epingle] : vetements.filter((v) => v.type === type).sort(parAnciennete);
     const meilleur = new Float64Array(n).fill(Infinity);
     const retenu = new Array(n).fill(null);
     for (const vetement of siens) {
@@ -88,7 +90,7 @@ function preparerPieces(visibles, vetements, cache) {
     const labs = siens.map((v) => labDepuisHex(v.hex));
     const noir = siens.find((_, i) => estNoir(labs[i]));
     const blanc = siens.find((_, i) => estBlanc(labs[i]));
-    return { type, meilleur, retenu, joker: noir ?? blanc ?? null };
+    return { type, meilleur, retenu, joker: noir ?? blanc ?? null, epingle: Boolean(epingle) };
   });
 }
 
@@ -108,17 +110,19 @@ function evaluer(combinaison, rang, pieces, peau, tolerance, index, favoris) {
 
   // Options de chaque porteur, dans l'ordre : couleurs de la combinaison, puis joker (ou « aucune » pour la peau).
   const coutJoker = micro(tolerance * COUT_JOKER_EN_TOLERANCES);
+  // Pièce épinglée : jamais de manque (le vêtement choisi est porté) ; sans option, la combinaison est écartée.
   const porteurs = pieces.map((piece) => {
     const options = [];
     for (let j = 0; j < k; j++) {
       const ecart = piece.meilleur[indices[j]];
-      options.push(ecart <= tolerance
-        ? { j, bit: bits[j], cle: micro(ecart), terme: true, manque: false, ecart, vetement: piece.retenu[indices[j]] }
-        : { j, bit: bits[j], cle: cle(1, 0, 1, 0), terme: false, manque: true, ecart: null, vetement: null });
+      if (ecart <= tolerance) options.push({ j, bit: bits[j], cle: micro(ecart), terme: true, manque: false, ecart, vetement: piece.retenu[indices[j]] });
+      else if (!piece.epingle) options.push({ j, bit: bits[j], cle: cle(1, 0, 1, 0), terme: false, manque: true, ecart: null, vetement: null });
     }
-    options.push(piece.joker
-      ? { j: -1, bit: 0, cle: coutJoker, terme: true, manque: false, ecart: tolerance * COUT_JOKER_EN_TOLERANCES, vetement: piece.joker }
-      : { j: -1, bit: 0, cle: cle(1, 0, 0, 0), terme: false, manque: true, ecart: null, vetement: null });
+    if (piece.joker) {
+      options.push({ j: -1, bit: 0, cle: coutJoker, terme: true, manque: false, ecart: tolerance * COUT_JOKER_EN_TOLERANCES, vetement: piece.joker });
+    } else if (!piece.epingle) {
+      options.push({ j: -1, bit: 0, cle: cle(1, 0, 0, 0), terme: false, manque: true, ecart: null, vetement: null });
+    }
     return options;
   });
   if (peau !== null) {
@@ -202,12 +206,13 @@ export function comparerPropositions(a, b) {
     || a.rang - b.rang;
 }
 
-// Entrée : { types, vetements, catalogue, reglages: { mst, teintActif, tolerance, favoris }, cache? }.
+// Entrée : { types, vetements, catalogue, reglages: { mst, teintActif, tolerance, favoris }, cache?, epingles? }.
+// epingles : { type: id du vêtement à porter } ; une épingle vers un vêtement absent (ou d'un autre type) est ignorée.
 // Sortie : { visibles, retenues (toutes les combinaisons non écartées, triées), gardeRobeVide, cache }.
-export function proposer({ types, vetements, catalogue, reglages, cache }) {
+export function proposer({ types, vetements, catalogue, reglages, cache, epingles = {} }) {
   const visibles = piecesVisibles(types);
   const cacheValide = cache && cache.catalogue === catalogue ? cache : creerCacheEcarts(catalogue);
-  const pieces = preparerPieces(visibles, vetements, cacheValide);
+  const pieces = preparerPieces(visibles, vetements, cacheValide, epingles);
   const peau = reglages.teintActif ? ligneEcarts(cacheValide, MST[reglages.mst - 1]) : null;
   const favoris = new Set(reglages.favoris ?? []);
   const retenues = [];

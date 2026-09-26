@@ -1,5 +1,28 @@
-import { test, egal, egalProfond } from './mini-test.js';
-import { carreCentral, medianeSansReflets } from '../js/mesure.js';
+import { test, vrai, egal, egalProfond } from './mini-test.js';
+import { carreCentral, medianeSansReflets, combinerMesures, viseeStable } from '../js/mesure.js';
+import { labDepuisHex } from '../js/couleur.js';
+
+test('mesure stable : médiane par canal des images, une image aberrante écartée', () => {
+  const images = [[100, 50, 20], [102, 52, 22], [101, 51, 21], [240, 10, 200], [99, 49, 19]].map((rgb) => ({ rgb }));
+  // Rouges triés 99, 100, 101, 102, 240 → 101 ; verts 10, 49, 50, 51, 52 → 50 ; bleus 19, 20, 21, 22, 200 → 21.
+  egalProfond(combinerMesures(images), { rgb: [101, 50, 21], images: 5, total: 5 });
+  egalProfond(combinerMesures([{ rgb: [10, 10, 10] }, { rgb: [20, 30, 40] }]).rgb, [10, 10, 10], 'médiane basse pour un nombre pair');
+});
+
+test('mesure stable : images en échec ignorées, erreur si moins de la moitié réussit', () => {
+  const ok = { rgb: [40, 50, 60] };
+  egalProfond(combinerMesures([ok, { erreur: 'reflet' }, ok, ok]), { rgb: [40, 50, 60], images: 3, total: 4 });
+  egalProfond(combinerMesures([ok, { erreur: 'reflet' }, { erreur: 'vide' }, { erreur: 'reflet' }]), { erreur: 'reflet', images: 1, total: 4 });
+  egalProfond(combinerMesures([{ erreur: 'vide' }, { erreur: 'vide' }]), { erreur: 'vide', images: 0, total: 2 });
+  egal(combinerMesures([]).erreur, 'vide');
+});
+
+test('mesure stable : indicateur « stable » quand les dernières mesures ne bougent plus', () => {
+  const lab = (hex) => labDepuisHex(hex);
+  egal(viseeStable([lab('#a07e56')]), false, 'une seule mesure ne suffit pas');
+  vrai(viseeStable([lab('#a07e56'), lab('#a17e56'), lab('#a07f57'), lab('#a07e56')]), 'écarts infimes : stable');
+  egal(viseeStable([lab('#a07e56'), lab('#806040'), lab('#a07e56')]), false, 'une mesure éloignée : pas stable');
+});
 
 // Pixels RGBA synthétiques : [[r, g, b], nombre]…
 function pixels(...groupes) {

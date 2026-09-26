@@ -568,7 +568,11 @@ html:has(dialog[open]) { overflow: hidden; }
   background: rgba(0, 0, 0, 0.45); -webkit-backdrop-filter: var(--flou); backdrop-filter: var(--flou);
   font-size: 0.88rem; font-variant-numeric: tabular-nums;
 }
-.scan-direct .pastille { width: 28px; height: 28px; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.6); }
+.scan-direct .pastille { width: 28px; height: 28px; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.6); transition: box-shadow 0.2s; }
+/* Visée stable : anneau et mention verts (vert système d'iOS en sombre, #30d158). */
+.etiquette-stable { display: none; font-size: 0.72rem; font-weight: 700; color: #30d158; text-transform: uppercase; letter-spacing: 0.04em; }
+.scan-direct.stable .etiquette-stable { display: inline; }
+.scan-direct.stable .pastille { box-shadow: inset 0 0 0 2.5px #30d158; }
 .scan-bas {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
   padding: 2.5rem 1rem calc(var(--bas-sur) + 18px);
@@ -589,6 +593,10 @@ html:has(dialog[open]) { overflow: hidden; }
 .declencheur::after { content: ""; display: block; width: 100%; height: 100%; border-radius: 50%; background: #ffffff; }
 .declencheur:not(:disabled):active { transform: scale(0.9); }
 .declencheur:disabled { opacity: 0.35; cursor: default; }
+/* Pendant la mesure (une seconde) : le disque se resserre et pulse. */
+.declencheur.en-cours:disabled { opacity: 1; }
+.declencheur.en-cours::after { transform: scale(0.7); animation: mesure-en-cours 0.5s ease-in-out infinite alternate; }
+@keyframes mesure-en-cours { to { transform: scale(0.55); } }
 .scan[data-etape="resultat"] .scan-bas, .scan[data-etape="resultat"] .astuce-scan { display: none; }
 
 /* Feuille du résultat, par-dessus l'image figée : tout tient sur un écran d'iPhone. */
@@ -697,6 +705,28 @@ html:has(dialog[open]) { overflow: hidden; }
 }
 .favori[aria-pressed="true"] .etoile-texte { color: var(--alerte); }
 .ligne-filtre { background: var(--carte); border-radius: var(--rayon); margin: 0.75rem 0 0.25rem; }
+/* « Partir d'un vêtement » : vêtements épinglés, portés dans toutes les propositions. */
+.epingles {
+  margin-top: 0.75rem; padding-top: 0.65rem; border-top: 0.5px solid var(--separateur);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
+}
+.etiquette-epingles { width: 100%; margin: 0; font-size: 0.82rem; font-weight: 600; color: var(--discret); }
+.puce-epingle {
+  display: inline-flex; align-items: center; gap: 0.4rem; padding: 3px 3px 3px 10px; border-radius: 999px; font-size: 0.82rem;
+  background: color-mix(in srgb, var(--accent) 14%, var(--carte));
+}
+.puce-epingle > .icone { width: 16px; height: 16px; color: var(--accent); }
+.puce-epingle .pastille { width: 20px; height: 20px; }
+.retirer-epingle {
+  width: 36px; height: 36px; border: none; border-radius: 50%; cursor: pointer; flex: none;
+  background: var(--remplissage); color: var(--texte); display: inline-flex; align-items: center; justify-content: center;
+}
+.retirer-epingle .icone { width: 14px; height: 14px; }
+.epingles .bouton .icone { width: 18px; height: 18px; }
+.icone-epingle { display: inline-block; width: 15px; height: 15px; vertical-align: -2px; margin-right: 3px; color: var(--accent); }
+.ligne-choix { font: inherit; width: 100%; text-align: left; border: none; background: none; color: var(--texte); cursor: pointer; }
+.ligne-choix:active { background: var(--remplissage); }
+.ligne-action > .icone { width: 20px; height: 20px; }
 
 /* ---------- Manques fréquents ---------- */
 

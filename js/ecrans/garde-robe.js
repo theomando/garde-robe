@@ -9,6 +9,7 @@ import { labDepuisHex } from '../couleur.js';
 import { ouvrirSelecteur } from './selecteur-catalogue.js';
 import { ouvrirScan, remplirResultatVetement } from './scan.js';
 import { correcteur } from './etalonnage.js';
+import { epinglerVetement } from './tenue.js';
 
 // Mesure tout-en-un : caméra plein écran, puis feuille du résultat (ajustement, type, Enregistrer). La couleur
 // mesurée est gardée par défaut (origine « scan ») ; un choix dans le catalogue la remplace (hex du catalogue,
@@ -93,11 +94,15 @@ async function modifier(app, actions, vetement) {
         el('label', { class: 'ligne', for: 'type-vetement' }, el('span', { class: 'texte-ligne' }, 'Type'), choixType),
         el('div', { class: 'ligne' }, apercu, changer)),
       el('div', { class: 'groupe' },
+        el('button', { type: 'button', class: 'ligne ligne-action', 'data-choix': 'composer', 'data-action': 'composer-tenue' },
+          icone('epingle'), el('span', { class: 'texte-ligne' }, 'Composer une tenue avec ce vêtement'))),
+      el('div', { class: 'groupe' },
         el('button', { type: 'button', class: 'ligne ligne-action danger', 'data-choix': 'supprimer', 'data-action': 'supprimer' }, 'Supprimer ce vêtement')),
     ],
     boutons: [{ libelle: 'Annuler', valeur: null }, { libelle: 'Enregistrer', valeur: 'ok', style: 'principal' }],
   });
   if (reponse === 'supprimer') { await supprimer(app, actions, vetement); return; }
+  if (reponse === 'composer') { epinglerVetement(app, vetement); actions.naviguer('tenue'); return; }
   if (reponse !== 'ok') return;
   const modifications = { type: choixType.value };
   if (nouvelleCouleur) Object.assign(modifications, { hex: nouvelleCouleur.hex, idCouleurCatalogue: nouvelleCouleur.id });

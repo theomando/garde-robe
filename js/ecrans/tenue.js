@@ -1,11 +1,13 @@
 // Écran Tenue du jour : cases des types (pantalon et short exclusifs), bouton « Proposer » (enregistre la tenue
 // type), avatar, au plus 20 propositions avec source et référence, filtre « avec mes favoris ».
 // Toucher une proposition met l'avatar à jour et affiche son détail (vêtements à porter, manques, favoris).
+// « Partir d'un vêtement » (demande de Théo, 2026-09-26) : un vêtement épinglé est porté dans toutes les propositions.
 
-import { el, pastille, pastilleJoker, barreNavigation, interrupteur, tuile } from '../ui.js';
+import { el, pastille, pastilleJoker, barreNavigation, interrupteur, tuile, ouvrirDialogue } from '../ui.js';
+import { icone } from '../icones.js';
 import { TYPES, LIBELLES_TYPES, BAS, MST, PROPOSITIONS_MAX } from '../constantes.js';
 import { enregistrerTenueType, basculerFavori } from '../donnees.js';
-import { proposer, selectionner } from '../moteur.js';
+import { proposer, selectionner, piecesVisibles } from '../moteur.js';
 import { dessinerAvatar, planAvatar } from '../avatar.js';
 import { estNoir, labDepuisHex } from '../couleur.js';
 import { nomCouleurVetement } from './garde-robe.js';
@@ -15,9 +17,25 @@ const ecartTexte = (ecart) => ecart.toFixed(1).replace('.', ',');
 // État de l'écran, gardé en mémoire d'un onglet à l'autre (pas enregistré).
 function etatEcran(app) {
   if (!app.tenue) {
-    app.tenue = { types: [...(app.etat.tenuesTypes.at(-1) ?? [])], propose: false, selection: null, avecFavoris: false };
+    app.tenue = { types: [...(app.etat.tenuesTypes.at(-1) ?? [])], propose: false, selection: null, avecFavoris: false, epingles: {} };
   }
   return app.tenue;
+}
+
+// Ajoute (ou retire) un type à la tenue : un seul bas ; un type retiré perd son épingle.
+function basculerType(ecran, type, present) {
+  const retires = present ? ecran.types.filter((t) => t !== type && BAS.includes(type) && BAS.includes(t)) : [type];
+  ecran.types = present ? [...ecran.types.filter((t) => !retires.includes(t)), type] : ecran.types.filter((t) => t !== type);
+  ecran.epingles = Object.fromEntries(Object.entries(ecran.epingles).filter(([t]) => !retires.includes(t)));
+  ecran.propose = false;
+}
+
+// « Partir d'un vêtement » : épingle ce vêtement (son type rejoint la tenue). Aussi appelé depuis la Garde-robe.
+export function epinglerVetement(app, vetement) {
+  const ecran = etatEcran(app);
+  if (!ecran.types.includes(vetement.type)) basculerType(ecran, vetement.type, true);
+  ecran.epingles = { ...ecran.epingles, [vetement.type]: vetement.id };
+  ecran.propose = false;
 }
 
 function reference(combinaison) {
@@ -56,18 +74,61 @@ export function rendreTenue(conteneur, app, actions) {
     TYPES.map((type) => tuile({
       icone: type, libelle: libelle(type), 'data-type-tenue': type, 'aria-pressed': String(ecran.types.includes(type)),
       onclick: () => {
-        if (ecran.types.includes(type)) ecran.types = ecran.types.filter((t) => t !== type);
-        else ecran.types = [...ecran.types.filter((t) => !(BAS.includes(type) && BAS.includes(t))), type]; // un seul bas
-        ecran.propose = false;
+        basculerType(ecran, type, !ecran.types.includes(type));
         actions.rafraichir();
       },
     })));
+  // Épingles valides : vêtement toujours présent, type dans la tenue. Masqué (t-shirt sous un pull) : sans effet.
+  const vetementParId = new Map(app.etat.vetements.map((v) => [v.id, v]));
+  ecran.epingles = Object.fromEntries(Object.entries(ecran.epingles)
+    .filter(([type, id]) => ecran.types.includes(type) && vetementParId.get(id)?.type === type));
+  const visibles = ecran.types.length > 0 ? piecesVisibles(ecran.types) : [];
+  const epingles = TYPES.filter((type) => ecran.epingles[type]).map((type) => ({ type, vetement: vetementParId.get(ecran.epingles[type]) }));
+
+  async function choisirEpingle() {
+    const groupes = TYPES.map((type) => ({ type, siens: app.etat.vetements.filter((v) => v.type === type) })).filter((g) => g.siens.length > 0);
+    const id = await ouvrirDialogue({
+      titre: 'Quel vêtement veux-tu porter ?',
+      contenu: groupes.length === 0
+        ? [el('p', { class: 'discret' }, 'Ta garde-robe est vide : ajoute d\'abord des vêtements.')]
+        : groupes.map(({ type, siens }) => [
+          el('h3', { class: 'titre-groupe' }, libelle(type)),
+          el('div', { class: 'groupe' }, siens.map((v) => el('button', {
+            type: 'button', class: 'ligne ligne-choix', 'data-choix': v.id, 'data-vetement-choix': v.id,
+          }, pastille(v.hex, { classe: 'moyenne' }), el('span', { class: 'texte-ligne' }, nomCouleurVetement(v, app.catalogue))))),
+        ]),
+      boutons: [{ libelle: 'Annuler', valeur: null }],
+    });
+    const vetement = id ? vetementParId.get(id) : null;
+    if (!vetement) return;
+    epinglerVetement(app, vetement);
+    actions.rafraichir();
+  }
+
+  const blocEpingles = el('div', { class: 'epingles' },
+    el('p', { class: 'etiquette-epingles' }, 'Partir d\'un vêtement'),
+    epingles.map(({ type, vetement }) => el('span', { class: 'puce-epingle', 'data-epingle': type },
+      icone('epingle'), pastille(vetement.hex),
+      el('span', { class: 'texte-epingle' }, `${libelle(type)} · ${nomCouleurVetement(vetement, app.catalogue)}`,
+        visibles.includes(type) ? null : el('small', {}, ' (caché par le pull : sans effet)')),
+      el('button', {
+        type: 'button', class: 'retirer-epingle', 'data-action': 'retirer-epingle', 'aria-label': `Ne plus épingler : ${libelle(type)}`,
+        onclick: () => {
+          ecran.epingles = Object.fromEntries(Object.entries(ecran.epingles).filter(([t]) => t !== type));
+          ecran.propose = false;
+          actions.rafraichir();
+        },
+      }, icone('fermer')))),
+    el('button', { type: 'button', class: 'bouton petit', 'data-action': 'epingler', onclick: choisirEpingle },
+      icone('epingle'), epingles.length > 0 ? 'Un autre vêtement' : 'Choisir un vêtement à porter'));
+
+  const noms = epingles.map(({ vetement }) => nomCouleurVetement(vetement, app.catalogue));
   const choix = el('details', { class: 'choix-tenue carte', open: !ecran.propose },
     el('summary', {}, ecran.types.length > 0
-      ? `Tenue : ${TYPES.filter((t) => ecran.types.includes(t)).map((t) => libelle(t).toLowerCase()).join(', ')}`
+      ? `Tenue : ${TYPES.filter((t) => ecran.types.includes(t)).map((t) => libelle(t).toLowerCase()).join(', ')}${noms.length > 0 ? ` · avec ${noms.join(', ')}` : ''}`
       : 'Choisis les pièces de ta tenue'),
     el('p', { class: 'discret' }, 'Pantalon et short ne vont pas ensemble. Sous un pull, le t-shirt ne compte pas.'),
-    grilleTypes);
+    grilleTypes, blocEpingles);
 
   const contenu = [...barreNavigation({ titre: 'Tenue du jour' }), choix];
   if (!ecran.propose) {
@@ -81,6 +142,7 @@ export function rendreTenue(conteneur, app, actions) {
   // ---- Propositions ----
   const resultat = proposer({
     types: ecran.types, vetements: app.etat.vetements, catalogue: app.catalogue, reglages: app.etat.reglages, cache: app.cacheEcarts,
+    epingles: ecran.epingles,
   });
   app.cacheEcarts = resultat.cache;
   const affichees = selectionner(resultat.retenues, { avecFavoris: ecran.avecFavoris });
@@ -116,7 +178,10 @@ export function rendreTenue(conteneur, app, actions) {
     const texte = piece.joker
       ? `${nom} (joker ${estNoir(labDepuisHex(vetement.hex)) ? 'noir' : 'blanc'})`
       : `${nom} pour ${cible.nom} (écart ${ecartTexte(piece.ecart)})`;
-    return el('li', {}, pastille(vetement.hex), el('span', {}, el('strong', {}, `${libelle(piece.type)} : `), texte));
+    const epingle = ecran.epingles[piece.type] === vetement.id;
+    return el('li', { 'data-epingle': epingle ? piece.type : null }, pastille(vetement.hex),
+      el('span', {}, epingle ? icone('epingle', { classe: 'icone-epingle', titre: 'Vêtement choisi' }) : null,
+        el('strong', {}, `${libelle(piece.type)} : `), texte));
   }
 
   function details(proposition) {
@@ -177,7 +242,9 @@ export function rendreTenue(conteneur, app, actions) {
     el('p', { class: 'discret compte', 'data-info': 'compte' }, affichees.length === 0
       ? (ecran.avecFavoris && total > 0
         ? 'Aucune proposition ne contient tes couleurs favorites.'
-        : 'Aucune combinaison ne convient (plus de 2 manques partout). Ajoute des vêtements ou augmente la tolérance (Réglages).')
+        : epingles.length > 0
+          ? 'Aucune combinaison ne va avec le vêtement choisi. Change de vêtement ou de tenue, ou augmente la tolérance (Réglages).'
+          : 'Aucune combinaison ne convient (plus de 2 manques partout). Ajoute des vêtements ou augmente la tolérance (Réglages).')
       : `${affichees.length} proposition${affichees.length > 1 ? 's' : ''}${candidates > affichees.length ? ` (les ${PROPOSITIONS_MAX} premières sur ${candidates})` : ''}.`),
     liste);
   dessinerPanneau();

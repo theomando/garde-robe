@@ -41,6 +41,10 @@ const DESSINS = {
   etoile: [['path', { d: 'M12 3.3l2.6 5.5 6 .8-4.4 4.1 1.1 5.9L12 16.7l-5.3 2.9 1.1-5.9-4.4-4.1 6-.8L12 3.3Z', 'stroke-linejoin': 'round' }]],
   'etoile-pleine': [['path', { d: 'M12 3.3l2.6 5.5 6 .8-4.4 4.1 1.1 5.9L12 16.7l-5.3 2.9 1.1-5.9-4.4-4.1 6-.8L12 3.3Z', 'stroke-linejoin': 'round', plein: true }]],
   recherche: [['circle', { cx: 10.5, cy: 10.5, r: 6 }], ['path', { d: 'M15 15l5 5' }]],
+  epingle: [['path', { d: 'M8.5 3.5h7l-1.2 5.3 3.2 3.7h-11l3.2-3.7-1.2-5.3Z', 'stroke-linejoin': 'round' }], ['path', { d: 'M12 12.5v8' }]],
+  partager: [['path', { d: 'M12 3.5v11M8 7.5l4-4 4 4' }], ['path', { d: 'M7.5 11H6c-.8 0-1.5.7-1.5 1.5v6.5c0 .8.7 1.5 1.5 1.5h12c.8 0 1.5-.7 1.5-1.5v-6.5c0-.8-.7-1.5-1.5-1.5h-1.5' }]],
+  coeur: [['path', { d: 'M12 20s-7.5-4.6-7.5-10.1A4.2 4.2 0 0 1 12 7.4a4.2 4.2 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20Z', 'stroke-linejoin': 'round' }]],
+  'coeur-plein': [['path', { d: 'M12 20s-7.5-4.6-7.5-10.1A4.2 4.2 0 0 1 12 7.4a4.2 4.2 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20Z', 'stroke-linejoin': 'round', plein: true }]],
   // Types de vêtements.
   chaussures: [['path', { d: 'M3 16.5v-5.2c0-.5.4-.9.9-.8l3 .6 1.8 1.9 3-.6 1.7-3 1.5.2.8 3.2 4.4 1.3c1.1.3 1.9 1.3 1.9 2.4v.9Z' }],
     ['path', { d: 'M3 16.5V19h18v-2.5' }]],
