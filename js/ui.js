@@ -61,6 +61,7 @@ export function ouvrirDialogue({ titre, contenu = [], boutons = [{ libelle: 'Fer
 // Anti double tape : un dialogue s'ouvre sous le doigt, le second toucher d'un double tape ne doit rien
 // y choisir. Les clics sont ignorés pendant DELAI_ARMEMENT ms, puis data-pret est posé (utile aux tests).
 const DELAI_ARMEMENT = 400;
+const minuteriesArmement = new WeakMap();
 export function armerDialogue(dialogue) {
   dialogue.addEventListener('click', (evenement) => {
     if (!('pret' in dialogue.dataset)) {
@@ -68,7 +69,14 @@ export function armerDialogue(dialogue) {
       evenement.preventDefault();
     }
   }, true);
-  setTimeout(() => { dialogue.dataset.pret = ''; }, DELAI_ARMEMENT);
+  rearmerDialogue(dialogue);
+}
+
+// À appeler quand le contenu d'un dialogue change d'étape : de nouveaux boutons apparaissent sous le doigt.
+export function rearmerDialogue(dialogue) {
+  delete dialogue.dataset.pret;
+  clearTimeout(minuteriesArmement.get(dialogue));
+  minuteriesArmement.set(dialogue, setTimeout(() => { dialogue.dataset.pret = ''; }, DELAI_ARMEMENT));
 }
 
 // Termine un dialogue une seule fois : fermeture, retrait du document, résolution de la promesse.

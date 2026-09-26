@@ -224,17 +224,13 @@ html:has(dialog[open]) { overflow: hidden; }
 .etat-scan { min-height: 2.9em; }
 
 /* Résultat du scan. */
-.resultat-scan h3 { font-size: 1rem; margin: 1rem 0 0.5rem; }
-.pastille.grande-mesure { width: 4.5rem; height: 4.5rem; border-radius: 12px; }
+.bande-couleur { height: 6.5rem; border-radius: 12px; border: 1px solid rgba(0, 0, 0, 0.15); margin: 0.5rem 0; }
+.question { font-weight: 700; font-size: 1.05rem; margin: 1.25rem 0 0.25rem; }
+.bouton.accent { border: 2px solid var(--accent); color: var(--accent); font-weight: 600; }
 .apercu-couleur .infos { display: flex; flex-direction: column; min-width: 0; }
 .vignette { display: flex; justify-content: center; margin-bottom: 0.5rem; }
 .vignette canvas { max-width: 100%; height: auto; border-radius: 8px; }
 .choix-type[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-texte); }
-.ajuster { margin-top: 1rem; }
-.ajuster summary { min-height: 44px; display: flex; align-items: center; color: var(--accent); font-weight: 600; cursor: pointer; list-style: none; }
-.ajuster summary::-webkit-details-marker { display: none; }
-.ajuster summary::before { content: "▸"; margin-right: 0.5rem; }
-.ajuster[open] summary::before { content: "▾"; }
 /* Boutons toujours visibles en bas de la fenêtre de résultat, même quand on fait défiler. */
 .resultat-scan .dialogue-boutons { position: sticky; bottom: -1rem; background: var(--carte); padding: 0.75rem 0 1rem; margin-bottom: -1rem; }
 .carte-proche {
@@ -244,7 +240,6 @@ html:has(dialog[open]) { overflow: hidden; }
 .carte-proche .nom { font-size: 0.8rem; line-height: 1.2; overflow-wrap: anywhere; }
 .carte-proche .detail { font-size: 0.75rem; color: var(--discret); }
 .carte-proche[aria-pressed="true"] { outline: 3px solid var(--accent); outline-offset: 1px; }
-.ajuster .bouton.secondaire { margin-top: 0.75rem; }
 
 .credits { padding-left: 1.2rem; font-size: 0.9rem; }
 .credits li { margin-bottom: 0.4rem; }

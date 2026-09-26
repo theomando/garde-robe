@@ -1,7 +1,7 @@
 // Écran de scan (caméra en direct, torche, réticule, couleur en direct) et choix après la mesure
 // (type de vêtement, « Ajuster » : 12 couleurs les plus proches du catalogue, extensible au catalogue complet).
 
-import { el, pastille, terminaison, armerDialogue, choisirImage } from '../ui.js';
+import { el, pastille, terminaison, armerDialogue, rearmerDialogue, choisirImage } from '../ui.js';
 import { TYPES, LIBELLES_TYPES, SCAN_DELAI_SANS_IMAGE_MS, SCAN_APERCU_MS } from '../constantes.js';
 import { rgbVersHex, labDepuisHex } from '../couleur.js';
 import { carreCentral } from '../mesure.js';
@@ -197,82 +197,111 @@ export function ouvrirScan({ mediaDevices } = {}) {
   });
 }
 
-// Après la mesure : type (bijoux exclus : choix manuel seulement), couleur mesurée conservée par défaut,
-// « Ajuster » pour la remplacer par une couleur du catalogue. Renvoie { type, hex, couleur }, 'recommencer' ou null.
+// Après la mesure, en trois étapes dans la même fenêtre :
+//   1. « couleur » : couleur mesurée, puis « Veux-tu ajuster la couleur ? » (Oui / Non) ;
+//   2. « ajuster » (si oui) : les 12 couleurs du catalogue les plus proches en premier, puis tout le catalogue ;
+//   3. « type » : type de vêtement (bijoux exclus : choix manuel seulement), puis Enregistrer.
+// La couleur mesurée est gardée par défaut. Renvoie { type, hex, couleur }, 'recommencer' ou null.
 export function choisirApresMesure(app, actions, { rgb, apercu }, { typeImpose = null } = {}) {
   return new Promise((resoudre) => {
     const hexMesure = rgbVersHex(rgb);
     const labMesure = labDepuisHex(hexMesure);
     const proches = plusProches(labMesure, app.catalogue, 12);
     let type = typeImpose;
-    let couleur = null;
+    let couleur = null; // couleur du catalogue retenue par « Ajuster » ; null = couleur mesurée
+    let enCours = null; // sélection en cours pendant l'étape « ajuster »
 
-    const grande = pastille(hexMesure, { classe: 'grande-mesure' });
-    const titre = el('strong', { class: 'nom' });
-    const detail = el('span', { class: 'discret' });
-    const garder = el('button', { type: 'button', class: 'bouton lien', hidden: true, 'data-action': 'garder-mesure', onclick: () => { couleur = null; afficherChoix(); } },
-      'Garder la couleur mesurée');
-    const grilleProches = el('div', { class: 'grille-couleurs' }, proches.map(({ couleur: c, ecart }) => el('button', {
-      type: 'button', class: 'carte-proche', 'data-couleur': c.id, 'aria-pressed': 'false',
-      onclick: () => { couleur = c; afficherChoix(); },
-    }, pastille(c.hex, { classe: 'grande' }), el('span', { class: 'nom' }, c.nom), el('span', { class: 'detail' }, ecartTexte(ecart)))));
+    const titre = el('h2', { id: 'titre-resultat', tabindex: '-1', autofocus: true });
+    const corps = el('div', { class: 'etape' });
+    const pied = el('div', { class: 'dialogue-boutons' });
+    const dialogue = el('dialog', { class: 'dialogue resultat-scan', 'aria-labelledby': 'titre-resultat' }, titre, corps, pied);
+    const terminer = terminaison(dialogue, resoudre);
 
-    function afficherChoix() {
-      const hex = couleur?.hex ?? hexMesure;
-      grande.style.backgroundColor = hex;
-      titre.textContent = couleur ? couleur.nom : 'Couleur mesurée';
-      detail.textContent = couleur
-        ? `${hex}, choisie dans le catalogue`
-        : `${hex}. La plus proche du catalogue : ${proches[0].couleur.nom} (${ecartTexte(proches[0].ecart)}).`;
-      for (const bouton of grilleProches.querySelectorAll('[data-couleur]')) {
-        bouton.setAttribute('aria-pressed', String(bouton.dataset.couleur === couleur?.id));
-      }
-      garder.hidden = couleur === null;
+    const bouton = (libelle, action, onclick, classe = 'secondaire') =>
+      el('button', { type: 'button', class: `bouton ${classe}`, 'data-action': action, onclick }, libelle);
+    const resume = (hex, nom, detail) => el('div', { class: 'apercu-couleur' },
+      pastille(hex, { classe: 'moyenne' }),
+      el('div', { class: 'infos' }, el('strong', {}, nom), el('span', { class: 'discret' }, detail)));
+
+    function afficher(etape) {
+      dialogue.dataset.etape = etape;
+      rearmerDialogue(dialogue); // nouveaux boutons sous le doigt : anti double tape
+      if (etape === 'couleur') etapeCouleur();
+      else if (etape === 'ajuster') etapeAjuster();
+      else etapeType();
+      dialogue.scrollTop = 0;
+      if (dialogue.open) titre.focus({ preventScroll: true });
     }
 
-    const enregistrer = el('button', {
-      type: 'button', class: 'bouton principal', disabled: type === null, 'data-action': 'enregistrer-scan',
-      onclick: () => terminer({ type, hex: couleur?.hex ?? hexMesure, couleur }),
-    }, 'Enregistrer');
-    const typesScan = TYPES.filter((t) => t !== 'bijoux');
-    const grilleTypes = el('div', { class: 'grille-types', role: 'group', 'aria-label': 'Type de vêtement' },
-      typesScan.map((t) => el('button', {
-        type: 'button', class: 'bouton secondaire choix-type', 'data-type': t, 'aria-pressed': String(t === type),
-        onclick: (evenement) => {
-          type = t;
-          for (const bouton of grilleTypes.children) bouton.setAttribute('aria-pressed', String(bouton === evenement.currentTarget));
-          enregistrer.disabled = false;
-        },
-      }, LIBELLES_TYPES[t])));
+    function etapeCouleur() {
+      titre.textContent = 'Couleur mesurée';
+      // replaceChildren écrirait « null » en texte : l'absence de vignette passe par un tableau filtré.
+      corps.replaceChildren(...[
+        apercu ? el('div', { class: 'vignette' }, apercu) : null,
+        el('div', { class: 'bande-couleur', style: { backgroundColor: hexMesure }, 'aria-hidden': 'true' }),
+        el('p', {}, el('strong', {}, hexMesure), ` : la plus proche du catalogue est ${proches[0].couleur.nom} (${ecartTexte(proches[0].ecart)}).`),
+        el('p', { class: 'question' }, 'Veux-tu ajuster la couleur ?'),
+        bouton('Oui, ajuster la couleur', 'ajuster', () => { enCours = couleur; afficher('ajuster'); }, 'secondaire accent large'),
+        bouton('Non, continuer', 'continuer-sans-ajuster', () => { couleur = null; afficher('type'); }, 'principal large'),
+      ].filter(Boolean));
+      pied.replaceChildren(
+        bouton('Recommencer la mesure', 'recommencer', () => terminer('recommencer')),
+        bouton('Annuler', 'annuler-resultat', () => terminer(null)));
+    }
 
-    const tout = el('button', {
-      type: 'button', class: 'bouton secondaire', 'data-action': 'tout-catalogue',
-      onclick: async () => {
+    function etapeAjuster() {
+      titre.textContent = 'Ajuster la couleur';
+      const choix = el('div');
+      const continuer = bouton('Continuer', 'continuer', () => { couleur = enCours; afficher('type'); }, 'principal');
+      const grille = el('div', { class: 'grille-couleurs' }, proches.map(({ couleur: c, ecart }) => el('button', {
+        type: 'button', class: 'carte-proche', 'data-couleur': c.id, 'aria-pressed': 'false',
+        onclick: () => { enCours = c; majChoix(); },
+      }, pastille(c.hex, { classe: 'grande' }), el('span', { class: 'nom' }, c.nom), el('span', { class: 'detail' }, ecartTexte(ecart)))));
+      function majChoix() {
+        choix.replaceChildren(enCours
+          ? resume(enCours.hex, enCours.nom, `${enCours.hex}, au lieu de la mesure ${hexMesure}`)
+          : resume(hexMesure, 'Couleur mesurée', `${hexMesure} : touche la couleur la plus juste ci-dessous`));
+        for (const carte of grille.querySelectorAll('[data-couleur]')) carte.setAttribute('aria-pressed', String(carte.dataset.couleur === enCours?.id));
+        continuer.disabled = enCours === null;
+      }
+      const tout = bouton('Voir tout le catalogue (avec recherche)', 'tout-catalogue', async () => {
         const choisie = await ouvrirSelecteur({
           catalogue: app.catalogue, titre: 'Couleur la plus juste', reference: labMesure, ...actions.favorisPourSelecteur(),
         });
-        if (choisie) { couleur = choisie; afficherChoix(); }
-      },
-    }, 'Tout le catalogue, du plus proche au plus éloigné');
+        if (choisie) { enCours = choisie; majChoix(); }
+      }, 'secondaire large');
+      corps.replaceChildren(choix,
+        el('p', { class: 'discret' }, 'Les 12 couleurs du catalogue les plus proches de la mesure, de la plus proche à la plus éloignée :'),
+        grille, tout);
+      pied.replaceChildren(bouton('Retour', 'retour', () => afficher('couleur')), continuer);
+      majChoix();
+    }
 
-    const dialogue = el('dialog', { class: 'dialogue resultat-scan', 'aria-labelledby': 'titre-resultat' },
-      el('h2', { id: 'titre-resultat', tabindex: '-1', autofocus: true }, 'Couleur mesurée'),
-      apercu ? el('div', { class: 'vignette' }, apercu) : null,
-      el('div', { class: 'apercu-couleur' }, grande, el('div', { class: 'infos' }, titre, detail)),
-      el('h3', {}, 'Type de vêtement'),
-      grilleTypes,
-      el('details', { class: 'ajuster' },
-        el('summary', { 'data-action': 'ajuster' }, 'Ajuster : choisir une couleur proche du catalogue'),
-        el('p', { class: 'discret' }, 'Les 12 couleurs du catalogue les plus proches de la mesure.'),
-        grilleProches, garder, tout),
-      el('div', { class: 'dialogue-boutons' },
-        el('button', { type: 'button', class: 'bouton secondaire', 'data-action': 'recommencer', onclick: () => terminer('recommencer') }, 'Recommencer'),
-        el('button', { type: 'button', class: 'bouton secondaire', onclick: () => terminer(null) }, 'Annuler'),
-        enregistrer));
-    const terminer = terminaison(dialogue, resoudre);
-    afficherChoix();
+    function etapeType() {
+      titre.textContent = 'Type de vêtement';
+      const enregistrer = bouton('Enregistrer', 'enregistrer-scan', () => terminer({ type, hex: couleur?.hex ?? hexMesure, couleur }), 'principal');
+      enregistrer.disabled = type === null;
+      const grille = el('div', { class: 'grille-types', role: 'group', 'aria-label': 'Type de vêtement' },
+        TYPES.filter((t) => t !== 'bijoux').map((t) => el('button', {
+          type: 'button', class: 'bouton secondaire choix-type', 'data-type': t, 'aria-pressed': String(t === type),
+          onclick: (evenement) => {
+            type = t;
+            for (const b of grille.children) b.setAttribute('aria-pressed', String(b === evenement.currentTarget));
+            enregistrer.disabled = false;
+          },
+        }, LIBELLES_TYPES[t])));
+      corps.replaceChildren(
+        couleur ? resume(couleur.hex, couleur.nom, `${couleur.hex}, choisie dans le catalogue`) : resume(hexMesure, 'Couleur mesurée', hexMesure),
+        el('p', { class: 'question' }, 'Quel type de vêtement ?'),
+        grille);
+      pied.replaceChildren(
+        bouton('Retour', 'retour', () => { enCours = couleur; afficher(couleur ? 'ajuster' : 'couleur'); }),
+        enregistrer);
+    }
+
     document.body.append(dialogue);
     armerDialogue(dialogue);
+    afficher('couleur');
     dialogue.showModal();
   });
 }
