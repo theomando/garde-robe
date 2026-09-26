@@ -5,7 +5,7 @@
 // Jamais en cache : data/papier-tigre.json (jamais publié), tests/ et outils/.
 // Le nom du cache est préfixé : l'origine theomando.github.io est partagée avec les autres sites du compte.
 
-const VERSION = '0.9.0';
+const VERSION = '0.10.0';
 const PREFIXE = 'garde-robe-';
 const CACHE = `${PREFIXE}${VERSION}`;
 
@@ -22,6 +22,7 @@ const FICHIERS = [
   'js/couleur.js',
   'js/donnees.js',
   'js/etalonnage.js',
+  'js/familles.js',
   'js/icones.js',
   'js/mesure.js',
   'js/mise-a-jour.js',

@@ -5,6 +5,7 @@ import { el, pastille, pastilleJoker, confirmer, annoncer, barreNavigation } fro
 import { TYPES, LIBELLES_TYPES } from '../constantes.js';
 import { retirerTenueType } from '../donnees.js';
 import { manquesFrequents } from '../statistiques.js';
+import { icone } from '../icones.js';
 
 // Délai avant le calcul, pour que Safari affiche d'abord « Calcul des manques… » (le calcul bloque la page).
 const DELAI_AVANT_CALCUL_MS = 30;
@@ -76,7 +77,7 @@ export function rendreManques(conteneur, app, actions) {
       couleur ? pastille(couleur.hex, { classe: 'moyenne' }) : pastilleJoker({ classe: 'moyenne' }),
       el('span', { class: 'infos' },
         el('span', { class: 'nom' }, couleur ? couleur.nom : 'Noir ou blanc'),
-        el('span', { class: 'discret detail' }, LIBELLES_TYPES[manque.type])),
+        el('span', { class: 'discret detail' }, icone(manque.type), LIBELLES_TYPES[manque.type])),
       el('span', { class: 'nombre' }, el('strong', {}, String(manque.nombre)),
         el('span', { class: 'discret' }, manque.nombre > 1 ? 'propositions' : 'proposition')));
     }));

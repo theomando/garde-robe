@@ -1,30 +1,69 @@
-// Sélecteur de catalogue : composant commun au choix manuel, à « Ajuster » et aux favoris.
+// Carte des couleurs (demande de Théo, 2026-09-26) : composant commun au choix manuel, à « Tout le catalogue » de
+// la mesure, à « Changer la couleur » et aux favoris.
+// Vue « carte » : les plus proches de la mesure (si une référence est donnée), puis la mosaïque des familles
+// (★ Favoris d'abord, s'il y en a). Toucher une famille ouvre sa section : toutes ses variations, du plus clair au
+// plus foncé ; « ‹ Carte » revient. La recherche par nom porte sur tout le catalogue.
 // mode 'choisir' : toucher une couleur la renvoie ; mode 'favoris' : toucher une couleur bascule son étoile.
-// reference (Lab) : couleurs triées du ΔE00 le plus petit au plus grand, écart affiché.
 
-import { el, pastille, terminaison, armerDialogue } from '../ui.js';
+import { el, pastille, terminaison, armerDialogue, boutonRond } from '../ui.js';
+import { icone } from '../icones.js';
 import { plusProches } from '../catalogue.js';
+import { deltaE00 } from '../couleur.js';
+import { grouperParFamille } from '../familles.js';
 
 const PAR_PAGE = 240;
+const CASES_DAMIER = 9; // damier 3 × 3 d'une tuile de famille
+const NB_PROCHES = 12;
+
+// Rangement calculé une fois par catalogue (il change seulement à l'import ou au retrait de Papier Tigre).
+const familles = new WeakMap();
+function famillesDe(catalogue) {
+  if (!familles.has(catalogue)) familles.set(catalogue, grouperParFamille(catalogue.couleurs));
+  return familles.get(catalogue);
+}
 
 function sansAccents(texte) {
   return texte.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 }
 
+// Cases du damier : couleurs réparties régulièrement du clair au foncé (répétées si la famille est petite).
+function damier(couleurs) {
+  return Array.from({ length: CASES_DAMIER }, (_, i) => couleurs[Math.floor((i * couleurs.length) / CASES_DAMIER)]);
+}
+
+const ecartTexte = (ecart) => `ΔE ${ecart.toFixed(1).replace('.', ',')}`;
+
 export function ouvrirSelecteur({ catalogue, titre, mode = 'choisir', reference = null, estFavori, basculerFavori }) {
   return new Promise((resoudre) => {
-    const sourcesPresentes = [...new Set(catalogue.couleurs.map((c) => c.source))];
-    const tout = reference
-      ? plusProches(reference, catalogue, Infinity)
-      : catalogue.couleurs.map((couleur) => ({ couleur, ecart: null }));
-    const filtre = { texte: '', source: 'toutes', favorisSeulement: false, limite: PAR_PAGE };
+    const groupes = famillesDe(catalogue);
+    const ecart = (couleur) => (reference ? deltaE00(reference, couleur.lab) : null);
+    let vue = 'carte'; // 'carte', id d'une famille, 'favoris' ou 'recherche'
+    let texte = '';
+    let limite = PAR_PAGE;
     let terminer = null;
 
-    const grille = el('div', { class: 'grille-couleurs', role: 'list' });
-    const plus = el('button', { type: 'button', class: 'bouton secondaire plus', 'data-action': 'afficher-plus' }, 'Afficher plus');
-    const compte = el('p', { class: 'discret compte' });
+    const titreElement = el('h2', { id: 'titre-selecteur', tabindex: '-1', autofocus: true }, titre);
+    const retour = el('button', {
+      type: 'button', class: 'bouton-retour', 'data-action': 'retour-carte', hidden: true,
+      onclick: () => { vue = 'carte'; limite = PAR_PAGE; afficher('arriere'); },
+    }, icone('chevron-gauche'), 'Carte');
+    const fermer = mode === 'favoris'
+      ? el('button', { type: 'button', class: 'bouton principal petit', 'data-action': 'fermer-selecteur', onclick: () => terminer(null) }, 'Terminé')
+      : boutonRond({ icone: 'fermer', libelle: 'Annuler', action: 'fermer-selecteur', onclick: () => terminer(null) });
+    const recherche = el('input', {
+      type: 'search', class: 'recherche', placeholder: 'Rechercher un nom', 'aria-label': 'Rechercher une couleur par son nom',
+      autocomplete: 'off', 'data-action': 'rechercher',
+      oninput: (e) => {
+        texte = e.target.value;
+        limite = PAR_PAGE;
+        vue = texte.trim() === '' ? 'carte' : 'recherche';
+        afficher();
+      },
+    });
+    const corps = el('div', { class: 'vue-selecteur' });
 
-    function carte({ couleur, ecart }) {
+    function carte(couleur) {
+      const e = ecart(couleur);
       const etoile = el('button', {
         type: 'button', class: 'etoile', 'data-action': 'etoile', 'data-couleur': couleur.id,
         'aria-pressed': String(estFavori(couleur.id)),
@@ -46,61 +85,80 @@ export function ouvrirSelecteur({ catalogue, titre, mode = 'choisir', reference 
       },
       pastille(couleur.hex, { classe: 'grande' }),
       el('span', { class: 'nom' }, couleur.nom),
-      el('span', { class: 'detail' }, ecart === null ? couleur.hex : `ΔE ${ecart.toFixed(1).replace('.', ',')}`));
+      el('span', { class: 'detail' }, e === null ? couleur.hex : ecartTexte(e)));
       return el('div', { class: 'carte-couleur', role: 'listitem' }, principal, etoile);
     }
 
-    function afficher() {
-      const texte = sansAccents(filtre.texte.trim());
-      const visibles = tout.filter(({ couleur }) =>
-        (filtre.source === 'toutes' || couleur.source === filtre.source)
-        && (!filtre.favorisSeulement || estFavori(couleur.id))
-        && (texte === '' || sansAccents(couleur.nom).includes(texte)));
-      grille.replaceChildren(...visibles.slice(0, filtre.limite).map(carte));
-      compte.textContent = visibles.length === 0 ? 'Aucune couleur ne correspond.'
-        : `${Math.min(visibles.length, filtre.limite)} couleur(s) affichée(s) sur ${visibles.length}`;
-      plus.hidden = visibles.length <= filtre.limite;
+    function grille(liste) {
+      return [
+        el('div', { class: 'grille-couleurs', role: 'list' }, liste.slice(0, limite).map(carte)),
+        liste.length > limite ? el('button', {
+          type: 'button', class: 'bouton plus', 'data-action': 'afficher-plus',
+          onclick: () => { limite += PAR_PAGE; afficher(); },
+        }, 'Afficher plus') : null,
+      ];
     }
 
-    plus.addEventListener('click', () => { filtre.limite += PAR_PAGE; afficher(); });
-    const recherche = el('input', {
-      type: 'search', class: 'recherche', placeholder: 'Rechercher un nom', 'aria-label': 'Rechercher une couleur par son nom',
-      autocomplete: 'off', 'data-action': 'rechercher',
-      oninput: (e) => { filtre.texte = e.target.value; filtre.limite = PAR_PAGE; afficher(); },
-    });
+    function tuile(id, nom, couleurs) {
+      return el('button', {
+        type: 'button', class: 'tuile-famille', 'data-famille': id, 'aria-label': `${nom}, ${couleurs.length} couleurs`,
+        onclick: () => { vue = id; limite = PAR_PAGE; afficher('avant'); },
+      },
+      el('span', { class: 'damier', 'aria-hidden': 'true' }, damier(couleurs).map((c) => el('span', { style: { backgroundColor: c.hex } }))),
+      el('span', { class: 'nom-famille' }, nom),
+      el('span', { class: 'compte-famille' }, `${couleurs.length} couleur${couleurs.length > 1 ? 's' : ''}`));
+    }
 
-    const libellesSources = { toutes: 'Toutes', wada: 'Combinaisons', 'papier-tigre': 'Papier Tigre' };
-    const puces = el('div', { class: 'puces' });
-    const sources = ['toutes', ...sourcesPresentes];
-    const boutonsSource = sourcesPresentes.length > 1 ? sources.map((s) => el('button', {
-      type: 'button', class: 'puce', 'aria-pressed': String(s === 'toutes'), 'data-source': s,
-      onclick: (e) => {
-        filtre.source = s;
-        for (const b of puces.querySelectorAll('[data-source]')) b.setAttribute('aria-pressed', String(b === e.currentTarget));
-        afficher();
-      },
-    }, libellesSources[s] ?? s)) : [];
-    const puceFavoris = el('button', {
-      type: 'button', class: 'puce', 'aria-pressed': 'false', 'data-action': 'favoris-seulement',
-      onclick: (e) => {
-        filtre.favorisSeulement = !filtre.favorisSeulement;
-        e.currentTarget.setAttribute('aria-pressed', String(filtre.favorisSeulement));
-        afficher();
-      },
-    }, '★ Favoris');
-    puces.append(...boutonsSource, puceFavoris);
+    const favoris = () => catalogue.couleurs.filter((c) => estFavori(c.id));
+
+    function afficher(sens = null) {
+      let contenu;
+      let titreVue = titre;
+      if (vue === 'recherche') {
+        const cle = sansAccents(texte.trim());
+        let trouvees = catalogue.couleurs.filter((c) => sansAccents(c.nom).includes(cle));
+        if (reference) trouvees = trouvees.map((c) => ({ c, e: ecart(c) })).sort((x, y) => x.e - y.e).map((x) => x.c);
+        contenu = [
+          el('p', { class: 'compte discret' }, trouvees.length === 0 ? 'Aucune couleur ne correspond.'
+            : `${trouvees.length} couleur${trouvees.length > 1 ? 's' : ''}${reference ? ', de la plus proche à la plus éloignée' : ''}`),
+          ...grille(trouvees),
+        ];
+      } else if (vue === 'carte') {
+        const favorites = favoris();
+        contenu = [
+          reference ? el('h3', { class: 'titre-vue' }, 'Les plus proches de la mesure') : null,
+          reference ? el('div', { class: 'rangee-proches', role: 'list' },
+            plusProches(reference, catalogue, NB_PROCHES).map(({ couleur }) => carte(couleur))) : null,
+          el('h3', { class: 'titre-vue' }, 'Carte des couleurs'),
+          el('div', { class: 'mosaique' },
+            favorites.length > 0 ? tuile('favoris', '★ Favoris', favorites) : null,
+            groupes.map((g) => tuile(g.id, g.nom, g.couleurs))),
+        ];
+      } else {
+        const groupe = vue === 'favoris' ? { nom: '★ Favoris', couleurs: favoris() } : groupes.find((g) => g.id === vue);
+        titreVue = groupe.nom;
+        contenu = [
+          el('p', { class: 'compte discret' }, `${groupe.couleurs.length} couleur${groupe.couleurs.length > 1 ? 's' : ''}, de la plus claire à la plus foncée`),
+          ...grille(groupe.couleurs),
+        ];
+      }
+      titreElement.textContent = titreVue;
+      retour.hidden = vue === 'carte' || vue === 'recherche';
+      dialogue.dataset.vue = vue;
+      corps.replaceChildren(...contenu.filter(Boolean));
+      if (sens) {
+        corps.classList.remove('avant', 'arriere');
+        void corps.offsetWidth; // relance l'animation
+        corps.classList.add(sens);
+        dialogue.scrollTop = 0;
+      }
+    }
 
     const dialogue = el('dialog', { class: 'dialogue plein-ecran selecteur', 'aria-labelledby': 'titre-selecteur' },
       el('div', { class: 'selecteur-entete' },
-        el('h2', { id: 'titre-selecteur', tabindex: '-1', autofocus: true }, titre),
-        el('button', { type: 'button', class: 'bouton secondaire', 'data-action': 'fermer-selecteur', onclick: () => terminer(null) },
-          mode === 'favoris' ? 'Terminé' : 'Annuler')),
+        el('div', { class: 'gauche' }, retour), titreElement, el('div', { class: 'droite' }, fermer)),
       recherche,
-      puces,
-      reference ? el('p', { class: 'discret' }, 'Du plus proche au plus éloigné (ΔE00, écart de couleur).') : null,
-      compte,
-      grille,
-      plus);
+      corps);
     terminer = terminaison(dialogue, resoudre);
     document.body.append(dialogue);
     armerDialogue(dialogue);

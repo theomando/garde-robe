@@ -324,11 +324,23 @@ input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--accent)
 /* ---------- Garde-robe ---------- */
 
 .liste-vetements { --retrait-separateur: calc(1rem + 2.4rem + 0.75rem); }
-.vetement { margin: 0; }
+.vetement { margin: 0; position: relative; overflow: hidden; }
 .ligne-vetement {
-  font: inherit; color: inherit; text-align: left; width: 100%; min-height: 64px; border: none; background: none;
+  font: inherit; color: inherit; text-align: left; width: 100%; min-height: 64px; border: none; background: var(--carte);
   display: flex; align-items: center; gap: 0.75rem; padding: 0.55rem 1rem; cursor: pointer; position: relative;
+  touch-action: pan-y; transition: transform 0.28s var(--ressort);
 }
+.vetement.glisse .ligne-vetement { transition: none; }
+/* Action découverte par le balayage vers la gauche. */
+.action-supprimer {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 92px; border: none; cursor: pointer;
+  background: var(--danger); color: #ffffff; font: inherit; font-size: 0.76rem; font-weight: 600;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+}
+.action-supprimer .icone { width: 22px; height: 22px; }
+/* Caché hors balayage : sinon un liseré rouge perce dans l'arrondi des coins de la liste. */
+.action-supprimer { visibility: hidden; }
+.vetement.ouverte .action-supprimer, .vetement.glisse .action-supprimer { visibility: visible; }
 .vetement + .vetement .ligne-vetement::before {
   content: ""; position: absolute; top: 0; right: 0; left: var(--retrait-separateur); border-top: 0.5px solid var(--separateur);
 }
@@ -443,12 +455,51 @@ html:has(dialog[open]) { overflow: hidden; }
   padding: 0.5rem calc(1rem + var(--droite-sur)) calc(1rem + var(--bas-sur)) calc(1rem + var(--gauche-sur));
   animation: feuille-entree 0.42s var(--ressort);
 }
-.selecteur-entete { position: sticky; top: -0.5rem; z-index: 2; margin: -0.5rem -1rem 0; padding: 0.75rem 1rem 0.5rem; background: var(--fond);
-  display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-.selecteur-entete h2 { margin: 0; font-size: 1.18rem; font-weight: 700; }
+.selecteur-entete {
+  position: sticky; top: -0.5rem; z-index: 2; margin: -0.5rem -1rem 0; padding: 0.6rem 1rem 0.4rem; background: var(--fond);
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 0.5rem;
+}
+.selecteur-entete h2 { grid-column: 2; margin: 0; font-size: 1rem; font-weight: 600; text-align: center; }
+.selecteur-entete h2:focus { outline: none; }
+.selecteur-entete .gauche { grid-column: 1; justify-self: start; }
+.selecteur-entete .droite { grid-column: 3; justify-self: end; }
+.bouton-retour {
+  font: inherit; font-size: 1rem; border: none; background: none; color: var(--accent); cursor: pointer;
+  display: inline-flex; align-items: center; gap: 1px; min-height: 44px; padding: 0 0.3rem 0 0;
+}
+.bouton-retour .icone { width: 22px; height: 22px; }
+
+/* Carte des couleurs : mosaïque des familles, puis section de toutes les variations. */
+.titre-vue { font-size: 1.18rem; font-weight: 700; margin: 1rem 0.25rem 0.6rem; }
+.mosaique { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; padding-bottom: 1rem; }
+.tuile-famille {
+  font: inherit; text-align: left; border: none; cursor: pointer; background: var(--carte); color: var(--texte);
+  border-radius: 20px; padding: 6px 6px 9px; display: flex; flex-direction: column; gap: 5px;
+  transition: transform 0.12s ease-out, filter 0.12s;
+}
+.tuile-famille:active { transform: scale(0.96); filter: brightness(0.94); }
+.damier {
+  display: grid; grid-template-columns: repeat(3, 1fr); aspect-ratio: 1; border-radius: 14px; overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--bord-pastille);
+}
+.damier span { display: block; }
+.nom-famille { font-size: 0.8rem; font-weight: 600; line-height: 1.15; padding: 0 4px; }
+.compte-famille { font-size: 0.7rem; color: var(--discret); padding: 0 4px; }
+.rangee-proches {
+  display: flex; gap: 0.6rem; overflow-x: auto; margin: 0 -1rem; padding: 0 1rem 0.25rem; scroll-snap-type: x proximity; scrollbar-width: none;
+}
+.rangee-proches::-webkit-scrollbar { display: none; }
+/* content-visibility: auto ne dessine pas les cartes d'une rangée qui défile à l'horizontale : on l'annule ici. */
+.rangee-proches .carte-couleur { flex: none; width: 6.5rem; scroll-snap-align: start; content-visibility: visible; }
+.vue-selecteur.avant { animation: vue-avant 0.32s var(--ressort); }
+.vue-selecteur.arriere { animation: vue-arriere 0.32s var(--ressort); }
+@keyframes vue-avant { from { opacity: 0; transform: translateX(28%); } }
+@keyframes vue-arriere { from { opacity: 0; transform: translateX(-28%); } }
 .recherche {
   font: inherit; font-size: 1rem; width: 100%; min-height: 40px; padding: 0.4rem 0.75rem 0.4rem 2.1rem; border-radius: 12px; border: none;
   background: var(--remplissage) no-repeat 0.65rem center / 16px; color: var(--texte); margin: 0.35rem 0 0.5rem;
+  /* Loupe (même dessin que l'icône « recherche » de js/icones.js), gris système #8e8e93. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6'/%3E%3Cpath d='M15 15l5 5'/%3E%3C/svg%3E");
 }
 .puces { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.4rem 0 0.6rem; }
 .puce {
@@ -587,6 +638,15 @@ html:has(dialog[open]) { overflow: hidden; }
 /* ---------- Tenue du jour ---------- */
 
 .choix-tenue { padding: 0.35rem 1rem 1rem; }
+/* Bouton d'action flottant au-dessus des onglets (« Proposer »). translate plutôt que transform : l'effet d'appui
+   (transform: scale) ne le décentre pas. */
+.bouton-flottant {
+  position: fixed; z-index: 9; left: 50%; translate: -50% 0; min-width: 13rem; min-height: 52px; font-size: 1.06rem;
+  bottom: calc(var(--onglets-bas) + var(--onglets-hauteur) + 12px);
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--accent) 38%, transparent), var(--verre-reflet);
+}
+.bouton-flottant:disabled { opacity: 1; background: var(--remplissage-fort); color: var(--discret); box-shadow: none; }
+.contenu:has(.bouton-flottant) { padding-bottom: calc(var(--onglets-hauteur) + var(--onglets-bas) + 5.5rem); }
 .choix-tenue .discret { font-size: 0.82rem; margin-top: 0; }
 :is(.choix-tenue, .depliant) summary {
   min-height: 48px; display: flex; align-items: center; font-weight: 600; cursor: pointer; list-style: none;
@@ -646,7 +706,8 @@ html:has(dialog[open]) { overflow: hidden; }
 .manque-frequent .rang { font-weight: 700; color: var(--discret); text-align: center; }
 .manque-frequent .infos { display: flex; flex-direction: column; min-width: 0; }
 .manque-frequent .nom { font-weight: 500; overflow-wrap: anywhere; }
-.manque-frequent .detail { font-size: 0.88rem; }
+.manque-frequent .detail { font-size: 0.88rem; display: flex; align-items: center; gap: 0.3rem; }
+.manque-frequent .detail .icone { width: 16px; height: 16px; }
 .manque-frequent .nombre { display: flex; flex-direction: column; align-items: flex-end; font-size: 0.72rem; color: var(--discret); }
 .manque-frequent .nombre strong { font-size: 1.18rem; color: var(--texte); font-variant-numeric: tabular-nums; }
 .tenues-comptees { padding: 0.2rem 1rem 0.6rem; }
@@ -662,6 +723,12 @@ html:has(dialog[open]) { overflow: hidden; }
 /* ---------- Premier lancement ---------- */
 
 .premier-lancement { padding-top: calc(var(--haut-sur) + 2.5rem); }
+.icone-app { display: block; width: 84px; height: 84px; margin: 0 auto 1rem; border-radius: 22.5%; box-shadow: var(--ombre-verre); }
+.atouts { list-style: none; padding: 0; margin: 0.5rem 0.5rem 1.5rem; }
+.atouts li { display: flex; align-items: flex-start; gap: 1rem; margin-bottom: 1.2rem; }
+.atouts .icone { width: 36px; height: 36px; color: var(--accent); flex: none; margin-top: 2px; }
+.atouts strong { font-size: 1rem; }
+.atouts p { margin: 0.15rem 0 0; font-size: 0.88rem; color: var(--discret); }
 .premier-lancement h1 { font-size: 2.2rem; text-align: center; }
 .premier-lancement .accroche { text-align: center; color: var(--discret); margin: 0.6rem 1rem 1.5rem; }
 .premier-lancement .credit { margin-top: 1.5rem; font-size: 0.765rem; text-align: center; }

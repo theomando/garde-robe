@@ -78,6 +78,32 @@ export function chroma({ a, b }) {
   return Math.sqrt(a * a + b * b);
 }
 
+// OKLab : Björn Ottosson, « A perceptual color space for image processing », 2020, bottosson.github.io/posts/oklab
+// (matrices M1, XYZ D65 → LMS, et M2, du billet). Sert seulement à ranger les couleurs par famille (carte des
+// couleurs) : sa teinte reste stable là où celle de CIELAB dérive (un bleu saturé y prend la teinte des violets).
+const OK_M1 = [
+  [0.8189330101, 0.3618667424, -0.1288597137],
+  [0.0329845436, 0.9293118715, 0.0361456387],
+  [0.0482003018, 0.2643662691, 0.6338517070],
+];
+const OK_M2 = [
+  [0.2104542553, 0.7936177850, -0.0040720468],
+  [1.9779984951, -2.4285922050, 0.4505937099],
+  [0.0259040371, 0.7827717662, -0.8086757660],
+];
+
+export function oklabDepuisXyz([X, Y, Z]) {
+  const [l, m, s] = OK_M1.map(([u, v, w]) => Math.cbrt(u * X + v * Y + w * Z));
+  const [L, a, b] = OK_M2.map(([u, v, w]) => u * l + v * m + w * s);
+  return { L, a, b };
+}
+
+// OKLCh d'une couleur : L (0 à 1), C (chroma, 0 à 0,4 environ), h (teinte en degrés, 0 à 360).
+export function oklchDepuisHex(hex) {
+  const { L, a, b } = oklabDepuisXyz(xyzDepuisRgb(hexVersRgb(hex)));
+  return { L, C: Math.sqrt(a * a + b * b), h: teinte(a, b) };
+}
+
 export function estNoir(lab) {
   return lab.L <= NOIR_L_MAX && chroma(lab) <= NEUTRE_C_MAX;
 }

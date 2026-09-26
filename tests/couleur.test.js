@@ -4,8 +4,36 @@ import { MST_LAB } from './donnees/mst-lab.js';
 import { MST } from '../js/constantes.js';
 import {
   estHexValide, hexVersRgb, rgbVersHex, labDepuisHex, labDepuisRgb,
-  chroma, estNoir, estBlanc, deltaE00,
+  chroma, estNoir, estBlanc, deltaE00, oklabDepuisXyz, oklchDepuisHex,
 } from '../js/couleur.js';
+
+// Valeurs de contrôle publiées par Björn Ottosson (« A perceptual color space for image processing », 2020,
+// tableau des paires XYZ et OKLab d'exemple), arrondies à 3 décimales.
+test('OKLab : paires XYZ → OKLab de référence d\'Ottosson, à 3 décimales', () => {
+  const paires = [
+    [[0.950, 1.000, 1.089], [1.000, 0.000, 0.000]],
+    [[1.000, 0.000, 0.000], [0.450, 1.236, -0.019]],
+    [[0.000, 1.000, 0.000], [0.922, -0.671, 0.263]],
+    [[0.000, 0.000, 1.000], [0.153, -1.415, -0.449]],
+  ];
+  for (const [xyz, [L, a, b]] of paires) {
+    const ok = oklabDepuisXyz(xyz);
+    proche(ok.L, L, 6e-4, `L de ${xyz}`);
+    proche(ok.a, a, 6e-4, `a de ${xyz}`);
+    proche(ok.b, b, 6e-4, `b de ${xyz}`);
+  }
+});
+
+test('OKLCh : blanc à L = 1 et C ≈ 0 ; un bleu roi d\'imprimé garde une teinte de bleu, contrairement à CIELAB', () => {
+  const blanc = oklchDepuisHex('#ffffff');
+  proche(blanc.L, 1, 1e-3);
+  proche(blanc.C, 0, 1e-3);
+  vrai(oklchDepuisHex('#2e3192').h < 280, 'bleu roi (C100 M100) : teinte des bleus en OKLCh');
+  const lab = labDepuisHex('#2e3192');
+  vrai((Math.atan2(lab.b, lab.a) * 180 / Math.PI + 360) % 360 > 289, 'en CIELAB, sa teinte est celle des violets (raison du choix d\'OKLab)');
+  const violet = oklchDepuisHex('#8000ff').h;
+  vrai(violet > 280 && violet < 345, `violet : ${violet}`);
+});
 
 const lab = (L, a, b) => ({ L, a, b });
 

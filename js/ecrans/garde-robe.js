@@ -110,20 +110,95 @@ async function supprimer(app, actions, vetement) {
   if (actions.mettreAJour(supprimerVetement(app.etat, vetement.id))) annoncer('Vêtement supprimé');
 }
 
+// Balayer une ligne vers la gauche découvre « Supprimer », comme dans Mail. Une seule ligne ouverte à la fois ;
+// toucher une ligne ouverte la referme. La suppression reste aussi dans la fenêtre de modification (VoiceOver).
+const LARGEUR_ACTION = 92; // px découverts par le balayage
+const SEUIL_BALAYAGE = 10; // px avant de décider entre balayage horizontal et défilement vertical
+let ligneOuverte = null;
+
+function fermerLigne(li) {
+  if (!li) return;
+  li.classList.remove('ouverte');
+  li.querySelector('.ligne-vetement').style.transform = '';
+  if (ligneOuverte === li) ligneOuverte = null;
+}
+
+function balayerPourSupprimer(li, ligneBouton) {
+  let depart = null;
+  let geste = null; // null (indécis), 'balayage' ou 'defilement'
+  let decalage = 0;
+  ligneBouton.addEventListener('pointerdown', (e) => {
+    depart = { x: e.clientX, y: e.clientY, base: li.classList.contains('ouverte') ? -LARGEUR_ACTION : 0 };
+    geste = null;
+  });
+  ligneBouton.addEventListener('pointermove', (e) => {
+    if (!depart) return;
+    const dx = e.clientX - depart.x;
+    const dy = e.clientY - depart.y;
+    if (geste === null) {
+      if (Math.abs(dx) > SEUIL_BALAYAGE && Math.abs(dx) > Math.abs(dy)) {
+        geste = 'balayage';
+        if (ligneOuverte && ligneOuverte !== li) fermerLigne(ligneOuverte);
+        try { ligneBouton.setPointerCapture(e.pointerId); } catch { /* pointeur déjà relâché */ }
+        li.classList.add('glisse');
+      } else if (Math.abs(dy) > SEUIL_BALAYAGE) {
+        geste = 'defilement';
+      }
+    }
+    if (geste !== 'balayage') return;
+    decalage = Math.min(0, Math.max(-LARGEUR_ACTION * 1.3, depart.base + dx));
+    ligneBouton.style.transform = `translateX(${decalage}px)`;
+  });
+  const relacher = () => {
+    if (geste === 'balayage') {
+      li.classList.remove('glisse');
+      // Le clic qui suit le geste ne doit pas ouvrir la modification (s'il ne vient pas, la marque s'efface seule).
+      li.dataset.balaye = '';
+      setTimeout(() => { delete li.dataset.balaye; }, 350);
+      if (decalage < -LARGEUR_ACTION / 2) {
+        li.classList.add('ouverte');
+        ligneBouton.style.transform = `translateX(${-LARGEUR_ACTION}px)`;
+        ligneOuverte = li;
+      } else {
+        fermerLigne(li);
+      }
+    }
+    depart = null;
+    geste = null;
+  };
+  ligneBouton.addEventListener('pointerup', relacher);
+  ligneBouton.addEventListener('pointercancel', relacher);
+}
+
 // Toucher la ligne ouvre la modification (la suppression s'y trouve aussi).
 function ligne(app, actions, vetement) {
   const nom = nomCouleurVetement(vetement, app.catalogue);
-  return el('li', { class: 'vetement' },
-    el('button', {
-      type: 'button', class: 'ligne-vetement', 'data-vetement': vetement.id, 'data-action': 'modifier',
-      'aria-label': `Modifier : ${LIBELLES_TYPES[vetement.type]}, ${nom}`,
-      onclick: () => modifier(app, actions, vetement),
+  const li = el('li', { class: 'vetement' });
+  const ligneBouton = el('button', {
+    type: 'button', class: 'ligne-vetement', 'data-vetement': vetement.id, 'data-action': 'modifier',
+    'aria-label': `Modifier : ${LIBELLES_TYPES[vetement.type]}, ${nom}`,
+    onclick: () => {
+      if ('balaye' in li.dataset) { delete li.dataset.balaye; return; }
+      if (li.classList.contains('ouverte')) { fermerLigne(li); return; }
+      if (ligneOuverte) { fermerLigne(ligneOuverte); return; }
+      modifier(app, actions, vetement);
     },
-    pastille(vetement.hex, { classe: 'moyenne' }),
-    el('span', { class: 'infos' },
-      el('span', { class: 'nom' }, nom),
-      el('span', { class: 'detail discret' }, vetement.origine === 'scan' ? 'Mesurée à la caméra' : 'Choisie dans le catalogue')),
-    icone('chevron-droite', { classe: 'chevron' })));
+  },
+  pastille(vetement.hex, { classe: 'moyenne' }),
+  el('span', { class: 'infos' },
+    el('span', { class: 'nom' }, nom),
+    el('span', { class: 'detail discret' }, vetement.origine === 'scan' ? 'Mesurée à la caméra' : 'Choisie dans le catalogue')),
+  icone('chevron-droite', { classe: 'chevron' }));
+  const action = el('button', {
+    type: 'button', class: 'action-supprimer', 'data-action': 'supprimer-balayage', tabindex: '-1', 'aria-hidden': 'true',
+    onclick: async () => {
+      await supprimer(app, actions, vetement);
+      fermerLigne(li);
+    },
+  }, icone('poubelle'), el('span', {}, 'Supprimer'));
+  balayerPourSupprimer(li, ligneBouton);
+  li.append(action, ligneBouton);
+  return li;
 }
 
 function carteAction({ icone: nom, titre, detail, action, onclick }) {

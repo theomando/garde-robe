@@ -3,6 +3,7 @@
 // Le lanceur démarre Edge avec une caméra simulée (--use-fake-device-for-media-stream), sans torche.
 import { test, vrai, egal, egalProfond, attendre } from './mini-test.js';
 import { photoSynthetique, photoUnie, attendreReel } from './aides.js';
+import { labDepuisHex } from '../js/couleur.js';
 
 const ESPACE = 'garde-robe-tests-ui:';
 let fenetre = null;
@@ -75,6 +76,12 @@ test('app : premier lancement, teint obligatoire, puis garde-robe vide', async (
   doc = cadre.contentDocument;
   vrai(doc.getElementById('premier-lancement'), 'écran de premier lancement');
   vrai(doc.getElementById('onglets').hidden, 'onglets masqués');
+  egal(doc.getElementById('premier-lancement').dataset.etape, 'bienvenue', 'accueil d\'abord');
+  egal(doc.querySelectorAll('.atouts li').length, 3, 'trois atouts illustrés');
+  vrai(doc.querySelector('[data-action="restaurer"]'), 'restaurer une sauvegarde dès l\'accueil');
+  cliquer('[data-action="continuer"]');
+  egal(doc.getElementById('premier-lancement').dataset.etape, 'teint', 'puis le teint');
+  vrai(doc.getElementById('teint-actif').hasAttribute('switch'), 'interrupteur natif d\'iOS (switch)');
   const commencer = doc.querySelector('[data-action="commencer"]');
   vrai(commencer.disabled, 'Commencer désactivé sans teint');
   egal(stocke(), null, 'rien d\'enregistré avant le choix');
@@ -212,7 +219,20 @@ test('app : import du catalogue Papier Tigre, puis choix d\'une de ses couleurs'
   await menuAjout('ajouter-vetement');
   cliquer('[data-choix="chaussures"]', await dialogueOuvert());
   const selecteur = await dialogueOuvert('dialog.selecteur[open]');
-  vrai(selecteur.querySelector('[data-source="papier-tigre"]'), 'filtre Papier Tigre proposé');
+  // Carte des couleurs : mosaïque des familles (★ Favoris d'abord) ; une famille ouvre toutes ses variations.
+  const tuiles = [...selecteur.querySelectorAll('.mosaique [data-famille]')].map((t) => t.dataset.famille);
+  egal(tuiles[0], 'favoris', 'favoris en premier (Burnt Sienna, ajoutée plus haut)');
+  vrai(tuiles.length === 13 && tuiles.includes('neutres') && tuiles.includes('bleus'), `12 familles et les favoris : ${tuiles}`);
+  vrai(selecteur.querySelector('[data-action="retour-carte"]').hidden, 'pas de retour sur la carte');
+  cliquer('[data-famille="bleus"]', selecteur);
+  egal(selecteur.querySelector('h2').textContent, 'Bleus');
+  vrai(!selecteur.querySelector('[data-action="retour-carte"]').hidden, '« ‹ Carte » dans la section');
+  const variations = [...selecteur.querySelectorAll('[data-action="choisir-couleur"]')];
+  vrai(variations.some((b) => b.querySelector('.nom').textContent === 'Blue'), 'Blue parmi les bleus');
+  const clartes = variations.map((b) => labDepuisHex(b.querySelector('.detail').textContent).L);
+  vrai(clartes.every((L, i) => i === 0 || L <= clartes[i - 1]), 'du plus clair au plus foncé');
+  cliquer('[data-action="retour-carte"]', selecteur);
+  vrai(selecteur.querySelector('.mosaique'), 'retour à la carte');
   await rechercher(selecteur, 'exemple a, dominante 1');
   cliquer('[data-action="choisir-couleur"]', selecteur);
   await dialoguesFermes();
@@ -389,8 +409,10 @@ test('app : tenue du jour, propositions, avatar, sélection, favoris et filtre',
   egal(doc.querySelector('[data-type-tenue="short"]').getAttribute('aria-pressed'), 'false');
   cliquer('[data-type-tenue="t-shirt"]');
   cliquer('[data-type-tenue="pull"]');
+  vrai(doc.querySelector('[data-action="proposer"]').classList.contains('bouton-flottant'), '« Proposer » flotte en bas');
   cliquer('[data-action="proposer"]');
   await quand(() => doc.querySelector('.proposition'), 'propositions');
+  egal(doc.querySelector('[data-action="proposer"]'), null, 'plus de bouton flottant une fois proposé');
   const cartes = [...doc.querySelectorAll('.proposition')];
   vrai(cartes.length >= 2 && cartes.length <= 20, `entre 2 et 20 propositions (${cartes.length})`);
   const references = cartes.map((c) => c.querySelector('.infos strong').textContent);
@@ -475,4 +497,31 @@ test('app : « Wada » n\'apparaît que dans les crédits (demande de Théo)', a
     vrai(!copie.textContent.includes('Wada'), `aucun « Wada » dans l'écran ${ecran}`);
   }
   vrai(doc.querySelector('[data-section="a-propos"]').textContent.includes('Sanzō Wada'), 'crédits conservés (licence MIT)');
+});
+
+test('app : balayer une ligne vers la gauche découvre « Supprimer », puis suppression après confirmation', async () => {
+  cliquer('#onglets [data-ecran="garde-robe"]');
+  const avant = stocke().vetements.length;
+  const li = doc.querySelector('[data-type="pantalon"] .vetement');
+  const ligne = li.querySelector('.ligne-vetement');
+  const pointeur = (type, x, y = 300) => ligne.dispatchEvent(new fenetre.PointerEvent(type, { bubbles: true, pointerId: 9, clientX: x, clientY: y }));
+  // Geste vertical : défilement, la ligne ne bouge pas.
+  pointeur('pointerdown', 300, 300);
+  pointeur('pointermove', 302, 360);
+  pointeur('pointerup', 302, 360);
+  vrai(!li.classList.contains('ouverte'), 'un défilement vertical n\'ouvre pas la ligne');
+  // Geste horizontal vers la gauche : la ligne s'ouvre et reste ouverte.
+  pointeur('pointerdown', 300);
+  pointeur('pointermove', 260);
+  pointeur('pointermove', 180);
+  pointeur('pointerup', 180);
+  vrai(li.classList.contains('ouverte'), 'ligne ouverte');
+  ligne.click();
+  vrai(doc.querySelector('dialog') === null, 'le clic qui suit le geste n\'ouvre pas la modification');
+  cliquer('.action-supprimer', li);
+  const alerte = await attendre(() => [...doc.querySelectorAll('dialog[open]')]
+    .find((d) => d.querySelector('h2').textContent === 'Supprimer ce vêtement ?' && 'pret' in d.dataset), 'confirmation');
+  cliquer('[data-valeur="oui"]', alerte);
+  await dialoguesFermes();
+  await quand(() => stocke().vetements.length === avant - 1, 'vêtement supprimé');
 });

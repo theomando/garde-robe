@@ -41,8 +41,9 @@ export function rendreTenue(conteneur, app, actions) {
   const libelle = (type) => LIBELLES_TYPES[type];
 
   // ---- Choix de la tenue ----
+  // « Proposer » flotte en bas, au-dessus des onglets, tant que la tenue choisie n'a pas été proposée.
   const proposerBouton = el('button', {
-    type: 'button', class: 'bouton principal large', 'data-action': 'proposer', disabled: ecran.types.length === 0,
+    type: 'button', class: 'bouton principal bouton-flottant', 'data-action': 'proposer', disabled: ecran.types.length === 0,
     onclick: () => {
       ecran.types = TYPES.filter((t) => ecran.types.includes(t));
       actions.mettreAJour(enregistrerTenueType(app.etat, ecran.types), { sansRendu: true });
@@ -66,13 +67,13 @@ export function rendreTenue(conteneur, app, actions) {
       ? `Tenue : ${TYPES.filter((t) => ecran.types.includes(t)).map((t) => libelle(t).toLowerCase()).join(', ')}`
       : 'Choisis les pièces de ta tenue'),
     el('p', { class: 'discret' }, 'Pantalon et short ne vont pas ensemble. Sous un pull, le t-shirt ne compte pas.'),
-    grilleTypes, proposerBouton);
+    grilleTypes);
 
   const contenu = [...barreNavigation({ titre: 'Tenue du jour' }), choix];
   if (!ecran.propose) {
     contenu.push(el('p', { class: 'vide' }, ecran.types.length === 0
       ? 'Choisis les pièces de ta tenue, puis touche « Proposer ».'
-      : 'Touche « Proposer » pour voir les combinaisons de couleurs.'));
+      : 'Touche « Proposer » pour voir les combinaisons de couleurs.'), proposerBouton);
     conteneur.replaceChildren(...contenu);
     return;
   }
