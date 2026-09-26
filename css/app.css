@@ -227,6 +227,9 @@ html:has(dialog[open]) { overflow: hidden; }
 .bande-couleur { height: 6.5rem; border-radius: 12px; border: 1px solid rgba(0, 0, 0, 0.15); margin: 0.5rem 0; }
 .question { font-weight: 700; font-size: 1.05rem; margin: 1.25rem 0 0.25rem; }
 .bouton.accent { border: 2px solid var(--accent); color: var(--accent); font-weight: 600; }
+.sous-titre { font-weight: 700; margin: 1.25rem 0 0; }
+.grille-neutres { display: grid; grid-template-columns: repeat(auto-fill, minmax(5rem, 1fr)); gap: 0.5rem; }
+.grille-neutres .pastille.grande { aspect-ratio: 1.3; }
 .apercu-couleur .infos { display: flex; flex-direction: column; min-width: 0; }
 .vignette { display: flex; justify-content: center; margin-bottom: 0.5rem; }
 .vignette canvas { max-width: 100%; height: auto; border-radius: 8px; }

@@ -1,9 +1,9 @@
 // Écran de scan (caméra en direct, torche, réticule, couleur en direct) et choix après la mesure
-// (type de vêtement, « Ajuster » : 12 couleurs les plus proches du catalogue, extensible au catalogue complet).
+// (type de vêtement, « Ajuster » : 12 couleurs les plus proches du catalogue, extensible au catalogue complet).
 
 import { el, pastille, terminaison, armerDialogue, rearmerDialogue, choisirImage } from '../ui.js';
-import { TYPES, LIBELLES_TYPES, SCAN_DELAI_SANS_IMAGE_MS, SCAN_APERCU_MS } from '../constantes.js';
-import { rgbVersHex, labDepuisHex } from '../couleur.js';
+import { TYPES, LIBELLES_TYPES, SCAN_DELAI_SANS_IMAGE_MS, SCAN_APERCU_MS, NEUTRE_C_MAX } from '../constantes.js';
+import { rgbVersHex, labDepuisHex, deltaE00, chroma } from '../couleur.js';
 import { carreCentral } from '../mesure.js';
 import { plusProches } from '../catalogue.js';
 import { creerCamera, ErreurCamera, mesurerSource, mesurerPhoto } from '../scan.js';
@@ -53,7 +53,8 @@ export function ouvrirScan({ mediaDevices } = {}) {
       el('div', { class: 'selecteur-entete' },
         el('h2', { id: 'titre-scan', tabindex: '-1', autofocus: true }, 'Scanner une couleur'),
         el('button', { type: 'button', class: 'bouton secondaire', 'data-action': 'annuler-scan', onclick: () => terminer(null) }, 'Annuler')),
-      el('p', { class: 'discret consigne' }, 'Place le vêtement bien à plat dans le carré, à 10 à 20 cm, puis touche « Mesurer ».'),
+      el('p', { class: 'discret consigne' }, 'Place le vêtement bien à plat dans le carré, à 10 à 20 cm, puis touche « Mesurer ». ',
+        'Un vêtement très sombre ou très clair : pose-le sur un fond neutre (drap, feuille blanche) sans remplir tout l\'écran.'),
       el('div', { class: 'cadre-video' }, video, reticule),
       el('div', { class: 'barre-scan' }, direct, texteDirect, boutonTorche),
       etat, mesurer, relancer, photo);
@@ -131,7 +132,7 @@ export function ouvrirScan({ mediaDevices } = {}) {
           const allumee = await courante.reglerTorche(true);
           afficherTorche();
           etat.textContent = allumee
-            ? 'Torche allumée. Touche « Mesurer » quand la couleur affichée ne bouge plus.'
+            ? 'Torche allumée. Touche « Mesurer » quand la couleur affichée ne bouge plus.'
             : 'La torche n\'a pas pu s\'allumer : mesure à la lumière ambiante, ou prends une photo avec flash.';
         } else {
           etat.textContent = 'Pas de torche sur cette caméra : mesure à la lumière ambiante, ou prends une photo avec flash.';
@@ -198,9 +199,9 @@ export function ouvrirScan({ mediaDevices } = {}) {
 }
 
 // Après la mesure, en trois étapes dans la même fenêtre :
-//   1. « couleur » : couleur mesurée, puis « Veux-tu ajuster la couleur ? » (Oui / Non) ;
-//   2. « ajuster » (si oui) : les 12 couleurs du catalogue les plus proches en premier, puis tout le catalogue ;
-//   3. « type » : type de vêtement (bijoux exclus : choix manuel seulement), puis Enregistrer.
+//   1. « couleur » : couleur mesurée, puis « Veux-tu ajuster la couleur ? » (Oui / Non) ;
+//   2. « ajuster » (si oui) : les 12 couleurs du catalogue les plus proches en premier, puis tout le catalogue ;
+//   3. « type » : type de vêtement (bijoux exclus : choix manuel seulement), puis Enregistrer.
 // La couleur mesurée est gardée par défaut. Renvoie { type, hex, couleur }, 'recommencer' ou null.
 export function choisirApresMesure(app, actions, { rgb, apercu }, { typeImpose = null } = {}) {
   return new Promise((resoudre) => {
@@ -208,8 +209,8 @@ export function choisirApresMesure(app, actions, { rgb, apercu }, { typeImpose =
     const labMesure = labDepuisHex(hexMesure);
     const proches = plusProches(labMesure, app.catalogue, 12);
     let type = typeImpose;
-    let couleur = null; // couleur du catalogue retenue par « Ajuster » ; null = couleur mesurée
-    let enCours = null; // sélection en cours pendant l'étape « ajuster »
+    let couleur = null; // couleur du catalogue retenue par « Ajuster » ; null = couleur mesurée
+    let enCours = null; // sélection en cours pendant l'étape « ajuster »
 
     const titre = el('h2', { id: 'titre-resultat', tabindex: '-1', autofocus: true });
     const corps = el('div', { class: 'etape' });
@@ -235,11 +236,12 @@ export function choisirApresMesure(app, actions, { rgb, apercu }, { typeImpose =
 
     function etapeCouleur() {
       titre.textContent = 'Couleur mesurée';
-      // replaceChildren écrirait « null » en texte : l'absence de vignette passe par un tableau filtré.
+      // replaceChildren écrirait « null » en texte : l'absence de vignette passe par un tableau filtré.
       corps.replaceChildren(...[
         apercu ? el('div', { class: 'vignette' }, apercu) : null,
         el('div', { class: 'bande-couleur', style: { backgroundColor: hexMesure }, 'aria-hidden': 'true' }),
         el('p', {}, el('strong', {}, hexMesure), ` : la plus proche du catalogue est ${proches[0].couleur.nom} (${ecartTexte(proches[0].ecart)}).`),
+        el('p', { class: 'discret' }, 'L\'iPhone règle seul l\'exposition : les noirs, gris et blancs sont souvent faussés (un noir peut sortir gris ou bleuté).'),
         el('p', { class: 'question' }, 'Veux-tu ajuster la couleur ?'),
         bouton('Oui, ajuster la couleur', 'ajuster', () => { enCours = couleur; afficher('ajuster'); }, 'secondaire accent large'),
         bouton('Non, continuer', 'continuer-sans-ajuster', () => { couleur = null; afficher('type'); }, 'principal large'),
@@ -253,15 +255,22 @@ export function choisirApresMesure(app, actions, { rgb, apercu }, { typeImpose =
       titre.textContent = 'Ajuster la couleur';
       const choix = el('div');
       const continuer = bouton('Continuer', 'continuer', () => { couleur = enCours; afficher('type'); }, 'principal');
-      const grille = el('div', { class: 'grille-couleurs' }, proches.map(({ couleur: c, ecart }) => el('button', {
-        type: 'button', class: 'carte-proche', 'data-couleur': c.id, 'aria-pressed': 'false',
+      const carte = (c, ecart, classe = 'carte-proche') => el('button', {
+        type: 'button', class: classe, 'data-couleur': c.id, 'aria-pressed': 'false',
         onclick: () => { enCours = c; majChoix(); },
-      }, pastille(c.hex, { classe: 'grande' }), el('span', { class: 'nom' }, c.nom), el('span', { class: 'detail' }, ecartTexte(ecart)))));
+      }, pastille(c.hex, { classe: 'grande' }), el('span', { class: 'nom' }, c.nom), el('span', { class: 'detail' }, ecartTexte(ecart)));
+      const grille = el('div', { class: 'grille-couleurs' }, proches.map(({ couleur: c, ecart }) => carte(c, ecart)));
+      // L'exposition automatique de l'iPhone fausse surtout les noirs, gris et blancs (un noir remonte vers le gris,
+      // la torche le bleuit) : les neutres du catalogue restent toujours à portée, du plus foncé au plus clair.
+      const neutres = el('div', { class: 'grille-neutres' }, app.catalogue.couleurs
+        .filter((c) => chroma(c.lab) <= NEUTRE_C_MAX)
+        .sort((x, y) => x.lab.L - y.lab.L)
+        .map((c) => carte(c, deltaE00(labMesure, c.lab), 'carte-proche neutre')));
       function majChoix() {
         choix.replaceChildren(enCours
           ? resume(enCours.hex, enCours.nom, `${enCours.hex}, au lieu de la mesure ${hexMesure}`)
           : resume(hexMesure, 'Couleur mesurée', `${hexMesure} : touche la couleur la plus juste ci-dessous`));
-        for (const carte of grille.querySelectorAll('[data-couleur]')) carte.setAttribute('aria-pressed', String(carte.dataset.couleur === enCours?.id));
+        for (const c of corps.querySelectorAll('[data-couleur]')) c.setAttribute('aria-pressed', String(c.dataset.couleur === enCours?.id));
         continuer.disabled = enCours === null;
       }
       const tout = bouton('Voir tout le catalogue (avec recherche)', 'tout-catalogue', async () => {
@@ -271,7 +280,11 @@ export function choisirApresMesure(app, actions, { rgb, apercu }, { typeImpose =
         if (choisie) { enCours = choisie; majChoix(); }
       }, 'secondaire large');
       corps.replaceChildren(choix,
-        el('p', { class: 'discret' }, 'Les 12 couleurs du catalogue les plus proches de la mesure, de la plus proche à la plus éloignée :'),
+        el('p', { class: 'sous-titre' }, 'Noir, gris et blanc'),
+        el('p', { class: 'discret' }, 'La caméra fausse souvent les couleurs neutres : un noir peut paraître gris ou bleuté.'),
+        neutres,
+        el('p', { class: 'sous-titre' }, 'Les 12 plus proches de la mesure'),
+        el('p', { class: 'discret' }, 'De la plus proche à la plus éloignée :'),
         grille, tout);
       pied.replaceChildren(bouton('Retour', 'retour', () => afficher('couleur')), continuer);
       majChoix();

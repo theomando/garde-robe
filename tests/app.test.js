@@ -243,7 +243,11 @@ test('app : scan à la caméra (simulée, sans torche), « Oui, ajuster », proc
   cliquer('[data-action="ajuster"]', resultat);
   await attendre(() => resultatPret('ajuster'), 'étape ajuster');
   egal(resultat.querySelector('h2').textContent, 'Ajuster la couleur');
-  const cartes = [...resultat.querySelectorAll('.carte-proche')];
+  const neutres = [...resultat.querySelectorAll('.grille-neutres .carte-proche')].map((c) => c.querySelector('.nom').textContent);
+  egal(neutres[0], 'Black', 'neutres du plus foncé au plus clair : le noir d\'abord');
+  egal(neutres[neutres.length - 1], 'White');
+  vrai(neutres.length >= 7, `les 7 neutres de Wada (C* ≤ 8), plus ceux de Papier Tigre importés plus haut : ${neutres}`);
+  const cartes = [...resultat.querySelectorAll('.grille-couleurs .carte-proche')];
   egal(cartes.length, 12, '12 couleurs proches');
   const ecarts = cartes.map((c) => parseFloat(c.querySelector('.detail').textContent.replace('ΔE ', '').replace(',', '.')));
   vrai(ecarts.every((e, i) => i === 0 || e >= ecarts[i - 1]), `du plus proche au plus éloigné : ${ecarts}`);
