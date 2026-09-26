@@ -96,6 +96,7 @@ test('app : premier lancement, teint obligatoire, puis garde-robe vide', async (
   vrai([...doc.querySelectorAll('#onglets [data-ecran]')].every((b) => b.querySelector('svg.icone')), 'icônes des onglets');
   vrai(doc.querySelector('.barre-nav [data-action="ajouter"]'), 'bouton « + » dans la barre du haut');
   egal(doc.querySelector('.entete-ecran h1').textContent, 'Garde-robe');
+  egal(fenetre.getComputedStyle(doc.querySelector('.entete-ecran h1')).userSelect, 'none', 'texte non sélectionnable');
   vrai(doc.querySelector('.cartes-actions [data-action="scanner"]') && doc.querySelector('.cartes-actions [data-action="ajouter-vetement"]'),
     'garde-robe vide : deux grandes cartes d\'ajout');
 });
@@ -152,6 +153,7 @@ test('app : ajout d\'un pull choisi dans le catalogue (recherche « burnt sienn
   cliquer('[data-action="ajouter-vetement"]');
   cliquer('[data-choix="pull"]', await dialogueOuvert());
   const selecteur = await dialogueOuvert('dialog.selecteur[open]');
+  egal(fenetre.getComputedStyle(selecteur.querySelector('[data-action="rechercher"]')).userSelect, 'text', 'champ de recherche : saisie possible');
   await rechercher(selecteur, 'burnt sienna');
   const carte = await attendre(() => [...selecteur.querySelectorAll('[data-action="choisir-couleur"]')]
     .find((b) => b.querySelector('.nom').textContent === 'Burnt Sienna'), 'carte Burnt Sienna');

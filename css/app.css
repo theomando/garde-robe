@@ -96,10 +96,11 @@ body {
   padding-right: var(--droite-sur);
 }
 
-/* Sensations natives : pas de sélection de texte ni de loupe sur les commandes, pas de zoom au double toucher. */
-button, summary, label, .onglets, .barre-nav, .menu, .pastille, svg {
-  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
-}
+/* Sensations d'app native (demande de Théo, 2026-09-26) : aucun texte sélectionnable, pas de loupe ni de menu à
+   l'appui long, pas de zoom au double toucher. Exception : les champs de saisie (sous Safari, un champ non
+   sélectionnable refuse aussi la frappe) et la zone « Mes données en texte », qu'on doit pouvoir copier. */
+html { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+input, textarea, select { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 button, a, summary, input, select, label { touch-action: manipulation; }
 
 h1 { font-size: 2rem; font-weight: 700; line-height: 1.2; letter-spacing: 0.01em; margin: 0; }
