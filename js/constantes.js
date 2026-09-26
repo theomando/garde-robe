@@ -13,7 +13,7 @@ export const LIBELLES_TYPES = {
 };
 
 // Version affichée dans les réglages (numéro de l'étape du plan tant que l'app est en construction).
-export const VERSION_APP = '0.6.3';
+export const VERSION_APP = '0.7.0';
 
 // Couches du haut, du corps vers l'extérieur (avatar). Chemise, veste et manteau sont portés ouverts.
 export const COUCHES = ['t-shirt', 'pull', 'chemise', 'veste', 'manteau'];
@@ -26,6 +26,8 @@ export const MANQUES_MAX = 2;
 export const PROPOSITIONS_MAX = 20;
 // Coût d'une pièce en joker = facteur × tolérance : le joker reste un repli derrière une couleur couverte.
 export const COUT_JOKER_EN_TOLERANCES = 1;
+// Manques fréquents (CLAUDE.md, section Favoris et statistiques) : nombre de lignes affichées.
+export const MANQUES_FREQUENTS_MAX = 10;
 
 // Monk Skin Tone Scale, MST 1 à 10 (indice 0 à 9).
 // Monk, Ellis. « Monk Skin Tone Scale », 2019. https://skintone.google (licence CC BY 4.0).

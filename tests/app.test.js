@@ -79,6 +79,14 @@ test('app : double tape, le second toucher ne choisit rien dans le dialogue qui 
   egal(stocke().vetements.length, 0);
 });
 
+test('app : manques fréquents sans tenue demandée, invitation et bouton vers la tenue', async () => {
+  cliquer('#onglets [data-ecran="manques"]');
+  vrai(doc.querySelector('[data-info="sans-tenue"]'), 'invitation à demander une tenue');
+  egal(doc.querySelector('[data-info="calcul"]'), null, 'aucun calcul sans tenue type');
+  cliquer('#contenu .bouton.principal');
+  egal(doc.querySelector('#onglets [aria-current="page"]').dataset.ecran, 'tenue');
+});
+
 test('app : tenue du jour avec une garde-robe vide, message d\'invitation et aucune proposition', async () => {
   cliquer('#onglets [data-ecran="tenue"]');
   vrai(doc.querySelector('[data-action="proposer"]').disabled, 'Proposer désactivé sans pièce');
@@ -88,6 +96,9 @@ test('app : tenue du jour avec une garde-robe vide, message d\'invitation et auc
   egal(doc.querySelectorAll('.proposition').length, 0, '3 pièces sans vêtement : 3 manques, tout est écarté');
   vrai(doc.querySelector('[data-info="compte"]').textContent.startsWith('Aucune combinaison ne convient'));
   egalProfond(stocke().tenuesTypes, [['chaussures', 'pantalon', 't-shirt']], 'tenue type enregistrée');
+  cliquer('#onglets [data-ecran="manques"]');
+  await quand(() => doc.querySelector('[data-info="sans-proposition"]'), 'manques : aucune proposition retenue');
+  vrai(doc.querySelector('[data-info="bilan"]').textContent.includes('sur 0 proposition pour ta tenue type'));
   cliquer('#onglets [data-ecran="garde-robe"]');
 });
 
@@ -360,4 +371,37 @@ test('app : tenue du jour, propositions, avatar, sélection, favoris et filtre',
   await quand(() => doc.getElementById('filtre-favoris')?.checked, 'filtre actif');
   const filtrees = [...doc.querySelectorAll('.proposition')];
   vrai(filtrees.length > 0 && filtrees.every((c) => c.textContent.includes('★')), 'filtre : seulement des propositions avec un favori');
+});
+
+test('app : manques fréquents, top 10 trié, résultat gardé en mémoire puis recalculé après un réglage', async () => {
+  cliquer('#onglets [data-ecran="manques"]');
+  vrai(doc.querySelector('[data-info="calcul"]'), 'message pendant le calcul');
+  await quand(() => doc.querySelector('.manque-frequent'), 'lignes des manques');
+  const lignes = [...doc.querySelectorAll('.manque-frequent')];
+  vrai(lignes.length >= 1 && lignes.length <= 10, `entre 1 et 10 lignes (${lignes.length})`);
+  const nombres = lignes.map((l) => Number(l.dataset.nombre));
+  vrai(nombres.every((n, i) => n >= 1 && (i === 0 || n <= nombres[i - 1])), `nombres décroissants (${nombres.join(', ')})`);
+  for (const ligne of lignes) {
+    vrai(ligne.querySelector('.pastille') && ligne.querySelector('.nom').textContent.length > 0, 'pastille et nom');
+    vrai(ligne.querySelector('.detail').textContent.length > 0, 'type');
+    if (ligne.dataset.couleur === 'joker') {
+      egal(ligne.querySelector('.nom').textContent, 'Noir ou blanc');
+      vrai(ligne.querySelector('.pastille').classList.contains('joker'), 'pastille noire et blanche');
+    }
+  }
+  vrai(doc.querySelector('[data-info="bilan"]').textContent.includes('pour tes 2 tenues types'));
+  egal(doc.querySelectorAll('.tenues-comptees li').length, 2);
+
+  cliquer('#onglets [data-ecran="garde-robe"]');
+  cliquer('#onglets [data-ecran="manques"]');
+  vrai(doc.querySelector('.manque-frequent'), 'résultat gardé en mémoire : affiché sans recalcul');
+
+  cliquer('#onglets [data-ecran="reglages"]');
+  const curseur = doc.getElementById('reglage-tolerance');
+  curseur.value = '30';
+  curseur.dispatchEvent(new fenetre.Event('change'));
+  egal(stocke().reglages.tolerance, 30);
+  cliquer('#onglets [data-ecran="manques"]');
+  vrai(doc.querySelector('[data-info="calcul"]'), 'réglage changé : recalcul');
+  await quand(() => doc.querySelector('.manque-frequent, [data-info="rien-ne-manque"]'), 'nouveau résultat');
 });

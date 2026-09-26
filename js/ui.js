@@ -22,6 +22,11 @@ export function pastille(hex, { classe = '', titre } = {}) {
   return el('span', { class: `pastille ${classe}`.trim(), style: { backgroundColor: hex }, title: titre, 'aria-hidden': 'true' });
 }
 
+// Joker « noir ou blanc » : pastille coupée en diagonale (#000000 et #ffffff, bornes du codage sRGB ; voir app.css).
+export function pastilleJoker({ classe = '', titre } = {}) {
+  return pastille('#ffffff', { classe: `joker ${classe}`.trim(), titre });
+}
+
 export function estInstallee() {
   return window.navigator.standalone === true || window.matchMedia?.('(display-mode: standalone)').matches === true;
 }

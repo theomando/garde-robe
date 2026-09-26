@@ -10,6 +10,7 @@ import { rendrePremierLancement } from './ecrans/premier-lancement.js';
 import { rendreGardeRobe } from './ecrans/garde-robe.js';
 import { rendreReglages } from './ecrans/reglages.js';
 import { rendreTenue } from './ecrans/tenue.js';
+import { rendreManques } from './ecrans/manques.js';
 
 // localStorage peut être inaccessible (Safari avec « Bloquer tous les cookies », données de site bloquées).
 // On ne bascule pas en mémoire en silence : chaque accès échoue, l'app le signale et n'enregistre rien.
@@ -37,18 +38,13 @@ const app = {
   persistance: 'non demandé',
   cacheEcarts: null, // ΔE00 vêtement × catalogue, gardé d'un calcul de propositions à l'autre
   tenue: null, // état de l'écran Tenue du jour (types cochés, sélection, filtre)
+  manques: null, // dernier calcul des manques fréquents, avec l'état et le catalogue qui l'ont produit
 };
-
-function rendreAVenir(titre, etape) {
-  return (conteneur) => conteneur.replaceChildren(
-    el('div', { class: 'entete-ecran' }, el('h1', {}, titre)),
-    el('p', { class: 'vide' }, `Cet écran arrive à l'étape ${etape} du plan.`));
-}
 
 const ECRANS = {
   'garde-robe': rendreGardeRobe,
   tenue: rendreTenue,
-  manques: rendreAVenir('Manques fréquents', 7),
+  manques: rendreManques,
   reglages: rendreReglages,
 };
 

@@ -2,7 +2,7 @@
 // type), avatar, au plus 20 propositions avec source et référence, filtre « avec mes favoris ».
 // Toucher une proposition met l'avatar à jour et affiche son détail (vêtements à porter, manques, favoris).
 
-import { el, pastille } from '../ui.js';
+import { el, pastille, pastilleJoker } from '../ui.js';
 import { TYPES, LIBELLES_TYPES, BAS, MST, PROPOSITIONS_MAX } from '../constantes.js';
 import { enregistrerTenueType, basculerFavori } from '../donnees.js';
 import { proposer, selectionner } from '../moteur.js';
@@ -107,7 +107,7 @@ export function rendreTenue(conteneur, app, actions) {
     const cible = piece.couleurId ? couleur(piece.couleurId) : null;
     if (piece.manque) {
       const texte = cible ? `il te manque ${cible.nom}` : 'il te manque un noir ou un blanc';
-      return el('li', { class: 'manque' }, pastille(cible?.hex ?? '#000000'),
+      return el('li', { class: 'manque' }, cible ? pastille(cible.hex) : pastilleJoker(),
         el('span', {}, el('span', { class: 'avertissement', 'aria-label': 'Manque' }, '⚠'), el('strong', {}, ` ${libelle(piece.type)} : `), texte));
     }
     const vetement = piece.vetement;

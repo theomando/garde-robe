@@ -118,6 +118,7 @@ small { display: block; font-size: 0.85rem; }
 .pastille { display: inline-block; width: 1.5rem; height: 1.5rem; border-radius: 50%; border: 1px solid rgba(0, 0, 0, 0.15); flex: none; }
 .pastille.moyenne { width: 2.75rem; height: 2.75rem; }
 .pastille.grande { display: block; width: 100%; height: auto; aspect-ratio: 1.6; border-radius: 8px; }
+.pastille.joker { background-image: linear-gradient(135deg, #000000 50%, #ffffff 50%); }
 .rangee-pastilles { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.5rem 0; }
 
 /* Teintes MST. */
@@ -245,10 +246,10 @@ html:has(dialog[open]) { overflow: hidden; }
 .carte-proche[aria-pressed="true"] { outline: 3px solid var(--accent); outline-offset: 1px; }
 
 /* Tenue du jour. */
-.choix-tenue summary { min-height: 44px; display: flex; align-items: center; font-weight: 700; cursor: pointer; list-style: none; }
-.choix-tenue summary::-webkit-details-marker { display: none; }
-.choix-tenue summary::before { content: "▸"; margin-right: 0.5rem; color: var(--accent); }
-.choix-tenue[open] summary::before { content: "▾"; }
+:is(.choix-tenue, .depliant) summary { min-height: 44px; display: flex; align-items: center; font-weight: 700; cursor: pointer; list-style: none; }
+:is(.choix-tenue, .depliant) summary::-webkit-details-marker { display: none; }
+:is(.choix-tenue, .depliant) summary::before { content: "▸"; margin-right: 0.5rem; color: var(--accent); }
+:is(.choix-tenue, .depliant)[open] summary::before { content: "▾"; }
 .grille-types-tenue { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin: 0.5rem 0; }
 .grille-types-tenue .bouton { padding: 0.4rem 0.3rem; font-size: 0.95rem; }
 .panneau-avatar {
@@ -282,6 +283,21 @@ html:has(dialog[open]) { overflow: hidden; }
   border: 1px solid var(--bord); border-radius: 22px; background: var(--carte); color: var(--texte); padding: 0.2rem 0.6rem;
 }
 .favori[aria-pressed="true"] .etoile-texte { color: #c99a00; }
+
+/* Manques fréquents. */
+.liste-manques { list-style: none; padding: 0; margin: 0.5rem 0 1rem; }
+.manque-frequent {
+  display: grid; grid-template-columns: 1.6rem auto 1fr auto; align-items: center; gap: 0.6rem; min-height: 64px;
+  background: var(--carte); border-radius: var(--rayon); padding: 0.5rem 0.8rem; margin-bottom: 0.5rem;
+}
+.manque-frequent .rang { font-weight: 700; color: var(--discret); text-align: center; }
+.manque-frequent .infos { display: flex; flex-direction: column; min-width: 0; }
+.manque-frequent .nom { font-weight: 600; overflow-wrap: anywhere; }
+.manque-frequent .detail { font-size: 0.85rem; }
+.manque-frequent .nombre { display: flex; flex-direction: column; align-items: flex-end; font-size: 0.8rem; }
+.manque-frequent .nombre strong { font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+.tenues-comptees ul { padding-left: 1.2rem; margin: 0.25rem 0 0; }
+.tenues-comptees li { margin-bottom: 0.3rem; }
 
 /* Étalonnage (Réglages). */
 .etat-etalonnage { padding-left: 1.2rem; margin: 0.5rem 0 0.75rem; }

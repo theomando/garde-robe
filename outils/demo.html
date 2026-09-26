@@ -42,7 +42,10 @@
       const couleur = parNom(nom);
       if (couleur) etat = basculerFavori(etat, couleur.id);
     }
-    return enregistrerTenueType(etat, ['chaussures', 'pantalon', 't-shirt', 'veste']);
+    for (const tenue of [['chaussures', 'short', 't-shirt'], ['chaussures', 'pantalon', 'ceinture', 'pull', 'manteau']]) {
+      etat = enregistrerTenueType(etat, tenue);
+    }
+    return enregistrerTenueType(etat, ['chaussures', 'pantalon', 't-shirt', 'veste']); // la dernière préremplit l'écran Tenue
   }
 
   function ouvrir() {
