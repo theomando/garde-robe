@@ -10,12 +10,12 @@ import { rendrePremierLancement } from './ecrans/premier-lancement.js';
 import { rendreGardeRobe } from './ecrans/garde-robe.js';
 import { rendreReglages } from './ecrans/reglages.js';
 import { rendreTenue } from './ecrans/tenue.js';
-import { rendreManques } from './ecrans/manques.js';
+import { rendreMesTenues } from './ecrans/mes-tenues.js';
 import { installerServiceWorker, estDeveloppementLocal } from './mise-a-jour.js';
 import { VERSION_APP } from './constantes.js';
 import { icone } from './icones.js';
 
-const ICONES_ONGLETS = { 'garde-robe': 'cintre', tenue: 't-shirt', manques: 'sac', reglages: 'engrenage' };
+const ICONES_ONGLETS = { 'garde-robe': 'cintre', tenue: 't-shirt', 'mes-tenues': 'coeur', reglages: 'engrenage' };
 
 // localStorage peut être inaccessible (Safari avec « Bloquer tous les cookies », données de site bloquées).
 // On ne bascule pas en mémoire en silence : chaque accès échoue, l'app le signale et n'enregistre rien.
@@ -44,12 +44,13 @@ const app = {
   cacheEcarts: null, // ΔE00 vêtement × catalogue, gardé d'un calcul de propositions à l'autre
   tenue: null, // état de l'écran Tenue du jour (types cochés, sélection, filtre)
   manques: null, // dernier calcul des manques fréquents, avec l'état et le catalogue qui l'ont produit
+  photos: new Map(), // photos des vêtements (id → data URL), chargées depuis IndexedDB au démarrage
 };
 
 const ECRANS = {
   'garde-robe': rendreGardeRobe,
   tenue: rendreTenue,
-  manques: rendreManques,
+  'mes-tenues': rendreMesTenues, // les manques fréquents sont en bas de cet onglet
   reglages: rendreReglages,
 };
 
@@ -319,7 +320,8 @@ async function demarrer() {
     rendre();
   });
 
-  const ecranDemande = new URLSearchParams(location.search).get('ecran');
+  // ?ecran=manques (ancien onglet) mène à Mes tenues, où se trouvent désormais les manques.
+  const ecranDemande = { manques: 'mes-tenues' }[new URLSearchParams(location.search).get('ecran')] ?? new URLSearchParams(location.search).get('ecran');
   if (Object.hasOwn(ECRANS, ecranDemande)) app.ecran = ecranDemande;
   for (const bouton of document.querySelectorAll('#onglets [data-ecran]')) {
     bouton.prepend(icone(ICONES_ONGLETS[bouton.dataset.ecran]));

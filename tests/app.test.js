@@ -46,12 +46,12 @@ async function rechercher(selecteur, texte) {
   champ.dispatchEvent(new fenetre.Event('input'));
 }
 
-// Ajout d'un vêtement : grande carte quand la garde-robe est vide, sinon bouton « + » puis menu.
+// Ajout d'un vêtement : grande carte quand la garde-robe est vide, sinon bouton « + » puis menu.
 async function menuAjout(action) {
   const carte = doc.querySelector(`#contenu .carte-action[data-action="${action}"]`);
   if (carte) { carte.click(); return; }
   cliquer('#contenu [data-action="ajouter"]');
-  const option = await attendre(() => doc.querySelector(`.menu [data-action="${action}"]`), 'menu « + »');
+  const option = await attendre(() => doc.querySelector(`.menu [data-action="${action}"]`), 'menu « + »');
   option.click();
 }
 
@@ -92,9 +92,9 @@ test('app : premier lancement, teint obligatoire, puis garde-robe vide', async (
   egal(stocke().reglages.teintActif, false, 'interrupteur désactivé par défaut');
   vrai(!doc.getElementById('onglets').hidden);
   vrai(doc.querySelector('.vide').textContent.includes('garde-robe est vide'));
-  // Composants iOS : icône dans chaque onglet, barre de navigation avec bouton « + », grand titre.
+  // Composants iOS : icône dans chaque onglet, barre de navigation avec bouton « + », grand titre.
   vrai([...doc.querySelectorAll('#onglets [data-ecran]')].every((b) => b.querySelector('svg.icone')), 'icônes des onglets');
-  vrai(doc.querySelector('.barre-nav [data-action="ajouter"]'), 'bouton « + » dans la barre du haut');
+  vrai(doc.querySelector('.barre-nav [data-action="ajouter"]'), 'bouton « + » dans la barre du haut');
   egal(doc.querySelector('.entete-ecran h1').textContent, 'Garde-robe');
   egal(fenetre.getComputedStyle(doc.querySelector('.entete-ecran h1')).userSelect, 'none', 'texte non sélectionnable');
   vrai(doc.querySelector('.cartes-actions [data-action="scanner"]') && doc.querySelector('.cartes-actions [data-action="ajouter-vetement"]'),
@@ -127,10 +127,10 @@ test('app : double tape, le second toucher ne choisit rien dans le dialogue qui 
 });
 
 test('app : manques fréquents sans tenue demandée, invitation et bouton vers la tenue', async () => {
-  cliquer('#onglets [data-ecran="manques"]');
+  cliquer('#onglets [data-ecran="mes-tenues"]');
   vrai(doc.querySelector('[data-info="sans-tenue"]'), 'invitation à demander une tenue');
   egal(doc.querySelector('[data-info="calcul"]'), null, 'aucun calcul sans tenue type');
-  cliquer('#contenu .bouton.principal');
+  cliquer('[data-action="aller-tenue"]');
   egal(doc.querySelector('#onglets [aria-current="page"]').dataset.ecran, 'tenue');
 });
 
@@ -143,7 +143,7 @@ test('app : tenue du jour avec une garde-robe vide, message d\'invitation et auc
   egal(doc.querySelectorAll('.proposition').length, 0, '3 pièces sans vêtement : 3 manques, tout est écarté');
   vrai(doc.querySelector('[data-info="compte"]').textContent.startsWith('Aucune combinaison ne convient'));
   egalProfond(stocke().tenuesTypes, [['chaussures', 'pantalon', 't-shirt']], 'tenue type enregistrée');
-  cliquer('#onglets [data-ecran="manques"]');
+  cliquer('#onglets [data-ecran="mes-tenues"]');
   await quand(() => doc.querySelector('[data-info="sans-proposition"]'), 'manques : aucune proposition retenue');
   vrai(doc.querySelector('[data-info="bilan"]').textContent.includes('sur 0 proposition pour ta tenue type'));
   cliquer('#onglets [data-ecran="garde-robe"]');
@@ -228,7 +228,7 @@ test('app : import du catalogue Papier Tigre, puis choix d\'une de ses couleurs'
   vrai(selecteur.querySelector('[data-action="retour-carte"]').hidden, 'pas de retour sur la carte');
   cliquer('[data-famille="bleus"]', selecteur);
   egal(selecteur.querySelector('h2').textContent, 'Bleus');
-  vrai(!selecteur.querySelector('[data-action="retour-carte"]').hidden, '« ‹ Carte » dans la section');
+  vrai(!selecteur.querySelector('[data-action="retour-carte"]').hidden, '« ‹ Carte » dans la section');
   const variations = [...selecteur.querySelectorAll('[data-action="choisir-couleur"]')];
   vrai(variations.some((b) => b.querySelector('.nom').textContent === 'Blue'), 'Blue parmi les bleus');
   const clartes = variations.map((b) => labDepuisHex(b.querySelector('.detail').textContent).L);
@@ -279,7 +279,7 @@ const resultatPret = () => [...doc.querySelectorAll('dialog.scan[open]')]
 const cartesChoix = (feuille) => [...feuille.querySelectorAll('.rangee-choix [data-couleur]:not([data-couleur="mesure"])')];
 
 // La caméra simulée d'Edge montre une forme vert vif qui tourne : quand elle couvre le réticule pendant la mesure,
-// l'app répond (à raison) « reflet trop fort ». On recommence alors, comme le ferait l'utilisateur (5 essais au plus).
+// l'app répond (à raison) « reflet trop fort ». On recommence alors, comme le ferait l'utilisateur (5 essais au plus).
 async function mesurerCamera(scan) {
   for (let essai = 1; essai <= 5; essai++) {
     const mesurer = await attendreReel(() => {
@@ -315,7 +315,7 @@ test('app : mesure par photo, feuille tout-en-un (couleur, ajustement, type) san
   vrai(feuille.querySelector('.resultat-entete').textContent.includes('#a07e56'), 'couleur mesurée affichée');
   egal(feuille.querySelector('.resultat-pastille').style.backgroundColor, 'rgb(160, 126, 86)');
   egal(feuille.querySelector('[data-couleur="mesure"]').getAttribute('aria-selected'), 'true', 'la mesure est retenue par défaut');
-  vrai(!feuille.textContent.includes('null'), 'aucun « null » affiché');
+  vrai(!feuille.textContent.includes('null'), 'aucun « null » affiché');
   egal(feuille.querySelector('[data-type="bijoux"]'), null, 'bijoux : choix manuel seulement');
   vrai(feuille.querySelector('[data-action="enregistrer-scan"]').disabled, 'type à choisir d\'abord');
   cliquer('[data-type="chaussures"]', feuille);
@@ -383,17 +383,17 @@ test('app : mesure à la caméra (simulée, sans torche), plein écran, Recommen
   egal(doc.querySelector('[data-type="pull"] .nom').textContent, nomChoisi, 'nom et hex du catalogue');
 });
 
-// Étalonnage : photo, puis « Utiliser cette mesure » dans la feuille.
+// Étalonnage : photo, puis « Utiliser cette mesure » dans la feuille.
 async function etalonnerParPhoto(titre, hex) {
   const scan = await attendre(() => [...doc.querySelectorAll('dialog.scan[open]')]
-    .find((d) => d.querySelector('h2').textContent === titre && 'pret' in d.dataset), `mesure « ${titre} »`);
+    .find((d) => d.querySelector('h2').textContent === titre && 'pret' in d.dataset), `mesure « ${titre} »`);
   cliquer('[data-action="photo"]', scan);
   await fournirPhoto(await photoUnie(hex));
-  await attendreReel(() => resultatPret() === scan, `résultat « ${titre} »`);
+  await attendreReel(() => resultatPret() === scan, `résultat « ${titre} »`);
   cliquer('[data-action="utiliser-mesure"]', scan);
 }
 
-test('app : étalonnage par photos (blanc, noir), puis un vêtement noir corrigé en « Black »', async () => {
+test('app : étalonnage par photos (blanc, noir), puis un vêtement noir corrigé en « Black »', async () => {
   cliquer('#onglets [data-ecran="reglages"]');
   egal(doc.querySelector('[data-mode="photo"] .valeur-ligne').textContent, 'non étalonné');
   cliquer('[data-action="etalonner"]');
@@ -432,7 +432,7 @@ test('app : tenue du jour, propositions, avatar, sélection, favoris et filtre',
   egal(doc.querySelector('[data-type-tenue="short"]').getAttribute('aria-pressed'), 'false');
   cliquer('[data-type-tenue="t-shirt"]');
   cliquer('[data-type-tenue="pull"]');
-  vrai(doc.querySelector('[data-action="proposer"]').classList.contains('bouton-flottant'), '« Proposer » flotte en bas');
+  vrai(doc.querySelector('[data-action="proposer"]').classList.contains('bouton-flottant'), '« Proposer » flotte en bas');
   cliquer('[data-action="proposer"]');
   await quand(() => doc.querySelector('.proposition'), 'propositions');
   egal(doc.querySelector('[data-action="proposer"]'), null, 'plus de bouton flottant une fois proposé');
@@ -440,7 +440,7 @@ test('app : tenue du jour, propositions, avatar, sélection, favoris et filtre',
   vrai(cartes.length >= 2 && cartes.length <= 20, `entre 2 et 20 propositions (${cartes.length})`);
   const references = cartes.map((c) => c.querySelector('.infos strong').textContent);
   vrai(references.some((r) => r.startsWith('Combinaison n° ')) && references.every((r) => !r.includes('Wada')),
-    `« Combinaison n° » au lieu de « Wada » : ${references.slice(0, 3).join(' ; ')}`);
+    `« Combinaison n° » au lieu de « Wada » : ${references.slice(0, 3).join(' ; ')}`);
   egal(cartes[0].getAttribute('aria-pressed'), 'true', 'la première est sélectionnée');
   vrai(stocke().tenuesTypes.some((tenue) => tenue.join(',') === 'chaussures,pantalon,pull'), 'tenue type enregistrée');
   const panneau = doc.querySelector('.panneau-avatar');
@@ -461,6 +461,44 @@ test('app : tenue du jour, propositions, avatar, sélection, favoris et filtre',
   await quand(() => doc.getElementById('filtre-favoris')?.checked, 'filtre actif');
   const filtrees = [...doc.querySelectorAll('.proposition')];
   vrai(filtrees.length > 0 && filtrees.every((c) => c.textContent.includes('★')), 'filtre : seulement des propositions avec un favori');
+});
+
+test('app : ♡ garder une tenue, la retrouver dans Mes tenues avec son avatar, la nommer, puis la retirer', async () => {
+  const garder = doc.querySelector('.panneau-avatar [data-action="garder-tenue"]');
+  egal(garder.getAttribute('aria-pressed'), 'false');
+  const reference = doc.querySelector('.panneau-avatar .legende strong').textContent;
+  garder.click();
+  await quand(() => stocke().tenuesGardees.length === 1, 'tenue gardée');
+  egal(doc.querySelector('.panneau-avatar [data-action="garder-tenue"]').getAttribute('aria-pressed'), 'true', 'cœur plein');
+  const gardee = stocke().tenuesGardees[0];
+  egal(`Combinaison ${gardee.combinaison.ref}`, reference);
+  vrai(gardee.pieces.every((p) => /^#[0-9a-f]{6}$/.test(p.hex)), 'couleurs figées');
+
+  cliquer('#onglets [data-ecran="mes-tenues"]');
+  const carte = await attendre(() => doc.querySelector(`[data-tenue-gardee="${gardee.id}"]`), 'carte de la tenue');
+  vrai(carte.querySelector('svg.avatar g[data-type]'), 'avatar habillé sur la carte');
+  egal(carte.querySelector('.nom-tenue').textContent, reference);
+  vrai(doc.getElementById('ce-qui-te-manque'), 'les manques fréquents sont en bas de Mes tenues');
+  carte.click();
+  const feuille = await dialogueOuvert('dialog.detail-tenue[open]');
+  egal(feuille.querySelectorAll('.piece-tenue').length, gardee.pieces.length, 'une ligne par pièce');
+  const champ = feuille.querySelector('[data-action="nom-tenue"]');
+  champ.value = '  Dîner chez Julie ';
+  champ.dispatchEvent(new fenetre.Event('change'));
+  await quand(() => stocke().tenuesGardees[0].nom === 'Dîner chez Julie', 'nom enregistré');
+  cliquer('[data-action="fermer-feuille"]', feuille);
+  await dialoguesFermes();
+  await quand(() => doc.querySelector(`[data-tenue-gardee="${gardee.id}"] .nom-tenue`)?.textContent === 'Dîner chez Julie', 'nom sur la carte');
+
+  cliquer(`[data-tenue-gardee="${gardee.id}"]`);
+  cliquer('[data-action="retirer-tenue-gardee"]', await dialogueOuvert('dialog.detail-tenue[open]'));
+  const alerte = await attendre(() => [...doc.querySelectorAll('dialog[open]')]
+    .find((d) => d.querySelector('h2').textContent === 'Retirer cette tenue ?' && 'pret' in d.dataset), 'confirmation');
+  cliquer('[data-valeur="oui"]', alerte);
+  await dialoguesFermes();
+  await quand(() => stocke().tenuesGardees.length === 0, 'tenue retirée');
+  vrai(doc.querySelector('[data-info="sans-tenue-gardee"]'), 'Mes tenues vide');
+  cliquer('#onglets [data-ecran="tenue"]');
 });
 
 test('app : partir d\'un vêtement (depuis la garde-robe), porté dans chaque proposition ; retrait puis épingle depuis la tenue', async () => {
@@ -493,8 +531,8 @@ test('app : partir d\'un vêtement (depuis la garde-robe), porté dans chaque pr
 });
 
 test('app : manques fréquents, top 10 trié, résultat gardé en mémoire puis recalculé après un réglage', async () => {
-  cliquer('#onglets [data-ecran="manques"]');
-  vrai(doc.querySelector('[data-info="calcul"]'), 'message pendant le calcul');
+  cliquer('#onglets [data-ecran="mes-tenues"]');
+  // Déjà calculé au passage précédent dans Mes tenues (même garde-robe, mêmes réglages) : affiché tout de suite.
   await quand(() => doc.querySelector('.manque-frequent'), 'lignes des manques');
   const lignes = [...doc.querySelectorAll('.manque-frequent')];
   vrai(lignes.length >= 1 && lignes.length <= 10, `entre 1 et 10 lignes (${lignes.length})`);
@@ -512,7 +550,7 @@ test('app : manques fréquents, top 10 trié, résultat gardé en mémoire puis 
   egal(doc.querySelectorAll('.tenues-comptees li').length, 2);
 
   cliquer('#onglets [data-ecran="garde-robe"]');
-  cliquer('#onglets [data-ecran="manques"]');
+  cliquer('#onglets [data-ecran="mes-tenues"]');
   vrai(doc.querySelector('.manque-frequent'), 'résultat gardé en mémoire : affiché sans recalcul');
 
   cliquer('#onglets [data-ecran="reglages"]');
@@ -520,7 +558,7 @@ test('app : manques fréquents, top 10 trié, résultat gardé en mémoire puis 
   curseur.value = '30';
   curseur.dispatchEvent(new fenetre.Event('change'));
   egal(stocke().reglages.tolerance, 30);
-  cliquer('#onglets [data-ecran="manques"]');
+  cliquer('#onglets [data-ecran="mes-tenues"]');
   vrai(doc.querySelector('[data-info="calcul"]'), 'réglage changé : recalcul');
   await quand(() => doc.querySelector('.manque-frequent, [data-info="rien-ne-manque"]'), 'nouveau résultat');
 });
@@ -540,18 +578,18 @@ test('app : manques fréquents, retrait d\'une tenue type après confirmation, d
   egal(doc.querySelectorAll('.tenues-comptees li').length, 1);
 });
 
-test('app : « Wada » n\'apparaît que dans les crédits (demande de Théo)', async () => {
-  for (const ecran of ['garde-robe', 'tenue', 'manques', 'reglages']) {
+test('app : « Wada » n\'apparaît que dans les crédits (demande de Théo)', async () => {
+  for (const ecran of ['garde-robe', 'tenue', 'mes-tenues', 'reglages']) {
     cliquer(`#onglets [data-ecran="${ecran}"]`);
     await quand(() => !doc.querySelector('[data-info="calcul"]'), `écran ${ecran} calculé`);
     const copie = doc.getElementById('contenu').cloneNode(true);
     copie.querySelector('[data-section="a-propos"]')?.remove();
-    vrai(!copie.textContent.includes('Wada'), `aucun « Wada » dans l'écran ${ecran}`);
+    vrai(!copie.textContent.includes('Wada'), `aucun « Wada » dans l'écran ${ecran}`);
   }
   vrai(doc.querySelector('[data-section="a-propos"]').textContent.includes('Sanzō Wada'), 'crédits conservés (licence MIT)');
 });
 
-test('app : balayer une ligne vers la gauche découvre « Supprimer », puis suppression après confirmation', async () => {
+test('app : balayer une ligne vers la gauche découvre « Supprimer », puis suppression après confirmation', async () => {
   cliquer('#onglets [data-ecran="garde-robe"]');
   const avant = stocke().vetements.length;
   const li = doc.querySelector('[data-type="pantalon"] .vetement');

@@ -3,10 +3,11 @@
 // Toucher une proposition met l'avatar à jour et affiche son détail (vêtements à porter, manques, favoris).
 // « Partir d'un vêtement » (demande de Théo, 2026-09-26) : un vêtement épinglé est porté dans toutes les propositions.
 
-import { el, pastille, pastilleJoker, barreNavigation, interrupteur, tuile, ouvrirDialogue } from '../ui.js';
+import { el, pastille, pastilleJoker, barreNavigation, interrupteur, tuile, ouvrirDialogue, annoncer, nouvelIdentifiant } from '../ui.js';
 import { icone } from '../icones.js';
 import { TYPES, LIBELLES_TYPES, BAS, MST, PROPOSITIONS_MAX } from '../constantes.js';
-import { enregistrerTenueType, basculerFavori } from '../donnees.js';
+import { enregistrerTenueType, basculerFavori, garderTenue, retirerTenueGardee } from '../donnees.js';
+import { instantaneTenue, signatureTenue, referenceCombinaison } from '../tenues.js';
 import { proposer, selectionner, piecesVisibles } from '../moteur.js';
 import { dessinerAvatar, planAvatar } from '../avatar.js';
 import { estNoir, labDepuisHex } from '../couleur.js';
@@ -38,10 +39,7 @@ export function epinglerVetement(app, vetement) {
   ecran.propose = false;
 }
 
-function reference(combinaison) {
-  if (combinaison.source === 'wada') return `Combinaison ${combinaison.ref}`; // « Wada » : crédits seulement (demande de Théo)
-  return `Papier Tigre ${combinaison.ref}${combinaison.nom ? ` · ${combinaison.nom}` : ''}`;
-}
+const reference = referenceCombinaison; // « Combinaison n° 12 » ; « Wada » : crédits seulement (demande de Théo)
 
 function resume(proposition) {
   const n = proposition.nbManques;
@@ -163,7 +161,26 @@ export function rendreTenue(conteneur, app, actions) {
       el('div', { class: 'legende' },
         choisie ? el('strong', {}, reference(choisie.combinaison)) : el('span', {}, 'Aucune proposition'),
         choisie ? el('span', { class: 'discret' }, resume(choisie)) : null,
-        el('span', { class: 'discret' }, '⚠ : pièce qui te manque (dessinée dans sa couleur).')));
+        el('span', { class: 'discret' }, '⚠ : pièce qui te manque (dessinée dans sa couleur).'),
+        choisie ? boutonGarder(choisie) : null));
+  }
+
+  // ♡ Garder : la tenue proposée rejoint Mes tenues (instantané) ; touchée à nouveau, elle en sort.
+  function boutonGarder(proposition) {
+    const instantane = instantaneTenue(proposition, app.catalogue, ecran.types);
+    const gardee = app.etat.tenuesGardees.find((g) => signatureTenue(g) === signatureTenue(instantane));
+    return el('button', {
+      type: 'button', class: `bouton petit bouton-garder${gardee ? ' gardee' : ''}`, 'data-action': 'garder-tenue', 'aria-pressed': String(Boolean(gardee)),
+      onclick: () => {
+        const nouvelEtat = gardee
+          ? retirerTenueGardee(app.etat, gardee.id)
+          : garderTenue(app.etat, instantane, { id: nouvelIdentifiant(), date: new Date() }, signatureTenue);
+        if (actions.mettreAJour(nouvelEtat, { sansRendu: true })) {
+          annoncer(gardee ? 'Tenue retirée de Mes tenues' : 'Tenue gardée dans Mes tenues');
+          dessinerPanneau();
+        }
+      },
+    }, icone(gardee ? 'coeur-plein' : 'coeur'), gardee ? 'Gardée' : 'Garder');
   }
 
   function detailPiece(piece, proposition) {

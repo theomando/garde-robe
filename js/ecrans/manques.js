@@ -1,7 +1,7 @@
-// Écran Manques fréquents : les couleurs qui manquent le plus souvent dans les propositions des tenues types
+// Section « Ce qui te manque » (en bas de l'onglet Mes tenues, demande de Théo, 2026-09-26) : les couleurs qui manquent le plus souvent dans les propositions des tenues types
 // déjà demandées, avec la garde-robe et les réglages actuels (CLAUDE.md, section « Favoris et statistiques »).
 
-import { el, pastille, pastilleJoker, confirmer, annoncer, barreNavigation } from '../ui.js';
+import { el, pastille, pastilleJoker, confirmer, annoncer } from '../ui.js';
 import { TYPES, LIBELLES_TYPES } from '../constantes.js';
 import { retirerTenueType } from '../donnees.js';
 import { manquesFrequents } from '../statistiques.js';
@@ -33,27 +33,29 @@ function calculer(app) {
 const pluriel = (n, mot) => `${n} ${mot}${n > 1 ? 's' : ''}`;
 const libelleTenue = (types) => TYPES.filter((t) => types.includes(t)).map((t) => LIBELLES_TYPES[t].toLowerCase()).join(', ');
 
-export function rendreManques(conteneur, app, actions) {
-  const entete = barreNavigation({ titre: 'Manques fréquents' });
+// Écran qui porte la section (le calcul différé ne redessine que si l'on y est encore).
+const ECRAN = 'mes-tenues';
+
+// Éléments de la section, à placer dans l'écran.
+export function sectionManques(app, actions) {
+  const entete = [el('h2', { class: 'titre-section', id: 'ce-qui-te-manque' }, icone('sac'), 'Ce qui te manque')];
   const { tenuesTypes } = app.etat;
 
   if (tenuesTypes.length === 0) {
-    conteneur.replaceChildren(...entete,
+    return [...entete,
       el('p', { class: 'vide', 'data-info': 'sans-tenue' },
         'Aucune tenue demandée pour l\'instant. Dans l\'onglet Tenue, choisis des pièces et touche « Proposer » : les couleurs qui te manquent le plus souvent apparaîtront ici.'),
-      el('button', { type: 'button', class: 'bouton principal large', onclick: () => actions.naviguer('tenue') }, 'Aller à la tenue du jour'));
-    return;
+      el('button', { type: 'button', class: 'bouton large', 'data-action': 'aller-tenue', onclick: () => actions.naviguer('tenue') }, 'Aller à la tenue du jour')];
   }
 
   const resultat = resultatEnMemoire(app);
   if (!resultat) {
-    conteneur.replaceChildren(...entete, el('p', { class: 'vide', role: 'status', 'data-info': 'calcul' }, 'Calcul des manques…'));
     setTimeout(() => {
-      if (app.ecran !== 'manques' || resultatEnMemoire(app)) return;
+      if (app.ecran !== ECRAN || resultatEnMemoire(app)) return;
       calculer(app);
       actions.rafraichir();
     }, DELAI_AVANT_CALCUL_MS);
-    return;
+    return [...entete, el('p', { class: 'vide', role: 'status', 'data-info': 'calcul' }, 'Calcul des manques…')];
   }
 
   const { manques, nbPropositions, nbTenues } = resultat;
@@ -90,7 +92,7 @@ export function rendreManques(conteneur, app, actions) {
     if (ok && actions.mettreAJour(retirerTenueType(app.etat, types))) annoncer('Tenue retirée');
   }
 
-  conteneur.replaceChildren(...entete, intro, corps,
+  return [...entete, intro, corps,
     el('details', {
       class: 'depliant carte tenues-comptees', open: tenuesDepliees,
       ontoggle: (evenement) => { tenuesDepliees = evenement.target.open; },
@@ -101,5 +103,5 @@ export function rendreManques(conteneur, app, actions) {
       el('button', {
         type: 'button', class: 'bouton petit danger', 'data-action': 'retirer-tenue', 'data-tenue': types.join(','),
         'aria-label': `Retirer la tenue ${libelleTenue(types)}`, onclick: () => retirer(types),
-      }, 'Retirer'))))));
+      }, 'Retirer')))))];
 }

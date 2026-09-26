@@ -3,7 +3,124 @@ import {
   etatInitial, premierLancement, normaliserTenue, validerEtat, exporterEtat, lireExport,
   ajouterVetement, modifierVetement, supprimerVetement, basculerFavori, modifierReglages, enregistrerTenueType,
   enregistrerEtalonnage, supprimerEtalonnage, retirerTenueType,
+  garderTenue, retirerTenueGardee, renommerTenueGardee, marquesConnues, noterSauvegarde, reporterRappelSauvegarde, rappelSauvegardeDu,
 } from '../js/donnees.js';
+import { signatureTenue } from '../js/tenues.js';
+
+// Tenue gardée d'exemple : pantalon porté (vêtement v2), pull manquant.
+const TENUE = {
+  types: ['pantalon', 'pull'],
+  combinaison: {
+    id: 'wada-n12', source: 'wada', ref: 'n° 12',
+    couleurs: [{ id: 'wada-1', nom: 'Hermosa Pink', hex: '#F9C1CE' }, { id: 'wada-2', nom: 'Corinthian Pink', hex: '#f8b6ba' }],
+  },
+  pieces: [
+    { type: 'pantalon', hex: '#000000', manque: false, joker: true, vetementId: 'v2' },
+    { type: 'pull', hex: '#f9c1ce', manque: true, joker: false, couleurId: 'wada-1' },
+  ],
+};
+const PHOTO = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2w==';
+
+test('données v2 : un export de version 1 reste lisible (sans les champs de la version 2)', () => {
+  const v1 = JSON.parse(exporterEtat(etatExemple(), DATE));
+  v1.version = 1;
+  delete v1.tenuesGardees;
+  const { erreurs, etat } = lireExport(JSON.stringify(v1));
+  egalProfond(erreurs, []);
+  egalProfond(etat.tenuesGardees, [], 'aucune tenue gardée');
+  egal(etat.vetements.length, 2);
+  v1.vetements[0].marque = 'Lacoste';
+  vrai(lireExport(JSON.stringify(v1)).erreurs.some((e) => e.includes('champ inconnu « marque »')), 'la marque n\'existe pas en version 1');
+});
+
+test('données v2 : marque et photo des vêtements, photos dans l\'export, réimport identique', () => {
+  let etat = ajouterVetement(etatExemple(), { type: 'veste', hex: '#123456', origine: 'scan', marque: '  Petit   Bateau ', photo: true }, { id: 'v3', date: DATE });
+  egalProfond(etat.vetements[2], { id: 'v3', type: 'veste', hex: '#123456', origine: 'scan', dateAjout: '2026-09-24T10:00:00.000Z', marque: 'Petit Bateau', photo: true });
+  leve(() => ajouterVetement(etat, { type: 'veste', hex: '#123456', origine: 'scan', marque: 'x'.repeat(41) }, { id: 'v4', date: DATE }));
+  egalProfond(marquesConnues(modifierVetement(etat, 'v1', { marque: 'petit bateau' })), ['petit bateau'], 'sans doublon de casse');
+  egal(modifierVetement(etat, 'v3', { marque: '' }).vetements[2].marque, undefined, 'marque effacée');
+  egal(modifierVetement(etat, 'v3', { photo: false }).vetements[2].photo, undefined, 'photo retirée');
+
+  const texte = exporterEtat(etat, DATE, 2, new Map([['v3', PHOTO]]));
+  const relu = lireExport(texte);
+  egalProfond(relu.erreurs, []);
+  egalProfond(relu.etat, etat);
+  egalProfond([...relu.photos], [['v3', PHOTO]]);
+  // L'indicateur « photo » suit les photos fournies par l'export.
+  const sansPhoto = lireExport(exporterEtat(etat, DATE, 0, new Map()));
+  egal(sansPhoto.etat.vetements[2].photo, undefined, 'photo annoncée mais absente : indicateur retiré');
+  egal(lireExport(exporterEtat(etat, DATE)).photos, null, 'stockage local : pas de photos dans le document');
+  const cas = [
+    [(d) => { d.photos = { inconnu: PHOTO }; }, 'aucun vêtement ne porte cet identifiant'],
+    [(d) => { d.photos = { v3: 'data:text/html;base64,AAAA' }; }, 'invalide'],
+    [(d) => { d.photos = []; }, '« photos » doit être un objet'],
+    [(d) => { d.vetements[2].photo = 'oui'; }, '« photo » doit valoir true'],
+    [(d) => { d.vetements[2].marque = ' x'; }, 'marque invalide'],
+  ];
+  for (const [modifier, attendu] of cas) {
+    const d = JSON.parse(texte);
+    modifier(d);
+    const r = lireExport(JSON.stringify(d));
+    vrai(r.etat === null && r.erreurs.some((e) => e.includes(attendu)), `${attendu} : ${JSON.stringify(r.erreurs)}`);
+  }
+});
+
+test('mes tenues : garder (la plus récente d\'abord, sans doublon), renommer, retirer, exporter', () => {
+  let etat = garderTenue(etatExemple(), TENUE, { id: 't1', date: DATE }, signatureTenue);
+  egal(etat.tenuesGardees[0].combinaison.couleurs[0].hex, '#f9c1ce', 'hex normalisé');
+  egal(garderTenue(etat, TENUE, { id: 't2', date: DATE }, signatureTenue), etat, 'même tenue : pas de doublon');
+  etat = garderTenue(etat, { ...TENUE, types: ['pantalon', 'pull', 'chapeau'], pieces: [...TENUE.pieces, { type: 'chapeau', hex: '#000000', manque: true, joker: true }] },
+    { id: 't2', date: new Date('2026-09-25T10:00:00Z') }, signatureTenue);
+  egalProfond(etat.tenuesGardees.map((t) => t.id), ['t2', 't1'], 'la plus récente d\'abord');
+  etat = renommerTenueGardee(etat, 't1', '  Mariage de Julie ');
+  egal(etat.tenuesGardees[1].nom, 'Mariage de Julie');
+  egal(renommerTenueGardee(etat, 't1', '').tenuesGardees[1].nom, undefined, 'nom effacé');
+  leve(() => renommerTenueGardee(etat, 't1', 'x'.repeat(61)));
+  const relu = lireExport(exporterEtat(etat, DATE));
+  egalProfond(relu.erreurs, []);
+  egalProfond(relu.etat.tenuesGardees, etat.tenuesGardees);
+  egal(retirerTenueGardee(etat, 't2').tenuesGardees.length, 1);
+  leve(() => retirerTenueGardee(etat, 'absente'));
+  leve(() => garderTenue(etat, { ...TENUE, pieces: [] }, { id: 't3', date: DATE }), 'tenue sans pièce refusée');
+});
+
+test('mes tenues : tenue gardée invalide refusée à l\'import', () => {
+  const base = () => JSON.parse(exporterEtat(garderTenue(etatExemple(), TENUE, { id: 't1', date: DATE }), DATE));
+  const cas = [
+    [(d) => { d.tenuesGardees[0].pieces[0].hex = 'rouge'; }, 'pièce 1 : couleur « rouge » invalide'],
+    [(d) => { d.tenuesGardees[0].combinaison.source = 'autre'; }, 'source « autre » inconnue'],
+    [(d) => { d.tenuesGardees[0].combinaison.couleurs = [d.tenuesGardees[0].combinaison.couleurs[0]]; }, '2 à 6 couleurs'],
+    [(d) => { d.tenuesGardees[0].types = ['pantalon', 'short']; }, 'pantalon et short ensemble'],
+    [(d) => { d.tenuesGardees.push(d.tenuesGardees[0]); }, 'identifiant « t1 » en double'],
+    [(d) => { d.tenuesGardees[0].pieces[1].manque = 'oui'; }, '« manque » et « joker »'],
+    [(d) => { d.tenuesGardees[0].favori = true; }, 'champ inconnu « favori »'],
+  ];
+  for (const [modifier, attendu] of cas) {
+    const d = base();
+    modifier(d);
+    const r = lireExport(JSON.stringify(d));
+    vrai(r.etat === null && r.erreurs.some((e) => e.includes(attendu)), `${attendu} : ${JSON.stringify(r.erreurs)}`);
+  }
+});
+
+test('rappel de sauvegarde : jamais sauvegardé, sauvegarde ancienne avec ajouts, report d\'une semaine', () => {
+  const jour = (n) => new Date(Date.UTC(2026, 8, 24) + n * 86400000);
+  const etat = etatExemple(); // vêtements ajoutés le 24/09/2026
+  egal(rappelSauvegardeDu(etatInitial(), jour(100)), false, 'garde-robe vide : pas de rappel');
+  egal(rappelSauvegardeDu(etat, jour(3)), false, 'jamais sauvegardé, vêtements récents');
+  egal(rappelSauvegardeDu(etat, jour(8)), true, 'jamais sauvegardé, premier vêtement vieux de plus de 7 jours');
+  const sauve = noterSauvegarde(etat, jour(8));
+  egal(sauve.reglages.derniereSauvegarde, jour(8).toISOString());
+  egal(rappelSauvegardeDu(sauve, jour(60)), false, 'rien d\'ajouté depuis la sauvegarde');
+  const ajout = ajouterVetement(sauve, { type: 'chapeau', hex: '#101010', origine: 'manuel' }, { id: 'v9', date: jour(20) });
+  egal(rappelSauvegardeDu(ajout, jour(30)), false, 'sauvegarde de moins de 30 jours');
+  egal(rappelSauvegardeDu(ajout, jour(39)), true, 'plus de 30 jours et un ajout depuis');
+  const reporte = reporterRappelSauvegarde(ajout, jour(39));
+  egal(rappelSauvegardeDu(reporte, jour(45)), false, '« Plus tard » : une semaine de répit');
+  egal(rappelSauvegardeDu(reporte, jour(47)), true);
+  egal(noterSauvegarde(reporte, jour(47)).reglages.rappelSauvegarde, undefined, 'une sauvegarde efface le report');
+  egalProfond(lireExport(exporterEtat(reporte, DATE)).etat.reglages, reporte.reglages, 'dates exportées et relues');
+});
 
 const DATE = new Date('2026-09-24T10:00:00.000Z');
 
@@ -77,7 +194,7 @@ test('export puis import : mêmes données', () => {
   const texte = exporterEtat(etat, DATE, 2);
   const doc = JSON.parse(texte);
   egal(doc.format, 'garde-robe-chromatique');
-  egal(doc.version, 1);
+  egal(doc.version, 2);
   egal(doc.dateExport, '2026-09-24T10:00:00.000Z');
   const { erreurs, etat: relu } = lireExport(texte);
   egalProfond(erreurs, []);
@@ -100,7 +217,7 @@ test('import : chaque document invalide est refusé avec un message', () => {
     ['origine inconnue', (d) => { d.vetements[0].origine = 'photo'; }, 'origine « photo » inconnue'],
     ['identifiant en double', (d) => { d.vetements[1].id = d.vetements[0].id; }, 'identifiant « v1 » en double'],
     ['date d\'ajout', (d) => { d.vetements[0].dateAjout = '2026-13-45'; }, 'date d\'ajout'],
-    ['champ inconnu de vêtement', (d) => { d.vetements[0].marque = 'x'; }, 'vêtement 1 : champ inconnu « marque »'],
+    ['champ inconnu de vêtement', (d) => { d.vetements[0].couleurPreferee = 'x'; }, 'vêtement 1 : champ inconnu « couleurPreferee »'],
     ['vêtements non liste', (d) => { d.vetements = {}; }, '« vetements » doit être une liste'],
     ['mst 11', (d) => { d.reglages.mst = 11; }, '« mst » doit être un entier de 1 à 10'],
     ['mst absent', (d) => { d.reglages.mst = null; }, '« mst » doit être un entier'],

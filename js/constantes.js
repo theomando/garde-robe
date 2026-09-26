@@ -13,7 +13,7 @@ export const LIBELLES_TYPES = {
 };
 
 // Version affichée dans les réglages (numéro de l'étape du plan tant que l'app est en construction).
-export const VERSION_APP = '0.11.0'; // à reporter dans sw.js (VERSION), vérifié par les tests
+export const VERSION_APP = '0.12.0'; // à reporter dans sw.js (VERSION), vérifié par les tests
 
 // Couches du haut, du corps vers l'extérieur (avatar). Chemise, veste et manteau sont portés ouverts.
 export const COUCHES = ['t-shirt', 'pull', 'chemise', 'veste', 'manteau'];
@@ -28,6 +28,16 @@ export const PROPOSITIONS_MAX = 20;
 export const COUT_JOKER_EN_TOLERANCES = 1;
 // Manques fréquents (CLAUDE.md, section Favoris et statistiques) : nombre de lignes affichées.
 export const MANQUES_FREQUENTS_MAX = 10;
+
+// Données version 2 (demandes de Théo, 2026-09-26) : marque et photo des vêtements, tenues gardées, sauvegarde.
+export const MARQUE_MAX = 40; // caractères
+export const NOM_TENUE_MAX = 60; // caractères
+export const PHOTO_COTE = 320; // vignette carrée, en pixels (recadrée au centre)
+export const PHOTO_QUALITE = 0.8; // JPEG : environ 20 à 35 Ko par vignette
+export const PHOTO_TAILLE_MAX = 400000; // longueur maximale d'une photo (data URL) acceptée à l'import
+export const RAPPEL_SAUVEGARDE_JOURS = 30; // rappel si la dernière sauvegarde est plus ancienne (et que des données ont changé)
+export const RAPPEL_PREMIER_JOURS = 7; // jamais sauvegardé : rappel une fois le premier vêtement vieux de 7 jours
+export const RAPPEL_REPORT_JOURS = 7; // « Plus tard » : rappel repoussé d'une semaine
 
 // Monk Skin Tone Scale, MST 1 à 10 (indice 0 à 9).
 // Monk, Ellis. « Monk Skin Tone Scale », 2019. https://skintone.google (licence CC BY 4.0).

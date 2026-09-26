@@ -16,8 +16,12 @@
 </main>
 <script type="module">
   import { construireWada, fusionnerCatalogues, plusProches } from '../js/catalogue.js';
-  import { etatInitial, modifierReglages, ajouterVetement, basculerFavori, enregistrerTenueType, exporterEtat } from '../js/donnees.js';
+  import {
+    etatInitial, modifierReglages, ajouterVetement, basculerFavori, enregistrerTenueType, exporterEtat, garderTenue, renommerTenueGardee,
+  } from '../js/donnees.js';
   import { labDepuisHex } from '../js/couleur.js';
+  import { proposer } from '../js/moteur.js';
+  import { instantaneTenue, signatureTenue } from '../js/tenues.js';
 
   const parametres = new URLSearchParams(location.search);
   const wada = fusionnerCatalogues(construireWada(await (await fetch('../data/wada.json')).json()));
@@ -45,6 +49,12 @@
     for (const tenue of [['chaussures', 'short', 't-shirt'], ['chaussures', 'pantalon', 'ceinture', 'pull', 'manteau']]) {
       etat = enregistrerTenueType(etat, tenue);
     }
+    // Trois tenues gardées (Mes tenues), dont une nommée.
+    for (const [n, types] of [['1', ['chaussures', 'pantalon', 't-shirt', 'veste']], ['2', ['chaussures', 'pantalon', 'pull']], ['3', ['chaussures', 'short', 't-shirt']]]) {
+      const [proposition] = proposer({ types, vetements: etat.vetements, catalogue: wada, reglages: etat.reglages }).retenues;
+      if (proposition) etat = garderTenue(etat, instantaneTenue(proposition, wada, types), { id: `demo-tenue-${n}`, date: new Date(Date.UTC(2026, 8, 19 + Number(n))) }, signatureTenue);
+    }
+    if (etat.tenuesGardees.some((t) => t.id === 'demo-tenue-2')) etat = renommerTenueGardee(etat, 'demo-tenue-2', 'Réunion de lundi');
     return enregistrerTenueType(etat, ['chaussures', 'pantalon', 't-shirt', 'veste']); // la dernière préremplit l'écran Tenue
   }
 
