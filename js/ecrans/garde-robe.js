@@ -6,14 +6,22 @@ import { ajouterVetement, modifierVetement, supprimerVetement } from '../donnees
 import { labDepuisHex } from '../couleur.js';
 import { ouvrirSelecteur } from './selecteur-catalogue.js';
 import { ouvrirScan, choisirApresMesure } from './scan.js';
+import { correcteur } from './etalonnage.js';
 
-// Scan : mesure, puis type et « Ajuster ». La couleur mesurée est gardée par défaut (origine « scan ») ;
-// « Ajuster » la remplace par celle du catalogue (hex du catalogue, idCouleurCatalogue, origine toujours « scan »).
+// Scan : mesure, puis type et « Ajuster ». La couleur mesurée est gardée par défaut (origine « scan ») ;
+// « Ajuster » la remplace par celle du catalogue (hex du catalogue, idCouleurCatalogue, origine toujours « scan »).
+// Si la caméra est étalonnée pour la façon de mesurer utilisée, la mesure est corrigée (la brute reste affichée).
 async function scanner(app, actions) {
+  const corriger = correcteur(app);
   for (;;) {
-    const mesure = await ouvrirScan();
+    const etalonnee = Object.keys(app.etat.reglages.etalonnage ?? {}).length > 0;
+    const mesure = await ouvrirScan({
+      corriger,
+      astuce: etalonnee ? null : 'Astuce : étalonne la caméra une fois (Réglages, Étalonnage) pour des noirs et des blancs plus justes.',
+    });
     if (!mesure) return;
-    const choix = await choisirApresMesure(app, actions, mesure);
+    const corrigee = app.etat.reglages.etalonnage?.[mesure.mode] ? { ...mesure, rgb: corriger(mesure.rgb, mesure.mode), brut: mesure.rgb } : mesure;
+    const choix = await choisirApresMesure(app, actions, corrigee);
     if (choix === 'recommencer') continue;
     if (!choix) return;
     const nouvelEtat = ajouterVetement(app.etat,

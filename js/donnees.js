@@ -2,8 +2,9 @@
 // État : { vetements: [vêtement…], reglages: { mst, teintActif, tolerance, favoris }, tenuesTypes: [[type…]…] }.
 // Le même document JSON sert à l'export et au stockage local : { format, version, dateExport, …état }.
 
-import { TYPES, BAS, TOLERANCE_DEFAUT, TOLERANCE_MIN, TOLERANCE_MAX, TOLERANCE_PAS } from './constantes.js';
+import { TYPES, BAS, TOLERANCE_DEFAUT, TOLERANCE_MIN, TOLERANCE_MAX, TOLERANCE_PAS, MODES_SCAN } from './constantes.js';
 import { estHexValide } from './couleur.js';
+import { verifierMesuresEtalonnage } from './etalonnage.js';
 
 export const FORMAT_DONNEES = 'garde-robe-chromatique';
 export const VERSION_DONNEES = 1;
@@ -11,7 +12,8 @@ export const ORIGINES = ['scan', 'manuel'];
 
 const CLES_DOCUMENT = ['format', 'version', 'dateExport', 'vetements', 'reglages', 'tenuesTypes'];
 const CLES_VETEMENT = ['id', 'type', 'hex', 'origine', 'idCouleurCatalogue', 'dateAjout'];
-const CLES_REGLAGES = ['mst', 'teintActif', 'tolerance', 'favoris'];
+const CLES_REGLAGES = ['mst', 'teintActif', 'tolerance', 'favoris', 'etalonnage'];
+const CLES_ETALONNAGE = ['blanc', 'noir', 'date'];
 const MOTIF_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
 
 function estObjet(x) {
@@ -41,6 +43,10 @@ export function etatInitial() {
 
 export function premierLancement(etat) {
   return etat.reglages.mst === null;
+}
+
+function copierEtalonnage(etalonnage) {
+  return Object.fromEntries(Object.entries(etalonnage).map(([mode, { blanc, noir, date }]) => [mode, { blanc: [...blanc], noir: [...noir], date }]));
 }
 
 // Tenue canonique : types uniques dans l'ordre de TYPES. Lève une erreur si la tenue est invalide.
@@ -98,6 +104,21 @@ export function validerEtat({ vetements, reglages, tenuesTypes }) {
     } else if (new Set(reglages.favoris).size !== reglages.favoris.length) {
       erreurs.push('réglages : favori en double');
     }
+    // Étalonnage facultatif : { torche?, sans-torche?, photo? : { blanc: [r, v, b], noir: [r, v, b], date } }.
+    if (reglages.etalonnage !== undefined) {
+      if (!estObjet(reglages.etalonnage)) erreurs.push('réglages : « etalonnage » doit être un objet');
+      else {
+        for (const [mode, mesures] of Object.entries(reglages.etalonnage)) {
+          const ou = `réglages : étalonnage « ${mode} »`;
+          if (!MODES_SCAN.includes(mode)) { erreurs.push(`${ou} : mode inconnu (${MODES_SCAN.join(', ')})`); continue; }
+          if (!estObjet(mesures)) { erreurs.push(`${ou} : un objet est attendu`); continue; }
+          champsInconnus(mesures, CLES_ETALONNAGE, ou, erreurs);
+          const probleme = verifierMesuresEtalonnage(mesures.blanc, mesures.noir);
+          if (probleme) erreurs.push(`${ou} : ${probleme}`);
+          if (!estDateIso(mesures.date)) erreurs.push(`${ou} : date invalide`);
+        }
+      }
+    }
   }
 
   const tenues = [];
@@ -129,7 +150,10 @@ export function validerEtat({ vetements, reglages, tenuesTypes }) {
         ...(v.idCouleurCatalogue !== undefined ? { idCouleurCatalogue: v.idCouleurCatalogue } : {}),
         dateAjout: v.dateAjout,
       })),
-      reglages: { mst: reglages.mst, teintActif: reglages.teintActif, tolerance: reglages.tolerance, favoris: [...reglages.favoris] },
+      reglages: {
+        mst: reglages.mst, teintActif: reglages.teintActif, tolerance: reglages.tolerance, favoris: [...reglages.favoris],
+        ...(reglages.etalonnage !== undefined ? { etalonnage: copierEtalonnage(reglages.etalonnage) } : {}),
+      },
       tenuesTypes: tenues,
     },
   };
@@ -220,6 +244,20 @@ export function modifierReglages(etat, modifications) {
 }
 
 // Ajoute la tenue (forme canonique) si elle n'est pas déjà enregistrée.
+// Enregistre l'étalonnage d'un mode de mesure (mesures brutes du vêtement blanc et du vêtement noir).
+export function enregistrerEtalonnage(etat, mode, { blanc, noir }, date) {
+  if (!MODES_SCAN.includes(mode)) throw new Error(`mode de mesure « ${mode} » inconnu`);
+  const probleme = verifierMesuresEtalonnage(blanc, noir);
+  if (probleme) throw new Error(probleme);
+  const etalonnage = { ...(etat.reglages.etalonnage ?? {}), [mode]: { blanc: [...blanc], noir: [...noir], date: date.toISOString() } };
+  return { ...etat, reglages: { ...etat.reglages, etalonnage } };
+}
+
+export function supprimerEtalonnage(etat) {
+  const { etalonnage, ...reglages } = etat.reglages;
+  return { ...etat, reglages };
+}
+
 export function enregistrerTenueType(etat, types) {
   const canonique = normaliserTenue(types);
   const cle = canonique.join(',');

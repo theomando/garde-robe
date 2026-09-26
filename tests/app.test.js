@@ -2,7 +2,7 @@
 // réservé (?espace=tests-ui) vidé au départ. Les tests s'enchaînent sur la même instance.
 // Le lanceur démarre Edge avec une caméra simulée (--use-fake-device-for-media-stream), sans torche.
 import { test, vrai, egal, egalProfond, attendre } from './mini-test.js';
-import { photoSynthetique, attendreReel } from './aides.js';
+import { photoSynthetique, photoUnie, attendreReel } from './aides.js';
 
 const ESPACE = 'garde-robe-tests-ui:';
 let fenetre = null;
@@ -20,7 +20,7 @@ function cliquer(selecteur, racine = doc) {
   return element;
 }
 
-// Un dialogue ignore les clics pendant 400 ms (anti double tape) : on attend qu'il soit « prêt ».
+// Un dialogue ignore les clics pendant 400 ms (anti double tape) : on attend qu'il soit « prêt ».
 const dialogueOuvert = (selecteur = 'dialog[open]') => attendre(
   () => [...doc.querySelectorAll(selecteur)].find((d) => 'pret' in d.dataset), `dialogue ${selecteur} prêt`);
 // L'événement close d'un <dialog> est différé : on attend le résultat attendu, pas seulement la fermeture.
@@ -193,7 +193,7 @@ test('app : données affichées en texte, puis réimportées après confirmation
 const resultatPret = (etape) => [...doc.querySelectorAll('dialog.resultat-scan[open]')]
   .find((d) => d.dataset.etape === etape && 'pret' in d.dataset);
 
-test('app : scan par photo, étape couleur, « Non, continuer », puis type (obligatoire)', async () => {
+test('app : scan par photo, étape couleur, « Non, continuer », puis type (obligatoire)', async () => {
   cliquer('#onglets [data-ecran="garde-robe"]');
   cliquer('[data-action="scanner"]');
   const scan = await dialogueOuvert('dialog.scan[open]');
@@ -227,7 +227,7 @@ test('app : scan par photo, étape couleur, « Non, continuer », puis type (obl
   vrai(doc.querySelector('[data-type="chaussures"] .nom').textContent.includes('#a07e56'));
 });
 
-test('app : scan à la caméra (simulée, sans torche), « Oui, ajuster », proches triées, Retour conservant le choix', async () => {
+test('app : scan à la caméra (simulée, sans torche), « Oui, ajuster », proches triées, Retour conservant le choix', async () => {
   cliquer('[data-action="scanner"]');
   const scan = await dialogueOuvert('dialog.scan[open]');
   const mesurer = await attendreReel(() => {
@@ -239,7 +239,7 @@ test('app : scan à la caméra (simulée, sans torche), « Oui, ajuster », proc
   mesurer.click();
   const resultat = await attendreReel(() => resultatPret('couleur'), `résultat (état : ${scan.querySelector('.etat-scan')?.textContent})`);
   vrai(resultat.querySelector('.etape').firstElementChild.classList.contains('bande-couleur'), 'sans photo : la bande de couleur vient en premier');
-  vrai(!resultat.querySelector('.etape').textContent.includes('null'), 'aucun « null » affiché');
+  vrai(!resultat.querySelector('.etape').textContent.includes('null'), 'aucun « null » affiché');
   cliquer('[data-action="ajuster"]', resultat);
   await attendre(() => resultatPret('ajuster'), 'étape ajuster');
   egal(resultat.querySelector('h2').textContent, 'Ajuster la couleur');
@@ -273,4 +273,45 @@ test('app : scan à la caméra (simulée, sans torche), « Oui, ajuster », proc
   egal(vetement.origine, 'scan');
   egal(vetement.idCouleurCatalogue, idChoisi);
   egal(doc.querySelector('[data-type="pull"] .nom').textContent, nomChoisi, 'nom et hex du catalogue');
+});
+
+async function scannerParPhoto(titre, hex) {
+  const scan = await attendre(() => [...doc.querySelectorAll('dialog.scan[open]')]
+    .find((d) => d.querySelector('h2').textContent === titre && 'pret' in d.dataset), `scan « ${titre} »`);
+  cliquer('[data-action="photo"]', scan);
+  const champ = await attendre(() => doc.querySelector('input[data-choix-fichier="image"]'), 'appareil photo');
+  const transfert = new fenetre.DataTransfer();
+  transfert.items.add(new fenetre.File([await photoUnie(hex)], 'photo.png', { type: 'image/png' }));
+  champ.files = transfert.files;
+  champ.dispatchEvent(new fenetre.Event('change'));
+}
+
+test('app : étalonnage par photos (blanc, noir), puis un vêtement noir corrigé en « Black »', async () => {
+  cliquer('#onglets [data-ecran="reglages"]');
+  egal(doc.querySelector('[data-mode="photo"]').textContent, 'Par photo : non étalonné');
+  cliquer('[data-action="etalonner"]');
+  const depart = await dialogueOuvert();
+  egal(depart.querySelector('h2').textContent, 'Étalonner la caméra');
+  cliquer('[data-valeur="commencer"]', depart);
+  await scannerParPhoto('Étalonnage : vêtement blanc', '#dcdce6');
+  await scannerParPhoto('Étalonnage : vêtement noir', '#46464f');
+  await attendreReel(() => stocke().reglages.etalonnage?.photo, 'étalonnage enregistré');
+  egalProfond(stocke().reglages.etalonnage.photo.blanc, [220, 220, 230]);
+  egalProfond(stocke().reglages.etalonnage.photo.noir, [70, 70, 79]);
+  await quand(() => doc.querySelector('[data-mode="photo"]')?.textContent.startsWith('Par photo : étalonné le'), 'état affiché');
+  egal(doc.querySelector('[data-mode="torche"]').textContent, 'Avec la torche : non étalonné', 'un étalonnage par façon de mesurer');
+
+  cliquer('#onglets [data-ecran="garde-robe"]');
+  cliquer('[data-action="scanner"]');
+  await scannerParPhoto('Scanner une couleur', '#46464f');
+  const resultat = await attendreReel(() => resultatPret('couleur'), 'résultat corrigé');
+  egal(resultat.querySelector('.bande-couleur').style.backgroundColor, 'rgb(17, 19, 20)', 'noir mesuré recalé sur Black');
+  vrai(resultat.querySelector('[data-info="etalonnage"]').textContent.includes('#46464f'), 'mesure brute affichée');
+  cliquer('[data-action="continuer-sans-ajuster"]', resultat);
+  await attendre(() => resultatPret('type'), 'étape type');
+  cliquer('[data-type="pantalon"]', resultat);
+  cliquer('[data-action="enregistrer-scan"]', resultat);
+  await dialoguesFermes();
+  await quand(() => stocke().vetements.length === 3, 'pantalon enregistré');
+  egal(stocke().vetements[2].hex, '#111314');
 });

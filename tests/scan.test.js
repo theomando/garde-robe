@@ -62,7 +62,7 @@ async function rejet(promesse) {
   throw new Error('une erreur était attendue');
 }
 
-test('scan : sans mediaDevices, caméra « indisponible »', async () => {
+test('scan : sans mediaDevices, caméra « indisponible »', async () => {
   // null et non undefined : undefined déclencherait la valeur par défaut (la vraie caméra du navigateur).
   const erreur = await rejet(creerCamera({ mediaDevices: null, documentCible: documentFactice() }).demarrer());
   vrai(erreur instanceof ErreurCamera);

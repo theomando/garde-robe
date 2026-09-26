@@ -27,6 +27,14 @@ function lineaire(c8) {
   const v = c8 / 255;
   return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
 }
+export const lineaireDepuisOctet = lineaire;
+
+// Encodage inverse (IEC 61966-2-1:1999) : valeur linéaire (0 à 1) vers la composante entière (0 à 255).
+export function octetDepuisLineaire(valeur) {
+  const v = Math.min(1, Math.max(0, valeur));
+  const encode = v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055;
+  return Math.round(encode * 255);
+}
 
 // Matrice sRGB linéaire → XYZ (D65) de la norme IEC 61966-2-1, à 4 décimales
 // (reprise dans l'article Wikipédia « sRGB », consulté le 2026-09-24).

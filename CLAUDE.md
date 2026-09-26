@@ -42,7 +42,7 @@ Monk, Ellis. « Monk Skin Tone Scale », 2019. https://skintone.google. Licence 
 
 ### Données utilisateur
 - vêtement : id, type, hex, origine ("scan" ou "manuel"), idCouleurCatalogue (optionnel), dateAjout (ISO 8601)
-- réglages : mst (1 à 10), teintActif (booléen), tolerance, favoris (liste d'id de couleurs)
+- réglages : mst (1 à 10), teintActif (booléen), tolerance (1 à 30, pas de 0,5), favoris (liste d'id de couleurs), etalonnage (facultatif : { torche?, sans-torche?, photo? : { blanc: [r, v, b], noir: [r, v, b], date } }, mesures brutes)
 - tenuesTypes : ensembles de types déjà demandés (base des statistiques), enregistrés quand l'utilisateur touche « Proposer », sans doublon.
 - Choix manuel (bijoux compris) : uniquement dans le catalogue ; hex et idCouleurCatalogue sont copiés depuis la couleur choisie. Pas de saisie libre.
 - Après « Ajuster » : hex prend la valeur de la couleur choisie, idCouleurCatalogue son id, origine reste « scan ».
@@ -83,6 +83,9 @@ Entrées : types de la tenue, garde-robe, catalogue, réglages.
 - Piège documenté : getSettings().torch renvoyait des valeurs périmées sous iOS 18.0 à 18.3 (WebKit bug 280970, corrigé en 18.4). Garder quand même l'état de la torche côté app.
 - Après mesure : demander le type (prérempli si l'ajout part d'une section), afficher la couleur scannée et la conserver par défaut. Bouton « Ajuster » : dépliant cliquable des 12 couleurs du catalogue les plus proches (ΔE00 croissant), extensible au catalogue complet.
 - Bijoux : choix manuel dans le catalogue, sans scan.
+- Après la mesure, trois étapes (demande de Théo, 2026-09-26) : « Couleur mesurée » avec « Veux-tu ajuster la couleur ? » (Oui / Non) ; si oui, « Ajuster la couleur » (rangée « Noir, gris et blanc » : neutres du catalogue à C* ≤ NEUTRE_C_MAX, puis les 12 plus proches, puis tout le catalogue) ; enfin « Type de vêtement ». Retour à chaque étape.
+- Constat sur iPhone 13 Pro (2026-09-26) : un vêtement noir sort bleuté avec la torche et gris sans, car l'exposition est automatique et non verrouillable, et la torche est froide.
+- Étalonnage (demande de Théo, 2026-09-26) : dans Réglages, un vêtement entièrement blanc puis un entièrement noir sont scannés une fois, dans les conditions habituelles. Correction par deux points, canal par canal, en sRGB linéaire : le noir mesuré devient « Black » (#111314), le blanc mesuré « White » (#ffffff), couleurs du catalogue Wada. Un étalonnage par façon de mesurer (torche, sans torche, photo), car l'exposition diffère. La mesure brute reste affichée à côté de la couleur corrigée. Écart minimal blanc-noir par canal : ETALONNAGE_ECART_MIN (30 sur 255, à calibrer). Gain attendu surtout pour les neutres ; approximatif pour les couleurs vives (à vérifier sur l'iPhone).
 
 ## Avatar
 - SVG 2D, silhouette neutre, peau à la teinte MST choisie (même si le teint est inactif dans les combinaisons), une zone par type.

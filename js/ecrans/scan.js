@@ -31,8 +31,13 @@ function attendreImage(video, delai) {
   });
 }
 
-// Ouvre la caméra ; renvoie { rgb, source: 'camera' | 'photo', apercu? } ou null si annulé.
-export function ouvrirScan({ mediaDevices } = {}) {
+const CONSIGNE_SCAN = `Place le vêtement bien à plat dans le carré, à 10 à 20 cm, puis touche « Mesurer ». `
+  + 'Un vêtement très sombre ou très clair : pose-le sur un fond neutre (drap, feuille blanche) sans remplir tout l\'écran.';
+
+// Ouvre la caméra ; renvoie { rgb (mesure brute), source: 'camera' | 'photo', mode: 'torche' | 'sans-torche' | 'photo',
+// apercu? } ou null si annulé. corriger(rgb, mode) sert à l'affichage en direct (étalonnage) ; titre, consigne et
+// astuce personnalisent l'écran (scans d'étalonnage).
+export function ouvrirScan({ mediaDevices, titre = 'Scanner une couleur', consigne = CONSIGNE_SCAN, astuce = null, corriger = null } = {}) {
   return new Promise((resoudre) => {
     let camera = null;
     let intervalle = null;
@@ -51,10 +56,10 @@ export function ouvrirScan({ mediaDevices } = {}) {
 
     const dialogue = el('dialog', { class: 'dialogue plein-ecran scan', 'aria-labelledby': 'titre-scan' },
       el('div', { class: 'selecteur-entete' },
-        el('h2', { id: 'titre-scan', tabindex: '-1', autofocus: true }, 'Scanner une couleur'),
+        el('h2', { id: 'titre-scan', tabindex: '-1', autofocus: true }, titre),
         el('button', { type: 'button', class: 'bouton secondaire', 'data-action': 'annuler-scan', onclick: () => terminer(null) }, 'Annuler')),
-      el('p', { class: 'discret consigne' }, 'Place le vêtement bien à plat dans le carré, à 10 à 20 cm, puis touche « Mesurer ». ',
-        'Un vêtement très sombre ou très clair : pose-le sur un fond neutre (drap, feuille blanche) sans remplir tout l\'écran.'),
+      el('p', { class: 'discret consigne' }, consigne),
+      astuce ? el('p', { class: 'encart astuce' }, astuce) : null,
       el('div', { class: 'cadre-video' }, video, reticule),
       el('div', { class: 'barre-scan' }, direct, texteDirect, boutonTorche),
       etat, mesurer, relancer, photo);
@@ -86,10 +91,14 @@ export function ouvrirScan({ mediaDevices } = {}) {
       boutonTorche.setAttribute('aria-pressed', String(torche));
     }
 
+    // Façon de mesurer, dont dépend l'étalonnage : l'exposition diffère avec ou sans torche.
+    const modeCourant = () => (camera?.etat().torche ? 'torche' : 'sans-torche');
+
     function apercu() {
       const resultat = mesurerSource(video, video.videoWidth, video.videoHeight, canvas);
-      direct.style.backgroundColor = resultat.rgb ? rgbVersHex(resultat.rgb) : '';
-      texteDirect.textContent = resultat.rgb ? rgbVersHex(resultat.rgb) : (resultat.erreur === 'reflet' ? 'reflet' : '—');
+      const rgb = resultat.rgb && corriger ? corriger(resultat.rgb, modeCourant()) : resultat.rgb;
+      direct.style.backgroundColor = rgb ? rgbVersHex(rgb) : '';
+      texteDirect.textContent = rgb ? rgbVersHex(rgb) : (resultat.erreur === 'reflet' ? 'reflet' : '—');
     }
 
     function surPerte(raison) {
@@ -157,7 +166,7 @@ export function ouvrirScan({ mediaDevices } = {}) {
     mesurer.addEventListener('click', () => {
       const resultat = mesurerSource(video, video.videoWidth, video.videoHeight, canvas);
       if (resultat.erreur) { etat.textContent = MESSAGES_MESURE[resultat.erreur]; return; }
-      terminer({ rgb: resultat.rgb, source: 'camera' });
+      terminer({ rgb: resultat.rgb, source: 'camera', mode: modeCourant() });
     });
 
     relancer.addEventListener('click', () => lancer());
@@ -182,7 +191,7 @@ export function ouvrirScan({ mediaDevices } = {}) {
           relancer.hidden = false;
           return;
         }
-        terminer({ rgb: mesure.rgb, source: 'photo', apercu: vignette });
+        terminer({ rgb: mesure.rgb, source: 'photo', mode: 'photo', apercu: vignette });
       } catch {
         etat.textContent = 'Impossible de lire cette photo. Réessaie, ou choisis la couleur dans le catalogue.';
         relancer.hidden = false;
@@ -203,7 +212,7 @@ export function ouvrirScan({ mediaDevices } = {}) {
 //   2. « ajuster » (si oui) : les 12 couleurs du catalogue les plus proches en premier, puis tout le catalogue ;
 //   3. « type » : type de vêtement (bijoux exclus : choix manuel seulement), puis Enregistrer.
 // La couleur mesurée est gardée par défaut. Renvoie { type, hex, couleur }, 'recommencer' ou null.
-export function choisirApresMesure(app, actions, { rgb, apercu }, { typeImpose = null } = {}) {
+export function choisirApresMesure(app, actions, { rgb, brut = null, apercu }, { typeImpose = null } = {}) {
   return new Promise((resoudre) => {
     const hexMesure = rgbVersHex(rgb);
     const labMesure = labDepuisHex(hexMesure);
@@ -241,7 +250,8 @@ export function choisirApresMesure(app, actions, { rgb, apercu }, { typeImpose =
         apercu ? el('div', { class: 'vignette' }, apercu) : null,
         el('div', { class: 'bande-couleur', style: { backgroundColor: hexMesure }, 'aria-hidden': 'true' }),
         el('p', {}, el('strong', {}, hexMesure), ` : la plus proche du catalogue est ${proches[0].couleur.nom} (${ecartTexte(proches[0].ecart)}).`),
-        el('p', { class: 'discret' }, 'L\'iPhone règle seul l\'exposition : les noirs, gris et blancs sont souvent faussés (un noir peut sortir gris ou bleuté).'),
+        brut ? el('p', { class: 'discret', 'data-info': 'etalonnage' }, `Couleur corrigée par l'étalonnage (mesure brute ${rgbVersHex(brut)}).`)
+          : el('p', { class: 'discret' }, 'L\'iPhone règle seul l\'exposition : les noirs, gris et blancs sont souvent faussés (un noir peut sortir gris ou bleuté). L\'étalonnage (Réglages) corrige cet écart.'),
         el('p', { class: 'question' }, 'Veux-tu ajuster la couleur ?'),
         bouton('Oui, ajuster la couleur', 'ajuster', () => { enCours = couleur; afficher('ajuster'); }, 'secondaire accent large'),
         bouton('Non, continuer', 'continuer-sans-ajuster', () => { couleur = null; afficher('type'); }, 'principal large'),

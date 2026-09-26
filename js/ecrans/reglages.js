@@ -1,9 +1,14 @@
-// Écran Réglages : teint, interrupteur, tolérance, favoris, catalogue Papier Tigre, export et import, crédits.
+// Écran Réglages : teint, interrupteur, étalonnage de la caméra, tolérance, favoris, catalogue Papier Tigre,
+// export et import, crédits.
 
-import { el, pastille } from '../ui.js';
-import { MST, TOLERANCE_MIN, TOLERANCE_MAX, TOLERANCE_PAS, TOLERANCE_DEFAUT, VERSION_APP } from '../constantes.js';
-import { modifierReglages } from '../donnees.js';
+import { el, pastille, confirmer, annoncer } from '../ui.js';
+import {
+  MST, TOLERANCE_MIN, TOLERANCE_MAX, TOLERANCE_PAS, TOLERANCE_DEFAUT, VERSION_APP, MODES_SCAN, LIBELLES_MODES_SCAN,
+} from '../constantes.js';
+import { modifierReglages, supprimerEtalonnage } from '../donnees.js';
+import { rgbVersHex } from '../couleur.js';
 import { ouvrirSelecteur } from './selecteur-catalogue.js';
+import { etalonner } from './etalonnage.js';
 
 const ACCEPT_JSON = '.json,application/json';
 
@@ -53,6 +58,30 @@ export function rendreReglages(conteneur, app, actions) {
         el('span', {}, 'Teint dans les combinaisons',
           el('small', { class: 'discret' }, 'La peau peut porter une couleur proche de ton teint.')),
         interrupteur)),
+
+    section('Étalonnage de la caméra',
+      el('p', { class: 'discret' },
+        'À faire une seule fois : scanne un vêtement entièrement blanc, puis un entièrement noir. Les scans suivants faits de la même façon ',
+        'sont corrigés (exposition automatique de l\'iPhone, dominante bleue de la torche).'),
+      el('ul', { class: 'etat-etalonnage' }, MODES_SCAN.map((mode) => {
+        const mesures = reglages.etalonnage?.[mode];
+        return el('li', { 'data-mode': mode },
+          `${LIBELLES_MODES_SCAN[mode]} : `,
+          mesures
+            ? [`étalonné le ${new Date(mesures.date).toLocaleDateString('fr-FR')} `,
+              pastille(rgbVersHex(mesures.blanc), { titre: `blanc mesuré ${rgbVersHex(mesures.blanc)}` }),
+              pastille(rgbVersHex(mesures.noir), { titre: `noir mesuré ${rgbVersHex(mesures.noir)}` })]
+            : 'non étalonné');
+      })),
+      el('button', { type: 'button', class: 'bouton principal', 'data-action': 'etalonner', onclick: () => etalonner(app, actions) },
+        reglages.etalonnage ? 'Refaire l\'étalonnage' : 'Étalonner la caméra'),
+      reglages.etalonnage ? el('button', {
+        type: 'button', class: 'bouton lien danger', 'data-action': 'supprimer-etalonnage',
+        onclick: async () => {
+          if (!(await confirmer('Supprimer l\'étalonnage ?', 'Les prochains scans ne seront plus corrigés. Tes vêtements déjà enregistrés ne changent pas.', 'Supprimer'))) return;
+          if (actions.mettreAJour(supprimerEtalonnage(app.etat))) annoncer('Étalonnage supprimé');
+        },
+      }, 'Supprimer l\'étalonnage') : null),
 
     section('Tolérance',
       el('label', { class: 'ligne-curseur', for: 'reglage-tolerance' }, el('span', {}, 'Écart maximal (ΔE00)'), valeurTolerance),

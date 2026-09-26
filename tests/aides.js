@@ -14,6 +14,17 @@ export function photoSynthetique(largeur = 200, hauteur = 100) {
   return new Promise((resoudre) => canvas.toBlob(resoudre, 'image/png'));
 }
 
+// Image PNG unie (vêtement uni pour les tests de scan et d'étalonnage).
+export function photoUnie(hex, largeur = 120, hauteur = 80) {
+  const canvas = document.createElement('canvas');
+  canvas.width = largeur;
+  canvas.height = hauteur;
+  const contexte = canvas.getContext('2d');
+  contexte.fillStyle = hex;
+  contexte.fillRect(0, 0, largeur, hauteur);
+  return new Promise((resoudre) => canvas.toBlob(resoudre, 'image/png'));
+}
+
 // Dans Edge sans fenêtre en temps virtuel, les minuteries sautent dès que la page semble inactive :
 // un décodage d'image ou l'ouverture d'une caméra (travail hors du fil principal) n'a pas le temps de finir.
 // Une requête réseau en cours suspend le temps virtuel : on attend donc par petites requêtes

@@ -2,6 +2,7 @@ import { test, vrai, egal, egalProfond, leve } from './mini-test.js';
 import {
   etatInitial, premierLancement, normaliserTenue, validerEtat, exporterEtat, lireExport,
   ajouterVetement, modifierVetement, supprimerVetement, basculerFavori, modifierReglages, enregistrerTenueType,
+  enregistrerEtalonnage, supprimerEtalonnage,
 } from '../js/donnees.js';
 
 const DATE = new Date('2026-09-24T10:00:00.000Z');
@@ -120,4 +121,43 @@ test('validerEtat : un id de catalogue inconnu est accepté (Papier Tigre absent
   const etat = etatExemple();
   const autre = { ...etat, reglages: { ...etat.reglages, favoris: ['papier-tigre-v1-p30-d1'] } };
   egalProfond(validerEtat(autre).erreurs, []);
+});
+
+test('données : étalonnage enregistré par mode, exporté, réimporté, supprimé', () => {
+  let etat = etatExemple();
+  etat = enregistrerEtalonnage(etat, 'torche', { blanc: [220, 220, 230], noir: [70, 70, 79] }, DATE);
+  egalProfond(etat.reglages.etalonnage, { torche: { blanc: [220, 220, 230], noir: [70, 70, 79], date: '2026-09-24T10:00:00.000Z' } });
+  etat = enregistrerEtalonnage(etat, 'photo', { blanc: [240, 240, 240], noir: [40, 40, 40] }, DATE);
+  egalProfond(Object.keys(etat.reglages.etalonnage), ['torche', 'photo'], 'un étalonnage par façon de mesurer');
+  const { erreurs, etat: relu } = lireExport(exporterEtat(etat, DATE));
+  egalProfond(erreurs, []);
+  egalProfond(relu, etat);
+  egal(supprimerEtalonnage(etat).reglages.etalonnage, undefined);
+  egalProfond(lireExport(exporterEtat(etatExemple(), DATE)).etat.reglages.etalonnage, undefined, 'facultatif');
+  leve(() => enregistrerEtalonnage(etat, 'lune', { blanc: [220, 220, 230], noir: [70, 70, 79] }, DATE));
+  leve(() => enregistrerEtalonnage(etat, 'photo', { blanc: [100, 100, 100], noir: [90, 90, 90] }, DATE));
+});
+
+test('import : étalonnage invalide refusé avec un message', () => {
+  const base = () => {
+    const d = JSON.parse(exporterEtat(etatExemple(), DATE));
+    d.reglages.etalonnage = { torche: { blanc: [220, 220, 230], noir: [70, 70, 79], date: '2026-09-24T10:00:00.000Z' } };
+    return d;
+  };
+  egalProfond(lireExport(JSON.stringify(base())).erreurs, [], 'document de base valide');
+  const cas = [
+    ['mode inconnu', (d) => { d.reglages.etalonnage.lune = d.reglages.etalonnage.torche; }, 'mode inconnu'],
+    ['triplet invalide', (d) => { d.reglages.etalonnage.torche.blanc = [300, 0, 0]; }, 'invalides'],
+    ['blanc et noir trop proches', (d) => { d.reglages.etalonnage.torche.blanc = [80, 80, 90]; }, 'trop proches'],
+    ['date invalide', (d) => { d.reglages.etalonnage.torche.date = 'hier'; }, 'date invalide'],
+    ['champ inconnu', (d) => { d.reglages.etalonnage.torche.gris = [1, 2, 3]; }, 'champ inconnu'],
+    ['non objet', (d) => { d.reglages.etalonnage = []; }, 'doit être un objet'],
+  ];
+  for (const [nom, modifier, attendu] of cas) {
+    const d = base();
+    modifier(d);
+    const { erreurs, etat } = lireExport(JSON.stringify(d));
+    egal(etat, null, `${nom} : refusé`);
+    vrai(erreurs.some((e) => e.includes(attendu)), `${nom} : message « ${attendu} » absent de ${JSON.stringify(erreurs)}`);
+  }
 });
