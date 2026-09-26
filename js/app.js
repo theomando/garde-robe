@@ -215,6 +215,18 @@ const actions = {
     }
   },
 
+  // L'hébergeur garde les fichiers quelques minutes en cache HTTP (10 min sur GitHub Pages) :
+  // on retélécharge chaque fichier déjà chargé en contournant ce cache, puis on recharge la page.
+  async chargerDerniereVersion() {
+    annoncer('Téléchargement de la dernière version…');
+    const adresses = new Set([location.href.split('?')[0], location.href]);
+    for (const ressource of performance.getEntriesByType('resource')) {
+      if (ressource.name.startsWith(location.origin)) adresses.add(ressource.name);
+    }
+    await Promise.all([...adresses].map((adresse) => fetch(adresse, { cache: 'reload' }).catch(() => null)));
+    location.reload();
+  },
+
   async retirerPapierTigre() {
     if (!(await confirmer('Retirer le catalogue Papier Tigre ?', 'Ses harmonies ne seront plus proposées. Tes vêtements et favoris sont conservés.', 'Retirer'))) return;
     try {

@@ -100,5 +100,7 @@ export function rendreReglages(conteneur, app, actions) {
           el('a', { href: 'data/LICENSE-wada.md', target: '_blank', rel: 'noopener' }, 'texte des licences'), '.'),
         el('li', {}, 'Teintes : Monk, Ellis. « Monk Skin Tone Scale », 2019, skintone.google, licence CC BY 4.0.'),
         el('li', {}, 'Harmonies Papier Tigre : Color Inspiration, volumes 1 à 3, saisies par l\'utilisateur, jamais publiées.')),
-      el('p', { class: 'discret' }, `Version ${VERSION_APP}`)));
+      el('p', { class: 'discret' }, `Version ${VERSION_APP}`),
+      el('button', { type: 'button', class: 'bouton lien', 'data-action': 'derniere-version', onclick: () => actions.chargerDerniereVersion() },
+        'Charger la dernière version')));
 }
