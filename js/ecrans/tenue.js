@@ -2,7 +2,7 @@
 // type), avatar, au plus 20 propositions avec source et référence, filtre « avec mes favoris ».
 // Toucher une proposition met l'avatar à jour et affiche son détail (vêtements à porter, manques, favoris).
 
-import { el, pastille, pastilleJoker } from '../ui.js';
+import { el, pastille, pastilleJoker, barreNavigation, interrupteur, tuile } from '../ui.js';
 import { TYPES, LIBELLES_TYPES, BAS, MST, PROPOSITIONS_MAX } from '../constantes.js';
 import { enregistrerTenueType, basculerFavori } from '../donnees.js';
 import { proposer, selectionner } from '../moteur.js';
@@ -21,7 +21,7 @@ function etatEcran(app) {
 }
 
 function reference(combinaison) {
-  if (combinaison.source === 'wada') return `Wada ${combinaison.ref}`;
+  if (combinaison.source === 'wada') return `Combinaison ${combinaison.ref}`; // « Wada » : crédits seulement (demande de Théo)
   return `Papier Tigre ${combinaison.ref}${combinaison.nom ? ` · ${combinaison.nom}` : ''}`;
 }
 
@@ -52,15 +52,15 @@ export function rendreTenue(conteneur, app, actions) {
     },
   }, 'Proposer');
   const grilleTypes = el('div', { class: 'grille-types-tenue', role: 'group', 'aria-label': 'Pièces de la tenue' },
-    TYPES.map((type) => el('button', {
-      type: 'button', class: 'bouton secondaire choix-type', 'data-type-tenue': type, 'aria-pressed': String(ecran.types.includes(type)),
+    TYPES.map((type) => tuile({
+      icone: type, libelle: libelle(type), 'data-type-tenue': type, 'aria-pressed': String(ecran.types.includes(type)),
       onclick: () => {
         if (ecran.types.includes(type)) ecran.types = ecran.types.filter((t) => t !== type);
         else ecran.types = [...ecran.types.filter((t) => !(BAS.includes(type) && BAS.includes(t))), type]; // un seul bas
         ecran.propose = false;
         actions.rafraichir();
       },
-    }, libelle(type))));
+    })));
   const choix = el('details', { class: 'choix-tenue carte', open: !ecran.propose },
     el('summary', {}, ecran.types.length > 0
       ? `Tenue : ${TYPES.filter((t) => ecran.types.includes(t)).map((t) => libelle(t).toLowerCase()).join(', ')}`
@@ -68,7 +68,7 @@ export function rendreTenue(conteneur, app, actions) {
     el('p', { class: 'discret' }, 'Pantalon et short ne vont pas ensemble. Sous un pull, le t-shirt ne compte pas.'),
     grilleTypes, proposerBouton);
 
-  const contenu = [el('div', { class: 'entete-ecran' }, el('h1', {}, 'Tenue du jour')), choix];
+  const contenu = [...barreNavigation({ titre: 'Tenue du jour' }), choix];
   if (!ecran.propose) {
     contenu.push(el('p', { class: 'vide' }, ecran.types.length === 0
       ? 'Choisis les pièces de ta tenue, puis touche « Proposer ».'
@@ -161,8 +161,8 @@ export function rendreTenue(conteneur, app, actions) {
     }));
   }
 
-  const filtre = el('input', {
-    type: 'checkbox', role: 'switch', class: 'interrupteur', id: 'filtre-favoris', checked: ecran.avecFavoris,
+  const filtre = interrupteur({
+    id: 'filtre-favoris', checked: ecran.avecFavoris,
     onchange: (e) => { ecran.avecFavoris = e.target.checked; actions.rafraichir(); },
   });
   const candidates = selectionner(resultat.retenues, { avecFavoris: ecran.avecFavoris, max: Infinity }).length;
@@ -172,7 +172,7 @@ export function rendreTenue(conteneur, app, actions) {
       ? el('p', { class: 'encart', 'data-info': 'garde-robe-vide' }, 'Ta garde-robe est vide : ajoute tes vêtements (onglet Garde-robe) pour obtenir des propositions.')
       : null,
     panneau,
-    el('label', { class: 'ligne-interrupteur', for: 'filtre-favoris' }, el('span', {}, 'Avec mes favoris'), filtre),
+    el('label', { class: 'ligne ligne-interrupteur ligne-filtre', for: 'filtre-favoris' }, el('span', { class: 'texte-ligne' }, 'Avec mes couleurs favorites'), filtre),
     el('p', { class: 'discret compte', 'data-info': 'compte' }, affichees.length === 0
       ? (ecran.avecFavoris && total > 0
         ? 'Aucune proposition ne contient tes couleurs favorites.'

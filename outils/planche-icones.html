@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Planche des icônes</title>
+<style>
+  body { font: 14px system-ui, sans-serif; margin: 1rem; background: #f2f2f7; color: #000000; }
+  .grille { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.75rem; }
+  figure { margin: 0; background: #ffffff; border-radius: 12px; padding: 0.75rem 0.25rem; text-align: center; font-size: 11px; }
+  figure svg { display: block; margin: 0 auto 0.4rem; color: #007aff; }
+  .sombre { background: #000000; padding: 0.75rem; border-radius: 12px; margin-top: 1rem; }
+  .sombre figure { background: #1c1c1e; color: #ffffff; }
+  .sombre figure svg { color: #0a84ff; }
+</style>
+</head>
+<body>
+<h1>Icônes de l'interface (js/icones.js)</h1>
+<div class="grille" id="clair"></div>
+<div class="sombre"><div class="grille" id="sombre"></div></div>
+<script type="module">
+  import { icone, NOMS_ICONES } from '../js/icones.js';
+  for (const id of ['clair', 'sombre']) {
+    const grille = document.getElementById(id);
+    for (const nom of NOMS_ICONES) {
+      const figure = document.createElement('figure');
+      figure.append(icone(nom, { taille: 36 }), nom);
+      grille.append(figure);
+    }
+  }
+</script>
+</body>
+</html>

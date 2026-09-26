@@ -1,7 +1,10 @@
-// Écran de scan (caméra en direct, torche, réticule, couleur en direct) et choix après la mesure
-// (type de vêtement, « Ajuster » : 12 couleurs les plus proches du catalogue, extensible au catalogue complet).
+// Mesure tout-en-un, façon appareil photo de l'iPhone (demande de Théo, 2026-09-26) : caméra plein écran, réticule,
+// couleur visée en direct, torche et fermeture en haut, déclencheur rond en bas (photo à gauche, aide à droite).
+// Après la mesure, l'image se fige et une feuille monte du bas avec tout le reste, sans défilement : couleur mesurée,
+// ajustement d'un toucher (proches ou noir, gris, blanc, ou tout le catalogue), type de vêtement, Enregistrer.
 
-import { el, pastille, terminaison, armerDialogue, rearmerDialogue, choisirImage } from '../ui.js';
+import { el, pastille, terminaison, armerDialogue, rearmerDialogue, choisirImage, boutonRond, tuile } from '../ui.js';
+import { icone } from '../icones.js';
 import { TYPES, LIBELLES_TYPES, SCAN_DELAI_SANS_IMAGE_MS, SCAN_APERCU_MS, NEUTRE_C_MAX } from '../constantes.js';
 import { rgbVersHex, labDepuisHex, deltaE00, chroma } from '../couleur.js';
 import { carreCentral } from '../mesure.js';
@@ -31,13 +34,20 @@ function attendreImage(video, delai) {
   });
 }
 
-const CONSIGNE_SCAN = `Place le vêtement bien à plat dans le carré, à 10 à 20 cm, puis touche « Mesurer ». `
-  + 'Un vêtement très sombre ou très clair : pose-le sur un fond neutre (drap, feuille blanche) sans remplir tout l\'écran.';
+const CONSIGNE_COURTE = 'Vise le vêtement à plat, à 10 à 20 cm.';
+const AIDE_SCAN = [
+  'Place le vêtement bien à plat dans le carré, à 10 à 20 cm, puis touche le déclencheur.',
+  'Un vêtement très sombre ou très clair : pose-le sur un fond neutre (drap, feuille blanche) sans remplir tout l\'écran.',
+  'La torche s\'allume seule si l\'iPhone en a une ; l\'éclair en haut à droite l\'éteint.',
+  'Pas de caméra ? Le bouton photo, en bas à gauche, ouvre l\'appareil photo (avec flash).',
+];
 
-// Ouvre la caméra ; renvoie { rgb (mesure brute), source: 'camera' | 'photo', mode: 'torche' | 'sans-torche' | 'photo',
-// apercu? } ou null si annulé. corriger(rgb, mode) sert à l'affichage en direct (étalonnage) ; titre, consigne et
-// astuce personnalisent l'écran (scans d'étalonnage).
-export function ouvrirScan({ mediaDevices, titre = 'Scanner une couleur', consigne = CONSIGNE_SCAN, astuce = null, corriger = null } = {}) {
+// Ouvre la caméra plein écran. Après une mesure { rgb (brute), source: 'camera' | 'photo', mode: 'torche' |
+// 'sans-torche' | 'photo' }, resultat(mesure, feuille, { valider, recommencer }) remplit la feuille du bas ;
+// valider(valeur) ferme et renvoie valeur, recommencer() relance la caméra. Sans resultat : « Utiliser cette mesure »
+// renvoie la mesure (étalonnage). corriger(rgb, mode) sert à l'affichage en direct (étalonnage) ; consigne : une ligne.
+// Renvoie null si l'utilisateur ferme.
+export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consigne = CONSIGNE_COURTE, astuce = null, corriger = null, resultat = resultatSimple } = {}) {
   return new Promise((resoudre) => {
     let camera = null;
     let intervalle = null;
@@ -45,24 +55,40 @@ export function ouvrirScan({ mediaDevices, titre = 'Scanner une couleur', consig
 
     const video = el('video', { class: 'scan-video', playsinline: true, muted: true, autoplay: true, 'aria-label': 'Image de la caméra' });
     video.muted = true; // propriété et attribut : lecture automatique inline sur iOS
-    const reticule = el('div', { class: 'reticule', 'aria-hidden': 'true' });
-    const direct = el('span', { class: 'pastille moyenne', 'aria-hidden': 'true' });
+    const figee = el('canvas', { class: 'image-figee', hidden: true, 'aria-hidden': 'true' });
+    const photoFigee = el('img', { class: 'image-figee', hidden: true, alt: '' });
+    const reticule = el('div', { class: 'reticule', 'aria-hidden': 'true', hidden: true });
+    const direct = el('span', { class: 'pastille', 'aria-hidden': 'true' });
     const texteDirect = el('span', { class: 'texte-direct' }, '—');
+    const capsuleDirect = el('div', { class: 'scan-direct', hidden: true }, direct, texteDirect);
     const etat = el('p', { class: 'etat-scan', role: 'status' }, 'Ouverture de la caméra…');
-    const boutonTorche = el('button', { type: 'button', class: 'bouton secondaire', hidden: true, 'data-action': 'torche', 'aria-pressed': 'false' }, 'Torche');
-    const mesurer = el('button', { type: 'button', class: 'bouton principal large', disabled: true, 'data-action': 'mesurer' }, 'Mesurer');
-    const relancer = el('button', { type: 'button', class: 'bouton secondaire', hidden: true, 'data-action': 'relancer' }, 'Relancer la caméra');
-    const photo = el('button', { type: 'button', class: 'bouton lien', 'data-action': 'photo' }, 'Prendre une photo à la place (avec flash)');
+    const boutonTorche = boutonRond({ icone: 'eclair', libelle: 'Torche', action: 'torche' });
+    boutonTorche.hidden = true;
+    boutonTorche.setAttribute('aria-pressed', 'false');
+    const mesurer = el('button', { type: 'button', class: 'declencheur', disabled: true, 'data-action': 'mesurer', 'aria-label': 'Mesurer' });
+    const relancer = el('button', { type: 'button', class: 'bouton petit relancer', hidden: true, 'data-action': 'relancer' }, 'Relancer la caméra');
+    const photo = boutonRond({ icone: 'photo', libelle: 'Prendre une photo (avec flash)', action: 'photo' });
+    const panneauAide = el('div', { class: 'aide-scan', hidden: true, id: 'aide-scan' },
+      el('ul', {}, AIDE_SCAN.map((ligne) => el('li', {}, ligne))), astuce ? el('p', {}, astuce) : null);
+    const aide = boutonRond({
+      icone: 'aide', libelle: 'Aide', action: 'aide',
+      onclick: () => { panneauAide.hidden = !panneauAide.hidden; aide.setAttribute('aria-expanded', String(!panneauAide.hidden)); },
+    });
+    aide.setAttribute('aria-controls', 'aide-scan');
+    const feuille = el('div', { class: 'feuille-resultat', hidden: true, role: 'region', 'aria-label': 'Résultat de la mesure' });
 
-    const dialogue = el('dialog', { class: 'dialogue plein-ecran scan', 'aria-labelledby': 'titre-scan' },
-      el('div', { class: 'selecteur-entete' },
+    const dialogue = el('dialog', { class: 'dialogue scan', 'aria-labelledby': 'titre-scan' },
+      video, figee, photoFigee, reticule, capsuleDirect,
+      el('header', { class: 'scan-haut' },
+        boutonRond({ icone: 'fermer', libelle: 'Fermer', action: 'annuler-scan', onclick: () => terminer(null) }),
         el('h2', { id: 'titre-scan', tabindex: '-1', autofocus: true }, titre),
-        el('button', { type: 'button', class: 'bouton secondaire', 'data-action': 'annuler-scan', onclick: () => terminer(null) }, 'Annuler')),
-      el('p', { class: 'discret consigne' }, consigne),
-      astuce ? el('p', { class: 'encart astuce' }, astuce) : null,
-      el('div', { class: 'cadre-video' }, video, reticule),
-      el('div', { class: 'barre-scan' }, direct, texteDirect, boutonTorche),
-      etat, mesurer, relancer, photo);
+        boutonTorche),
+      astuce ? el('p', { class: 'astuce-scan' }, astuce) : null,
+      panneauAide,
+      el('div', { class: 'scan-bas' },
+        etat, relancer,
+        el('div', { class: 'commandes-scan' }, photo, mesurer, aide)),
+      feuille);
 
     const terminer = terminaison(dialogue, (valeur) => { nettoyer(); resoudre(valeur); });
 
@@ -71,34 +97,37 @@ export function ouvrirScan({ mediaDevices, titre = 'Scanner une couleur', consig
       intervalle = null;
       camera?.arreter();
       video.srcObject = null;
+      if (photoFigee.src) URL.revokeObjectURL(photoFigee.src);
       window.removeEventListener('resize', placerReticule);
     }
 
-    // Le réticule couvre exactement la zone mesurée (vidéo affichée en object-fit: contain, centrée).
+    // Le réticule couvre exactement la zone mesurée (vidéo affichée en object-fit: cover, centrée).
     function placerReticule() {
       const { videoWidth: vw, videoHeight: vh } = video;
       if (!vw || !vh) return;
-      const echelle = Math.min(video.clientWidth / vw, video.clientHeight / vh);
+      const echelle = Math.max(video.clientWidth / vw, video.clientHeight / vh);
       const cote = carreCentral(vw, vh).cote * echelle;
       reticule.style.width = `${cote}px`;
       reticule.style.height = `${cote}px`;
+      dialogue.style.setProperty('--demi-reticule', `${cote / 2}px`);
       reticule.hidden = false;
     }
 
     function afficherTorche() {
       const { torche } = camera.etat();
-      boutonTorche.textContent = torche ? 'Torche : allumée' : 'Torche : éteinte';
+      boutonTorche.replaceChildren(icone(torche ? 'eclair-plein' : 'eclair'));
       boutonTorche.setAttribute('aria-pressed', String(torche));
+      boutonTorche.setAttribute('aria-label', torche ? 'Torche allumée' : 'Torche éteinte');
     }
 
     // Façon de mesurer, dont dépend l'étalonnage : l'exposition diffère avec ou sans torche.
     const modeCourant = () => (camera?.etat().torche ? 'torche' : 'sans-torche');
 
     function apercu() {
-      const resultat = mesurerSource(video, video.videoWidth, video.videoHeight, canvas);
-      const rgb = resultat.rgb && corriger ? corriger(resultat.rgb, modeCourant()) : resultat.rgb;
+      const mesure = mesurerSource(video, video.videoWidth, video.videoHeight, canvas);
+      const rgb = mesure.rgb && corriger ? corriger(mesure.rgb, modeCourant()) : mesure.rgb;
       direct.style.backgroundColor = rgb ? rgbVersHex(rgb) : '';
-      texteDirect.textContent = rgb ? rgbVersHex(rgb) : (resultat.erreur === 'reflet' ? 'reflet' : '—');
+      texteDirect.textContent = rgb ? rgbVersHex(rgb) : (mesure.erreur === 'reflet' ? 'reflet' : '—');
     }
 
     function surPerte(raison) {
@@ -114,10 +143,15 @@ export function ouvrirScan({ mediaDevices, titre = 'Scanner une couleur', consig
     async function lancer() {
       camera?.arreter();
       clearInterval(intervalle);
+      delete dialogue.dataset.etape;
+      feuille.hidden = true;
+      figee.hidden = true;
+      photoFigee.hidden = true;
       mesurer.disabled = true;
       relancer.hidden = true;
       boutonTorche.hidden = true;
       reticule.hidden = true;
+      capsuleDirect.hidden = true;
       etat.textContent = 'Ouverture de la caméra…';
       const courante = creerCamera({ mediaDevices, surPerte });
       camera = courante;
@@ -129,29 +163,44 @@ export function ouvrirScan({ mediaDevices, titre = 'Scanner une couleur', consig
         const image = await attendreImage(video, SCAN_DELAI_SANS_IMAGE_MS);
         if (camera !== courante || !dialogue.isConnected) return;
         if (!image) {
-          etat.textContent = 'La caméra ne renvoie pas d\'image. Relance-la ou prends une photo à la place.';
+          etat.textContent = 'La caméra ne renvoie pas d\'image. Relance-la ou prends une photo.';
           relancer.hidden = false;
           return;
         }
         placerReticule();
+        capsuleDirect.hidden = false;
         mesurer.disabled = false;
         intervalle = setInterval(apercu, SCAN_APERCU_MS);
         if (info.torcheDisponible) {
           boutonTorche.hidden = false;
           const allumee = await courante.reglerTorche(true);
           afficherTorche();
-          etat.textContent = allumee
-            ? 'Torche allumée. Touche « Mesurer » quand la couleur affichée ne bouge plus.'
+          etat.textContent = allumee ? consigne
             : 'La torche n\'a pas pu s\'allumer : mesure à la lumière ambiante, ou prends une photo avec flash.';
         } else {
-          etat.textContent = 'Pas de torche sur cette caméra : mesure à la lumière ambiante, ou prends une photo avec flash.';
+          etat.textContent = `${consigne} Pas de torche : lumière ambiante, ou photo avec flash.`;
         }
       } catch (erreur) {
         if (camera !== courante || !dialogue.isConnected) return;
         const message = erreur instanceof ErreurCamera ? erreur.message : 'Caméra indisponible.';
-        etat.textContent = `${message} Tu peux prendre une photo à la place.`;
-        relancer.hidden = erreur instanceof ErreurCamera && erreur.code === 'indisponible';
+        etat.textContent = `${message} Prends une photo avec le bouton en bas à gauche.`;
+        relancer.hidden = !(erreur instanceof ErreurCamera && erreur.code === 'indisponible');
       }
+    }
+
+    // Image figée, caméra coupée (torche éteinte), puis feuille du résultat.
+    function afficherResultat(mesure) {
+      clearInterval(intervalle);
+      camera?.arreter();
+      reticule.hidden = true;
+      capsuleDirect.hidden = true;
+      panneauAide.hidden = true;
+      dialogue.dataset.etape = 'resultat';
+      feuille.replaceChildren();
+      feuille.hidden = false;
+      resultat(mesure, feuille, { valider: (valeur) => terminer(valeur), recommencer: () => lancer() });
+      feuille.scrollTop = 0;
+      rearmerDialogue(dialogue); // nouveaux boutons sous le doigt : anti double tape
     }
 
     boutonTorche.addEventListener('click', async () => {
@@ -164,9 +213,14 @@ export function ouvrirScan({ mediaDevices, titre = 'Scanner une couleur', consig
     });
 
     mesurer.addEventListener('click', () => {
-      const resultat = mesurerSource(video, video.videoWidth, video.videoHeight, canvas);
-      if (resultat.erreur) { etat.textContent = MESSAGES_MESURE[resultat.erreur]; return; }
-      terminer({ rgb: resultat.rgb, source: 'camera', mode: modeCourant() });
+      const mesure = mesurerSource(video, video.videoWidth, video.videoHeight, canvas);
+      if (mesure.erreur) { etat.textContent = MESSAGES_MESURE[mesure.erreur]; return; }
+      const mode = modeCourant();
+      figee.width = video.videoWidth;
+      figee.height = video.videoHeight;
+      figee.getContext('2d').drawImage(video, 0, 0);
+      figee.hidden = false;
+      afficherResultat({ rgb: mesure.rgb, source: 'camera', mode });
     });
 
     relancer.addEventListener('click', () => lancer());
@@ -185,13 +239,16 @@ export function ouvrirScan({ mediaDevices, titre = 'Scanner une couleur', consig
         return;
       }
       try {
-        const { mesure, apercu: vignette } = await mesurerPhoto(fichier);
+        const { mesure } = await mesurerPhoto(fichier);
         if (mesure.erreur) {
           etat.textContent = MESSAGES_MESURE[mesure.erreur];
           relancer.hidden = false;
           return;
         }
-        terminer({ rgb: mesure.rgb, source: 'photo', mode: 'photo', apercu: vignette });
+        if (photoFigee.src) URL.revokeObjectURL(photoFigee.src);
+        photoFigee.src = URL.createObjectURL(fichier);
+        photoFigee.hidden = false;
+        afficherResultat({ rgb: mesure.rgb, source: 'photo', mode: 'photo' });
       } catch {
         etat.textContent = 'Impossible de lire cette photo. Réessaie, ou choisis la couleur dans le catalogue.';
         relancer.hidden = false;
@@ -207,124 +264,109 @@ export function ouvrirScan({ mediaDevices, titre = 'Scanner une couleur', consig
   });
 }
 
-// Après la mesure, en trois étapes dans la même fenêtre :
-//   1. « couleur » : couleur mesurée, puis « Veux-tu ajuster la couleur ? » (Oui / Non) ;
-//   2. « ajuster » (si oui) : les 12 couleurs du catalogue les plus proches en premier, puis tout le catalogue ;
-//   3. « type » : type de vêtement (bijoux exclus : choix manuel seulement), puis Enregistrer.
-// La couleur mesurée est gardée par défaut. Renvoie { type, hex, couleur }, 'recommencer' ou null.
-export function choisirApresMesure(app, actions, { rgb, brut = null, apercu }, { typeImpose = null } = {}) {
-  return new Promise((resoudre) => {
-    const hexMesure = rgbVersHex(rgb);
-    const labMesure = labDepuisHex(hexMesure);
-    const proches = plusProches(labMesure, app.catalogue, 12);
-    let type = typeImpose;
-    let couleur = null; // couleur du catalogue retenue par « Ajuster » ; null = couleur mesurée
-    let enCours = null; // sélection en cours pendant l'étape « ajuster »
+// Feuille par défaut (étalonnage) : couleur mesurée, « Recommencer » ou « Utiliser cette mesure ».
+function resultatSimple(mesure, feuille, { valider, recommencer }) {
+  const hex = rgbVersHex(mesure.rgb);
+  feuille.append(
+    el('div', { class: 'poignee', 'aria-hidden': 'true' }),
+    el('div', { class: 'resultat-entete' }, pastille(hex, { classe: 'resultat-pastille' }),
+      el('div', { class: 'infos' }, el('strong', {}, 'Couleur mesurée'), el('span', { class: 'discret' }, hex))),
+    el('div', { class: 'boutons-resultat' },
+      el('button', { type: 'button', class: 'bouton', 'data-action': 'recommencer', onclick: recommencer }, 'Recommencer'),
+      el('button', { type: 'button', class: 'bouton principal', 'data-action': 'utiliser-mesure', onclick: () => valider(mesure) }, 'Utiliser cette mesure')));
+}
 
-    const titre = el('h2', { id: 'titre-resultat', tabindex: '-1', autofocus: true });
-    const corps = el('div', { class: 'etape' });
-    const pied = el('div', { class: 'dialogue-boutons' });
-    const dialogue = el('dialog', { class: 'dialogue resultat-scan', 'aria-labelledby': 'titre-resultat' }, titre, corps, pied);
-    const terminer = terminaison(dialogue, resoudre);
+// Feuille du résultat pour un vêtement : tout sur un écran. mesure : { rgb (corrigée si étalonnage), brut? }.
+// valider({ type, hex, couleur }) : couleur du catalogue retenue (null = couleur mesurée).
+export function remplirResultatVetement(app, actions, mesure, feuille, { valider, recommencer }, { typeImpose = null } = {}) {
+  const hexMesure = rgbVersHex(mesure.rgb);
+  const labMesure = labDepuisHex(hexMesure);
+  const proches = plusProches(labMesure, app.catalogue, 12);
+  // L'exposition automatique de l'iPhone fausse surtout les noirs, gris et blancs (un noir remonte vers le gris,
+  // la torche le bleuit) : les neutres du catalogue restent à un toucher, du plus foncé au plus clair.
+  const neutres = app.catalogue.couleurs
+    .filter((c) => chroma(c.lab) <= NEUTRE_C_MAX)
+    .sort((x, y) => x.lab.L - y.lab.L)
+    .map((c) => ({ couleur: c, ecart: deltaE00(labMesure, c.lab) }));
+  let couleur = null;
+  let type = typeImpose;
+  let onglet = 'proches';
 
-    const bouton = (libelle, action, onclick, classe = 'secondaire') =>
-      el('button', { type: 'button', class: `bouton ${classe}`, 'data-action': action, onclick }, libelle);
-    const resume = (hex, nom, detail) => el('div', { class: 'apercu-couleur' },
-      pastille(hex, { classe: 'moyenne' }),
-      el('div', { class: 'infos' }, el('strong', {}, nom), el('span', { class: 'discret' }, detail)));
+  const pastilleEntete = pastille(hexMesure, { classe: 'resultat-pastille' });
+  const nomEntete = el('strong', {});
+  const detailEntete = el('span', { class: 'discret' });
+  const rangee = el('div', { class: 'rangee-choix', role: 'listbox', 'aria-label': 'Couleur retenue' });
+  const enregistrer = el('button', {
+    type: 'button', class: 'bouton principal', 'data-action': 'enregistrer-scan',
+    onclick: () => valider({ type, hex: couleur?.hex ?? hexMesure, couleur }),
+  }, 'Enregistrer');
 
-    function afficher(etape) {
-      dialogue.dataset.etape = etape;
-      rearmerDialogue(dialogue); // nouveaux boutons sous le doigt : anti double tape
-      if (etape === 'couleur') etapeCouleur();
-      else if (etape === 'ajuster') etapeAjuster();
-      else etapeType();
-      dialogue.scrollTop = 0;
-      if (dialogue.open) titre.focus({ preventScroll: true });
+  function majEntete() {
+    pastilleEntete.style.backgroundColor = couleur?.hex ?? hexMesure;
+    nomEntete.textContent = couleur ? couleur.nom : 'Couleur mesurée';
+    detailEntete.textContent = couleur
+      ? `${couleur.hex}, au lieu de la mesure ${hexMesure}`
+      : `${hexMesure} · la plus proche : ${proches[0].couleur.nom} (${ecartTexte(proches[0].ecart)})`;
+    for (const carte of rangee.querySelectorAll('[data-couleur]')) {
+      carte.setAttribute('aria-selected', String(carte.dataset.couleur === (couleur?.id ?? 'mesure')));
     }
+    enregistrer.disabled = type === null;
+  }
 
-    function etapeCouleur() {
-      titre.textContent = 'Couleur mesurée';
-      // replaceChildren écrirait « null » en texte : l'absence de vignette passe par un tableau filtré.
-      corps.replaceChildren(...[
-        apercu ? el('div', { class: 'vignette' }, apercu) : null,
-        el('div', { class: 'bande-couleur', style: { backgroundColor: hexMesure }, 'aria-hidden': 'true' }),
-        el('p', {}, el('strong', {}, hexMesure), ` : la plus proche du catalogue est ${proches[0].couleur.nom} (${ecartTexte(proches[0].ecart)}).`),
-        brut ? el('p', { class: 'discret', 'data-info': 'etalonnage' }, `Couleur corrigée par l'étalonnage (mesure brute ${rgbVersHex(brut)}).`)
-          : el('p', { class: 'discret' }, 'L\'iPhone règle seul l\'exposition : les noirs, gris et blancs sont souvent faussés (un noir peut sortir gris ou bleuté). L\'étalonnage (Réglages) corrige cet écart.'),
-        el('p', { class: 'question' }, 'Veux-tu ajuster la couleur ?'),
-        bouton('Oui, ajuster la couleur', 'ajuster', () => { enCours = couleur; afficher('ajuster'); }, 'secondaire accent large'),
-        bouton('Non, continuer', 'continuer-sans-ajuster', () => { couleur = null; afficher('type'); }, 'principal large'),
-      ].filter(Boolean));
-      pied.replaceChildren(
-        bouton('Recommencer la mesure', 'recommencer', () => terminer('recommencer')),
-        bouton('Annuler', 'annuler-resultat', () => terminer(null)));
-    }
+  const carte = (id, hex, nom, detail, onclick, classe = '') => el('button', {
+    type: 'button', class: `carte-choix ${classe}`.trim(), role: 'option', 'data-couleur': id, 'aria-selected': 'false', onclick,
+  }, pastille(hex, { classe: 'grande' }), el('span', { class: 'nom' }, nom), el('span', { class: 'detail' }, detail));
 
-    function etapeAjuster() {
-      titre.textContent = 'Ajuster la couleur';
-      const choix = el('div');
-      const continuer = bouton('Continuer', 'continuer', () => { couleur = enCours; afficher('type'); }, 'principal');
-      const carte = (c, ecart, classe = 'carte-proche') => el('button', {
-        type: 'button', class: classe, 'data-couleur': c.id, 'aria-pressed': 'false',
-        onclick: () => { enCours = c; majChoix(); },
-      }, pastille(c.hex, { classe: 'grande' }), el('span', { class: 'nom' }, c.nom), el('span', { class: 'detail' }, ecartTexte(ecart)));
-      const grille = el('div', { class: 'grille-couleurs' }, proches.map(({ couleur: c, ecart }) => carte(c, ecart)));
-      // L'exposition automatique de l'iPhone fausse surtout les noirs, gris et blancs (un noir remonte vers le gris,
-      // la torche le bleuit) : les neutres du catalogue restent toujours à portée, du plus foncé au plus clair.
-      const neutres = el('div', { class: 'grille-neutres' }, app.catalogue.couleurs
-        .filter((c) => chroma(c.lab) <= NEUTRE_C_MAX)
-        .sort((x, y) => x.lab.L - y.lab.L)
-        .map((c) => carte(c, deltaE00(labMesure, c.lab), 'carte-proche neutre')));
-      function majChoix() {
-        choix.replaceChildren(enCours
-          ? resume(enCours.hex, enCours.nom, `${enCours.hex}, au lieu de la mesure ${hexMesure}`)
-          : resume(hexMesure, 'Couleur mesurée', `${hexMesure} : touche la couleur la plus juste ci-dessous`));
-        for (const c of corps.querySelectorAll('[data-couleur]')) c.setAttribute('aria-pressed', String(c.dataset.couleur === enCours?.id));
-        continuer.disabled = enCours === null;
-      }
-      const tout = bouton('Voir tout le catalogue (avec recherche)', 'tout-catalogue', async () => {
-        const choisie = await ouvrirSelecteur({
-          catalogue: app.catalogue, titre: 'Couleur la plus juste', reference: labMesure, ...actions.favorisPourSelecteur(),
-        });
-        if (choisie) { enCours = choisie; majChoix(); }
-      }, 'secondaire large');
-      corps.replaceChildren(choix,
-        el('p', { class: 'sous-titre' }, 'Noir, gris et blanc'),
-        el('p', { class: 'discret' }, 'La caméra fausse souvent les couleurs neutres : un noir peut paraître gris ou bleuté.'),
-        neutres,
-        el('p', { class: 'sous-titre' }, 'Les 12 plus proches de la mesure'),
-        el('p', { class: 'discret' }, 'De la plus proche à la plus éloignée :'),
-        grille, tout);
-      pied.replaceChildren(bouton('Retour', 'retour', () => afficher('couleur')), continuer);
-      majChoix();
-    }
+  function remplirRangee() {
+    const liste = onglet === 'proches' ? proches : neutres;
+    rangee.replaceChildren(
+      carte('mesure', hexMesure, 'Mesure', hexMesure, () => { couleur = null; majEntete(); }, 'mesure'),
+      ...liste.map(({ couleur: c, ecart }) => carte(c.id, c.hex, c.nom, ecartTexte(ecart), () => { couleur = c; majEntete(); })),
+      el('button', {
+        type: 'button', class: 'carte-choix tout', 'data-action': 'tout-catalogue',
+        onclick: async () => {
+          const choisie = await ouvrirSelecteur({
+            catalogue: app.catalogue, titre: 'Couleur la plus juste', reference: labMesure, ...actions.favorisPourSelecteur(),
+          });
+          if (choisie) { couleur = choisie; majEntete(); }
+        },
+      }, icone('mosaique'), el('span', { class: 'nom' }, 'Tout le catalogue')));
+    rangee.scrollLeft = 0;
+    majEntete();
+  }
 
-    function etapeType() {
-      titre.textContent = 'Type de vêtement';
-      const enregistrer = bouton('Enregistrer', 'enregistrer-scan', () => terminer({ type, hex: couleur?.hex ?? hexMesure, couleur }), 'principal');
-      enregistrer.disabled = type === null;
-      const grille = el('div', { class: 'grille-types', role: 'group', 'aria-label': 'Type de vêtement' },
-        TYPES.filter((t) => t !== 'bijoux').map((t) => el('button', {
-          type: 'button', class: 'bouton secondaire choix-type', 'data-type': t, 'aria-pressed': String(t === type),
-          onclick: (evenement) => {
-            type = t;
-            for (const b of grille.children) b.setAttribute('aria-pressed', String(b === evenement.currentTarget));
-            enregistrer.disabled = false;
-          },
-        }, LIBELLES_TYPES[t])));
-      corps.replaceChildren(
-        couleur ? resume(couleur.hex, couleur.nom, `${couleur.hex}, choisie dans le catalogue`) : resume(hexMesure, 'Couleur mesurée', hexMesure),
-        el('p', { class: 'question' }, 'Quel type de vêtement ?'),
-        grille);
-      pied.replaceChildren(
-        bouton('Retour', 'retour', () => { enCours = couleur; afficher(couleur ? 'ajuster' : 'couleur'); }),
-        enregistrer);
-    }
+  const segments = el('div', { class: 'segments', role: 'group', 'aria-label': 'Couleurs proposées' },
+    [['proches', 'Les plus proches'], ['neutres', 'Noir, gris, blanc']].map(([valeur, libelle]) => el('button', {
+      type: 'button', class: 'segment', 'data-segment': valeur, 'aria-pressed': String(valeur === onglet),
+      onclick: (evenement) => {
+        onglet = valeur;
+        for (const b of segments.children) b.setAttribute('aria-pressed', String(b === evenement.currentTarget));
+        remplirRangee();
+      },
+    }, libelle)));
 
-    document.body.append(dialogue);
-    armerDialogue(dialogue);
-    afficher('couleur');
-    dialogue.showModal();
-  });
+  const grilleTypes = el('div', { class: 'grille-types-scan', role: 'group', 'aria-label': 'Type de vêtement' },
+    TYPES.filter((t) => t !== 'bijoux').map((t) => tuile({
+      icone: t, libelle: LIBELLES_TYPES[t], 'data-type': t, 'aria-pressed': String(t === type),
+      onclick: (evenement) => {
+        type = t;
+        for (const b of grilleTypes.children) b.setAttribute('aria-pressed', String(b === evenement.currentTarget));
+        majEntete();
+      },
+    })));
+
+  // append écrirait « null » en texte : les éléments facultatifs passent par un tableau filtré.
+  feuille.append(...[
+    el('div', { class: 'poignee', 'aria-hidden': 'true' }),
+    el('div', { class: 'resultat-entete' }, pastilleEntete, el('div', { class: 'infos' }, nomEntete, detailEntete)),
+    mesure.brut ? el('p', { class: 'note-resultat', 'data-info': 'etalonnage' }, `Corrigée par l'étalonnage (mesure brute ${rgbVersHex(mesure.brut)}).`) : null,
+    el('p', { class: 'etiquette-resultat' }, 'Plus juste ? Touche une couleur'),
+    segments, rangee,
+    el('p', { class: 'etiquette-resultat' }, 'Type de vêtement'),
+    grilleTypes,
+    el('div', { class: 'boutons-resultat' },
+      el('button', { type: 'button', class: 'bouton', 'data-action': 'recommencer', onclick: recommencer }, 'Recommencer'),
+      enregistrer),
+  ].filter(Boolean));
+  remplirRangee();
 }

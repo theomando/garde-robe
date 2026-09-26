@@ -7,8 +7,6 @@ import { enregistrerEtalonnage } from '../donnees.js';
 import { verifierMesuresEtalonnage, appliquerEtalonnage } from '../etalonnage.js';
 import { ouvrirScan } from './scan.js';
 
-const NB = String.fromCharCode(0xa0); // espace insécable dans les guillemets français
-
 // Correction à appliquer à une mesure brute selon la façon dont elle a été faite (null si pas d'étalonnage).
 export function correcteur(app) {
   return (rgb, mode) => {
@@ -33,12 +31,12 @@ export async function etalonner(app, actions) {
 
   const blanc = await ouvrirScan({
     titre: 'Étalonnage : vêtement blanc',
-    consigne: `Place le vêtement entièrement blanc dans le carré, comme pour un scan habituel, puis touche «${NB}Mesurer${NB}».`,
+    consigne: 'Vise le vêtement entièrement blanc, comme pour une mesure habituelle.',
   });
   if (!blanc) return;
   const noir = await ouvrirScan({
     titre: 'Étalonnage : vêtement noir',
-    consigne: `Même chose avec le vêtement entièrement noir, dans les mêmes conditions, puis touche «${NB}Mesurer${NB}».`,
+    consigne: 'Même chose avec le vêtement entièrement noir, dans les mêmes conditions.',
   });
   if (!noir) return;
 

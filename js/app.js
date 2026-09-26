@@ -13,6 +13,9 @@ import { rendreTenue } from './ecrans/tenue.js';
 import { rendreManques } from './ecrans/manques.js';
 import { installerServiceWorker, estDeveloppementLocal } from './mise-a-jour.js';
 import { VERSION_APP } from './constantes.js';
+import { icone } from './icones.js';
+
+const ICONES_ONGLETS = { 'garde-robe': 'cintre', tenue: 't-shirt', manques: 'sac', reglages: 'engrenage' };
 
 // localStorage peut être inaccessible (Safari avec « Bloquer tous les cookies », données de site bloquées).
 // On ne bascule pas en mémoire en silence : chaque accès échoue, l'app le signale et n'enregistre rien.
@@ -85,6 +88,18 @@ function rendre() {
   if (focus) contenu.querySelector(focus)?.focus({ preventScroll: true });
 }
 
+// Défilement : le titre réduit apparaît dans la barre du haut dès que le grand titre passe dessous ; la barre
+// d'onglets se fait discrète en descendant et revient en remontant (comme sous iOS 26).
+let dernierDefilement = 0;
+function suivreDefilement() {
+  const y = window.scrollY;
+  document.body.classList.toggle('defile', y > 34);
+  const onglets = document.getElementById('onglets');
+  if (y < 60 || y < dernierDefilement - 8) onglets.classList.remove('reduite');
+  else if (y > dernierDefilement + 8) onglets.classList.add('reduite');
+  if (Math.abs(y - dernierDefilement) > 8 || y < 60) dernierDefilement = y;
+}
+
 function chargerPapierTigre() {
   const texte = stockage.chargerPapierTigre();
   app.papierTigre = null;
@@ -122,6 +137,7 @@ const actions = {
     app.ecran = ecran;
     rendre();
     window.scrollTo(0, 0);
+    suivreDefilement();
   },
 
   favorisPourSelecteur() {
@@ -182,13 +198,13 @@ const actions = {
     const zone = el('textarea', { class: 'texte-donnees', readonly: true, rows: 10, 'aria-label': 'Mes données au format JSON' });
     zone.value = exporterEtat(app.etat, new Date(), 2);
     const copier = el('button', {
-      type: 'button', class: 'bouton secondaire',
+      type: 'button', class: 'bouton secondaire large',
       onclick: () => {
         navigator.clipboard?.writeText(zone.value)
           .then(() => annoncer('Données copiées'))
           .catch(() => { zone.select(); annoncer('Sélectionne le texte puis copie-le.'); });
       },
-    }, 'Copier');
+    }, 'Copier le texte');
     return ouvrirDialogue({ titre: 'Mes données', contenu: [el('p', { class: 'discret' }, 'Colle ce texte dans un fichier .json pour le garder.'), zone, copier] });
   },
 
@@ -287,7 +303,7 @@ async function demarrer() {
     app.wada = construireWada(await reponse.json());
   } catch (erreur) {
     document.getElementById('contenu').replaceChildren(
-      el('p', { class: 'vide' }, `Impossible de charger le catalogue Wada (${erreur.message}). Vérifie la connexion puis relance l'app.`));
+      el('p', { class: 'vide' }, `Impossible de charger le catalogue des couleurs (${erreur.message}). Vérifie la connexion puis relance l'app.`));
     return;
   }
   chargerPapierTigre();
@@ -306,8 +322,10 @@ async function demarrer() {
   const ecranDemande = new URLSearchParams(location.search).get('ecran');
   if (Object.hasOwn(ECRANS, ecranDemande)) app.ecran = ecranDemande;
   for (const bouton of document.querySelectorAll('#onglets [data-ecran]')) {
+    bouton.prepend(icone(ICONES_ONGLETS[bouton.dataset.ecran]));
     bouton.addEventListener('click', () => actions.naviguer(bouton.dataset.ecran));
   }
+  window.addEventListener('scroll', suivreDefilement, { passive: true });
   rendre();
   if (avertissement) annoncer(avertissement, 'erreur');
   if (!premierLancement(app.etat) && estInstallee()) actions.demanderPersistance();

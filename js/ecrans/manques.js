@@ -1,7 +1,7 @@
 // Écran Manques fréquents : les couleurs qui manquent le plus souvent dans les propositions des tenues types
 // déjà demandées, avec la garde-robe et les réglages actuels (CLAUDE.md, section « Favoris et statistiques »).
 
-import { el, pastille, pastilleJoker, confirmer, annoncer } from '../ui.js';
+import { el, pastille, pastilleJoker, confirmer, annoncer, barreNavigation } from '../ui.js';
 import { TYPES, LIBELLES_TYPES } from '../constantes.js';
 import { retirerTenueType } from '../donnees.js';
 import { manquesFrequents } from '../statistiques.js';
@@ -33,11 +33,11 @@ const pluriel = (n, mot) => `${n} ${mot}${n > 1 ? 's' : ''}`;
 const libelleTenue = (types) => TYPES.filter((t) => types.includes(t)).map((t) => LIBELLES_TYPES[t].toLowerCase()).join(', ');
 
 export function rendreManques(conteneur, app, actions) {
-  const entete = el('div', { class: 'entete-ecran' }, el('h1', {}, 'Manques fréquents'));
+  const entete = barreNavigation({ titre: 'Manques fréquents' });
   const { tenuesTypes } = app.etat;
 
   if (tenuesTypes.length === 0) {
-    conteneur.replaceChildren(entete,
+    conteneur.replaceChildren(...entete,
       el('p', { class: 'vide', 'data-info': 'sans-tenue' },
         'Aucune tenue demandée pour l\'instant. Dans l\'onglet Tenue, choisis des pièces et touche « Proposer » : les couleurs qui te manquent le plus souvent apparaîtront ici.'),
       el('button', { type: 'button', class: 'bouton principal large', onclick: () => actions.naviguer('tenue') }, 'Aller à la tenue du jour'));
@@ -46,7 +46,7 @@ export function rendreManques(conteneur, app, actions) {
 
   const resultat = resultatEnMemoire(app);
   if (!resultat) {
-    conteneur.replaceChildren(entete, el('p', { class: 'vide', role: 'status', 'data-info': 'calcul' }, 'Calcul des manques…'));
+    conteneur.replaceChildren(...entete, el('p', { class: 'vide', role: 'status', 'data-info': 'calcul' }, 'Calcul des manques…'));
     setTimeout(() => {
       if (app.ecran !== 'manques' || resultatEnMemoire(app)) return;
       calculer(app);
@@ -67,10 +67,10 @@ export function rendreManques(conteneur, app, actions) {
   } else if (manques.length === 0) {
     corps = el('p', { class: 'vide', 'data-info': 'rien-ne-manque' }, 'Rien ne manque : ta garde-robe couvre toutes les propositions de tes tenues.');
   } else {
-    corps = el('ol', { class: 'liste-manques' }, manques.map((manque, i) => {
+    corps = el('ol', { class: 'groupe liste-manques' }, manques.map((manque, i) => {
       const couleur = manque.couleurId ? app.catalogue.couleurParId.get(manque.couleurId) : null;
       return el('li', {
-        class: 'manque-frequent', 'data-type': manque.type, 'data-couleur': manque.couleurId ?? 'joker', 'data-nombre': manque.nombre,
+        class: 'ligne manque-frequent', 'data-type': manque.type, 'data-couleur': manque.couleurId ?? 'joker', 'data-nombre': manque.nombre,
       },
       el('span', { class: 'rang' }, String(i + 1)),
       couleur ? pastille(couleur.hex, { classe: 'moyenne' }) : pastilleJoker({ classe: 'moyenne' }),
@@ -89,7 +89,7 @@ export function rendreManques(conteneur, app, actions) {
     if (ok && actions.mettreAJour(retirerTenueType(app.etat, types))) annoncer('Tenue retirée');
   }
 
-  conteneur.replaceChildren(entete, intro, corps,
+  conteneur.replaceChildren(...entete, intro, corps,
     el('details', {
       class: 'depliant carte tenues-comptees', open: tenuesDepliees,
       ontoggle: (evenement) => { tenuesDepliees = evenement.target.open; },

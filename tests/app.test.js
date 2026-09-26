@@ -45,6 +45,25 @@ async function rechercher(selecteur, texte) {
   champ.dispatchEvent(new fenetre.Event('input'));
 }
 
+// Ajout d'un vêtement : grande carte quand la garde-robe est vide, sinon bouton « + » puis menu.
+async function menuAjout(action) {
+  const carte = doc.querySelector(`#contenu .carte-action[data-action="${action}"]`);
+  if (carte) { carte.click(); return; }
+  cliquer('#contenu [data-action="ajouter"]');
+  const option = await attendre(() => doc.querySelector(`.menu [data-action="${action}"]`), 'menu « + »');
+  option.click();
+}
+
+// Photo fournie à l'appareil photo (repli du scan, et étalonnage).
+async function fournirPhoto(blob) {
+  const champ = await attendre(() => doc.querySelector('input[data-choix-fichier="image"]'), 'appareil photo');
+  const transfert = new fenetre.DataTransfer();
+  transfert.items.add(new fenetre.File([blob], 'photo.png', { type: 'image/png' }));
+  champ.files = transfert.files;
+  champ.dispatchEvent(new fenetre.Event('change'));
+  return champ;
+}
+
 test('app : premier lancement, teint obligatoire, puis garde-robe vide', async () => {
   for (const cle of Object.keys(localStorage)) if (cle.startsWith(ESPACE)) localStorage.removeItem(cle);
   const cadre = document.createElement('iframe');
@@ -66,6 +85,26 @@ test('app : premier lancement, teint obligatoire, puis garde-robe vide', async (
   egal(stocke().reglages.teintActif, false, 'interrupteur désactivé par défaut');
   vrai(!doc.getElementById('onglets').hidden);
   vrai(doc.querySelector('.vide').textContent.includes('garde-robe est vide'));
+  // Composants iOS : icône dans chaque onglet, barre de navigation avec bouton « + », grand titre.
+  vrai([...doc.querySelectorAll('#onglets [data-ecran]')].every((b) => b.querySelector('svg.icone')), 'icônes des onglets');
+  vrai(doc.querySelector('.barre-nav [data-action="ajouter"]'), 'bouton « + » dans la barre du haut');
+  egal(doc.querySelector('.entete-ecran h1').textContent, 'Garde-robe');
+  vrai(doc.querySelector('.cartes-actions [data-action="scanner"]') && doc.querySelector('.cartes-actions [data-action="ajouter-vetement"]'),
+    'garde-robe vide : deux grandes cartes d\'ajout');
+});
+
+test('app : feuille fermée en la balayant vers le bas depuis son en-tête', async () => {
+  cliquer('[data-action="ajouter-vetement"]');
+  const feuille = await dialogueOuvert('dialog.feuille[open]');
+  vrai(feuille.querySelector('.poignee'), 'poignée');
+  const entete = feuille.querySelector('.feuille-entete');
+  const pointeur = (type, y) => entete.dispatchEvent(new fenetre.PointerEvent(type, { bubbles: true, pointerId: 7, clientY: y }));
+  pointeur('pointerdown', 100);
+  pointeur('pointermove', 180);
+  pointeur('pointermove', 260);
+  pointeur('pointerup', 260);
+  await dialoguesFermes();
+  egal(stocke().vetements.length, 0);
 });
 
 test('app : double tape, le second toucher ne choisit rien dans le dialogue qui vient de s\'ouvrir', async () => {
@@ -74,7 +113,7 @@ test('app : double tape, le second toucher ne choisit rien dans le dialogue qui 
   cliquer('[data-choix="bijoux"]', dialogue);
   vrai(dialogue.open && dialogue.isConnected, 'le clic immédiat est ignoré');
   egal(doc.querySelector('dialog.selecteur'), null, 'aucun sélecteur ouvert');
-  cliquer('.dialogue-boutons button', await dialogueOuvert());
+  cliquer('[data-action="fermer-feuille"]', await dialogueOuvert());
   await dialoguesFermes();
   egal(stocke().vetements.length, 0);
 });
@@ -170,7 +209,7 @@ test('app : import du catalogue Papier Tigre, puis choix d\'une de ses couleurs'
   egal(doc.querySelector('[data-info="papier-tigre"]').textContent, 'Importé : 3 harmonies, 11 couleurs.');
   vrai(localStorage.getItem(`${ESPACE}papier-tigre`), 'catalogue enregistré');
   cliquer('#onglets [data-ecran="garde-robe"]');
-  cliquer('[data-action="ajouter-vetement"]');
+  await menuAjout('ajouter-vetement');
   cliquer('[data-choix="chaussures"]', await dialogueOuvert());
   const selecteur = await dialogueOuvert('dialog.selecteur[open]');
   vrai(selecteur.querySelector('[data-source="papier-tigre"]'), 'filtre Papier Tigre proposé');
@@ -200,7 +239,7 @@ test('app : données affichées en texte, puis réimportées après confirmation
   const exporte = JSON.parse(dialogue.querySelector('textarea').value);
   egal(exporte.format, 'garde-robe-chromatique');
   egal(exporte.vetements.length, 1);
-  cliquer('.dialogue-boutons button', dialogue);
+  cliquer('[data-action="fermer-feuille"]', dialogue);
   await dialoguesFermes();
   const modifie = { ...exporte, vetements: [] };
   cliquer('[data-action="importer"]');
@@ -212,128 +251,131 @@ test('app : données affichées en texte, puis réimportées après confirmation
   await quand(() => stocke().vetements.length === 0, 'données remplacées');
 });
 
-// Fenêtre de résultat du scan, prête (anti double tape écoulé) à l'étape demandée.
-const resultatPret = (etape) => [...doc.querySelectorAll('dialog.resultat-scan[open]')]
-  .find((d) => d.dataset.etape === etape && 'pret' in d.dataset);
+// Mesure tout-en-un : la feuille du résultat monte dans l'écran caméra, prête (anti double tape écoulé).
+const resultatPret = () => [...doc.querySelectorAll('dialog.scan[open]')]
+  .find((d) => d.dataset.etape === 'resultat' && 'pret' in d.dataset);
+const cartesChoix = (feuille) => [...feuille.querySelectorAll('.rangee-choix [data-couleur]:not([data-couleur="mesure"])')];
 
-test('app : scan par photo, étape couleur, « Non, continuer », puis type (obligatoire)', async () => {
+test('app : mesure par photo, feuille tout-en-un (couleur, ajustement, type) sans défilement, puis enregistrement', async () => {
   cliquer('#onglets [data-ecran="garde-robe"]');
-  cliquer('[data-action="scanner"]');
+  await menuAjout('scanner');
   const scan = await dialogueOuvert('dialog.scan[open]');
+  vrai(scan.querySelector('.declencheur[data-action="mesurer"]') && scan.querySelector('[data-action="photo"]'), 'déclencheur et photo');
+  cliquer('[data-action="aide"]', scan);
+  vrai(!scan.querySelector('.aide-scan').hidden, 'aide affichée d\'un toucher');
   cliquer('[data-action="photo"]', scan);
-  const champ = await attendre(() => doc.querySelector('input[data-choix-fichier="image"]'), 'appareil photo');
+  const champ = await fournirPhoto(await photoSynthetique());
   vrai(champ.getAttribute('capture') === 'environment' && champ.accept === 'image/*', 'appareil photo arrière');
-  const transfert = new fenetre.DataTransfer();
-  transfert.items.add(new fenetre.File([await photoSynthetique()], 'photo.png', { type: 'image/png' }));
-  champ.files = transfert.files;
-  champ.dispatchEvent(new fenetre.Event('change'));
-  const resultat = await attendreReel(() => resultatPret('couleur'), 'décodage de la photo');
-  egal(resultat.querySelector('h2').textContent, 'Couleur mesurée');
-  vrai(resultat.querySelector('.etape').textContent.includes('#a07e56'), 'couleur mesurée affichée');
-  egal(resultat.querySelector('.bande-couleur').style.backgroundColor, 'rgb(160, 126, 86)');
-  vrai(resultat.querySelector('.vignette canvas'), 'vignette de la photo');
-  egal(resultat.querySelector('[data-type]'), null, 'le type vient après la couleur');
-  vrai(resultat.querySelector('[data-action="ajuster"]') && resultat.querySelector('[data-action="continuer-sans-ajuster"]'), 'question Oui / Non');
-  cliquer('[data-action="continuer-sans-ajuster"]', resultat);
-  cliquer('[data-type="pull"]', resultat);
-  egal(resultat.querySelector('[data-type="pull"]').getAttribute('aria-pressed'), 'false', 'toucher trop rapide ignoré');
-  await attendre(() => resultatPret('type'), 'étape type');
-  egal(resultat.querySelector('h2').textContent, 'Type de vêtement');
-  egal(resultat.querySelector('[data-type="bijoux"]'), null, 'bijoux : choix manuel seulement');
-  vrai(resultat.querySelector('[data-action="enregistrer-scan"]').disabled, 'type à choisir d\'abord');
-  cliquer('[data-type="chaussures"]', resultat);
-  cliquer('[data-action="enregistrer-scan"]', resultat);
+  await attendreReel(() => scan.dataset.etape === 'resultat', 'décodage de la photo');
+  const feuille = scan.querySelector('.feuille-resultat');
+  cliquer('[data-type="pull"]', feuille);
+  egal(feuille.querySelector('[data-type="pull"]').getAttribute('aria-pressed'), 'false', 'toucher trop rapide ignoré');
+  await attendre(() => resultatPret(), 'feuille prête');
+  vrai(!feuille.hidden && scan.querySelector('img.image-figee').hidden === false, 'photo figée en fond, feuille visible');
+  egal(scan.querySelector('.aide-scan').hidden, true, 'aide refermée');
+  vrai(feuille.scrollHeight <= feuille.clientHeight + 1, `tout tient sans défiler (${feuille.scrollHeight} ≤ ${feuille.clientHeight})`);
+  vrai(feuille.querySelector('.resultat-entete').textContent.includes('#a07e56'), 'couleur mesurée affichée');
+  egal(feuille.querySelector('.resultat-pastille').style.backgroundColor, 'rgb(160, 126, 86)');
+  egal(feuille.querySelector('[data-couleur="mesure"]').getAttribute('aria-selected'), 'true', 'la mesure est retenue par défaut');
+  vrai(!feuille.textContent.includes('null'), 'aucun « null » affiché');
+  egal(feuille.querySelector('[data-type="bijoux"]'), null, 'bijoux : choix manuel seulement');
+  vrai(feuille.querySelector('[data-action="enregistrer-scan"]').disabled, 'type à choisir d\'abord');
+  cliquer('[data-type="chaussures"]', feuille);
+  vrai(!feuille.querySelector('[data-action="enregistrer-scan"]').disabled);
+  cliquer('[data-action="enregistrer-scan"]', feuille);
   await dialoguesFermes();
-  await quand(() => stocke().vetements.length === 1, 'vêtement scanné enregistré');
+  await quand(() => stocke().vetements.length === 1, 'vêtement mesuré enregistré');
   const { id, dateAjout, ...vetement } = stocke().vetements[0];
   egalProfond(vetement, { type: 'chaussures', hex: '#a07e56', origine: 'scan' });
   vrai(doc.querySelector('[data-type="chaussures"] .nom').textContent.includes('#a07e56'));
 });
 
-test('app : scan à la caméra (simulée, sans torche), « Oui, ajuster », proches triées, Retour conservant le choix', async () => {
-  cliquer('[data-action="scanner"]');
+test('app : mesure à la caméra (simulée, sans torche), plein écran, Recommencer, ajustement d\'un toucher, enregistrement', async () => {
+  await menuAjout('scanner');
   const scan = await dialogueOuvert('dialog.scan[open]');
-  const mesurer = await attendreReel(() => {
+  const pret = () => attendreReel(() => {
     const bouton = scan.querySelector('[data-action="mesurer"]');
     return bouton && !bouton.disabled ? bouton : null;
   }, 'image de la caméra simulée');
+  const mesurer = await pret();
   vrai(scan.querySelector('[data-action="torche"]').hidden, 'pas de bouton torche sans torche');
   vrai(!scan.querySelector('.reticule').hidden && parseFloat(scan.querySelector('.reticule').style.width) > 0, 'réticule placé');
+  const zone = mesurer.getBoundingClientRect();
+  vrai(zone.top >= 0 && zone.bottom <= fenetre.innerHeight, 'déclencheur visible sans défiler');
   mesurer.click();
-  const resultat = await attendreReel(() => resultatPret('couleur'), `résultat (état : ${scan.querySelector('.etat-scan')?.textContent})`);
-  vrai(resultat.querySelector('.etape').firstElementChild.classList.contains('bande-couleur'), 'sans photo : la bande de couleur vient en premier');
-  vrai(!resultat.querySelector('.etape').textContent.includes('null'), 'aucun « null » affiché');
-  cliquer('[data-action="ajuster"]', resultat);
-  await attendre(() => resultatPret('ajuster'), 'étape ajuster');
-  egal(resultat.querySelector('h2').textContent, 'Ajuster la couleur');
-  const neutres = [...resultat.querySelectorAll('.grille-neutres .carte-proche')].map((c) => c.querySelector('.nom').textContent);
+  await attendreReel(() => resultatPret(), `résultat (état : ${scan.querySelector('.etat-scan')?.textContent})`);
+  egal(scan.querySelector('canvas.image-figee').hidden, false, 'image figée');
+  cliquer('[data-action="recommencer"]', scan.querySelector('.feuille-resultat'));
+  vrai(scan.querySelector('.feuille-resultat').hidden, 'Recommencer : feuille retirée');
+  (await pret()).click();
+  await attendreReel(() => resultatPret(), 'second résultat');
+  const feuille = scan.querySelector('.feuille-resultat');
+  vrai(feuille.scrollHeight <= feuille.clientHeight + 1, `tout tient sans défiler (${feuille.scrollHeight} ≤ ${feuille.clientHeight})`);
+
+  const proches = cartesChoix(feuille);
+  egal(proches.length, 12, '12 couleurs proches');
+  const ecarts = proches.map((c) => parseFloat(c.querySelector('.detail').textContent.replace('ΔE ', '').replace(',', '.')));
+  vrai(ecarts.every((e, i) => i === 0 || e >= ecarts[i - 1]), `du plus proche au plus éloigné : ${ecarts}`);
+  cliquer('[data-segment="neutres"]', feuille);
+  const neutres = cartesChoix(feuille).map((c) => c.querySelector('.nom').textContent);
   egal(neutres[0], 'Black', 'neutres du plus foncé au plus clair : le noir d\'abord');
   egal(neutres[neutres.length - 1], 'White');
-  vrai(neutres.length >= 7, `les 7 neutres de Wada (C* ≤ 8), plus ceux de Papier Tigre importés plus haut : ${neutres}`);
-  const cartes = [...resultat.querySelectorAll('.grille-couleurs .carte-proche')];
-  egal(cartes.length, 12, '12 couleurs proches');
-  const ecarts = cartes.map((c) => parseFloat(c.querySelector('.detail').textContent.replace('ΔE ', '').replace(',', '.')));
-  vrai(ecarts.every((e, i) => i === 0 || e >= ecarts[i - 1]), `du plus proche au plus éloigné : ${ecarts}`);
-  vrai(resultat.querySelector('[data-action="continuer"]').disabled, 'Continuer après un choix');
-  const idChoisi = cartes[1].dataset.couleur;
-  const nomChoisi = cartes[1].querySelector('.nom').textContent;
-  cartes[1].click();
-  egal(cartes[1].getAttribute('aria-pressed'), 'true');
-  vrai(resultat.querySelector('.etape').textContent.includes(nomChoisi), 'choix affiché en haut');
-  cliquer('[data-action="continuer"]', resultat);
-  await attendre(() => resultatPret('type'), 'étape type');
-  vrai(resultat.querySelector('.etape').textContent.includes(nomChoisi), 'couleur choisie rappelée');
-  cliquer('[data-action="retour"]', resultat);
-  await attendre(() => resultatPret('ajuster'), 'retour à l\'ajustement');
-  egal(resultat.querySelector(`[data-couleur="${idChoisi}"]`).getAttribute('aria-pressed'), 'true', 'choix conservé au retour');
-  cliquer('[data-action="continuer"]', resultat);
-  await attendre(() => resultatPret('type'), 'étape type');
-  cliquer('[data-type="pull"]', resultat);
-  cliquer('[data-action="enregistrer-scan"]', resultat);
+  vrai(neutres.length >= 7, `les 7 neutres des combinaisons (C* ≤ 8), plus ceux de Papier Tigre importés plus haut : ${neutres}`);
+  cliquer('[data-segment="proches"]', feuille);
+  const choisie = cartesChoix(feuille)[1];
+  const idChoisi = choisie.dataset.couleur;
+  const nomChoisi = choisie.querySelector('.nom').textContent;
+  choisie.click();
+  egal(choisie.getAttribute('aria-selected'), 'true');
+  egal(feuille.querySelector('[data-couleur="mesure"]').getAttribute('aria-selected'), 'false');
+  vrai(feuille.querySelector('.resultat-entete').textContent.includes(nomChoisi), 'choix affiché en haut');
+  vrai(feuille.querySelector('[data-action="tout-catalogue"]'), 'accès à tout le catalogue');
+  cliquer('[data-type="pull"]', feuille);
+  cliquer('[data-action="enregistrer-scan"]', feuille);
   await dialoguesFermes();
-  await quand(() => stocke().vetements.length === 2, 'second vêtement scanné enregistré');
+  await quand(() => stocke().vetements.length === 2, 'second vêtement mesuré enregistré');
   const vetement = stocke().vetements[1];
   egal(vetement.origine, 'scan');
   egal(vetement.idCouleurCatalogue, idChoisi);
   egal(doc.querySelector('[data-type="pull"] .nom').textContent, nomChoisi, 'nom et hex du catalogue');
 });
 
-async function scannerParPhoto(titre, hex) {
+// Étalonnage : photo, puis « Utiliser cette mesure » dans la feuille.
+async function etalonnerParPhoto(titre, hex) {
   const scan = await attendre(() => [...doc.querySelectorAll('dialog.scan[open]')]
-    .find((d) => d.querySelector('h2').textContent === titre && 'pret' in d.dataset), `scan « ${titre} »`);
+    .find((d) => d.querySelector('h2').textContent === titre && 'pret' in d.dataset), `mesure « ${titre} »`);
   cliquer('[data-action="photo"]', scan);
-  const champ = await attendre(() => doc.querySelector('input[data-choix-fichier="image"]'), 'appareil photo');
-  const transfert = new fenetre.DataTransfer();
-  transfert.items.add(new fenetre.File([await photoUnie(hex)], 'photo.png', { type: 'image/png' }));
-  champ.files = transfert.files;
-  champ.dispatchEvent(new fenetre.Event('change'));
+  await fournirPhoto(await photoUnie(hex));
+  await attendreReel(() => resultatPret() === scan, `résultat « ${titre} »`);
+  cliquer('[data-action="utiliser-mesure"]', scan);
 }
 
-test('app : étalonnage par photos (blanc, noir), puis un vêtement noir corrigé en « Black »', async () => {
+test('app : étalonnage par photos (blanc, noir), puis un vêtement noir corrigé en « Black »', async () => {
   cliquer('#onglets [data-ecran="reglages"]');
-  egal(doc.querySelector('[data-mode="photo"]').textContent, 'Par photo : non étalonné');
+  egal(doc.querySelector('[data-mode="photo"] .valeur-ligne').textContent, 'non étalonné');
   cliquer('[data-action="etalonner"]');
   const depart = await dialogueOuvert();
   egal(depart.querySelector('h2').textContent, 'Étalonner la caméra');
   cliquer('[data-valeur="commencer"]', depart);
-  await scannerParPhoto('Étalonnage : vêtement blanc', '#dcdce6');
-  await scannerParPhoto('Étalonnage : vêtement noir', '#46464f');
+  await etalonnerParPhoto('Étalonnage : vêtement blanc', '#dcdce6');
+  await etalonnerParPhoto('Étalonnage : vêtement noir', '#46464f');
   await attendreReel(() => stocke().reglages.etalonnage?.photo, 'étalonnage enregistré');
   egalProfond(stocke().reglages.etalonnage.photo.blanc, [220, 220, 230]);
   egalProfond(stocke().reglages.etalonnage.photo.noir, [70, 70, 79]);
-  await quand(() => doc.querySelector('[data-mode="photo"]')?.textContent.startsWith('Par photo : étalonné le'), 'état affiché');
-  egal(doc.querySelector('[data-mode="torche"]').textContent, 'Avec la torche : non étalonné', 'un étalonnage par façon de mesurer');
+  await quand(() => doc.querySelector('[data-mode="photo"] .valeur-ligne')?.textContent.startsWith('étalonné le'), 'état affiché');
+  egal(doc.querySelector('[data-mode="torche"] .valeur-ligne').textContent, 'non étalonné', 'un étalonnage par façon de mesurer');
 
   cliquer('#onglets [data-ecran="garde-robe"]');
-  cliquer('[data-action="scanner"]');
-  await scannerParPhoto('Scanner une couleur', '#46464f');
-  const resultat = await attendreReel(() => resultatPret('couleur'), 'résultat corrigé');
-  egal(resultat.querySelector('.bande-couleur').style.backgroundColor, 'rgb(17, 19, 20)', 'noir mesuré recalé sur Black');
-  vrai(resultat.querySelector('[data-info="etalonnage"]').textContent.includes('#46464f'), 'mesure brute affichée');
-  cliquer('[data-action="continuer-sans-ajuster"]', resultat);
-  await attendre(() => resultatPret('type'), 'étape type');
-  cliquer('[data-type="pantalon"]', resultat);
-  cliquer('[data-action="enregistrer-scan"]', resultat);
+  await menuAjout('scanner');
+  const scan = await dialogueOuvert('dialog.scan[open]');
+  cliquer('[data-action="photo"]', scan);
+  await fournirPhoto(await photoUnie('#46464f'));
+  await attendreReel(() => resultatPret(), 'résultat corrigé');
+  const feuille = scan.querySelector('.feuille-resultat');
+  egal(feuille.querySelector('.resultat-pastille').style.backgroundColor, 'rgb(17, 19, 20)', 'noir mesuré recalé sur Black');
+  vrai(feuille.querySelector('[data-info="etalonnage"]').textContent.includes('#46464f'), 'mesure brute affichée');
+  cliquer('[data-type="pantalon"]', feuille);
+  cliquer('[data-action="enregistrer-scan"]', feuille);
   await dialoguesFermes();
   await quand(() => stocke().vetements.length === 3, 'pantalon enregistré');
   egal(stocke().vetements[2].hex, '#111314');
@@ -351,6 +393,9 @@ test('app : tenue du jour, propositions, avatar, sélection, favoris et filtre',
   await quand(() => doc.querySelector('.proposition'), 'propositions');
   const cartes = [...doc.querySelectorAll('.proposition')];
   vrai(cartes.length >= 2 && cartes.length <= 20, `entre 2 et 20 propositions (${cartes.length})`);
+  const references = cartes.map((c) => c.querySelector('.infos strong').textContent);
+  vrai(references.some((r) => r.startsWith('Combinaison n° ')) && references.every((r) => !r.includes('Wada')),
+    `« Combinaison n° » au lieu de « Wada » : ${references.slice(0, 3).join(' ; ')}`);
   egal(cartes[0].getAttribute('aria-pressed'), 'true', 'la première est sélectionnée');
   vrai(stocke().tenuesTypes.some((tenue) => tenue.join(',') === 'chaussures,pantalon,pull'), 'tenue type enregistrée');
   const panneau = doc.querySelector('.panneau-avatar');
@@ -419,4 +464,15 @@ test('app : manques fréquents, retrait d\'une tenue type après confirmation, d
   await quand(() => doc.querySelector('[data-info="bilan"]')?.textContent.includes('pour ta tenue type'), 'bilan recalculé');
   vrai(doc.querySelector('.tenues-comptees').open, 'le dépliant reste ouvert');
   egal(doc.querySelectorAll('.tenues-comptees li').length, 1);
+});
+
+test('app : « Wada » n\'apparaît que dans les crédits (demande de Théo)', async () => {
+  for (const ecran of ['garde-robe', 'tenue', 'manques', 'reglages']) {
+    cliquer(`#onglets [data-ecran="${ecran}"]`);
+    await quand(() => !doc.querySelector('[data-info="calcul"]'), `écran ${ecran} calculé`);
+    const copie = doc.getElementById('contenu').cloneNode(true);
+    copie.querySelector('[data-section="a-propos"]')?.remove();
+    vrai(!copie.textContent.includes('Wada'), `aucun « Wada » dans l'écran ${ecran}`);
+  }
+  vrai(doc.querySelector('[data-section="a-propos"]').textContent.includes('Sanzō Wada'), 'crédits conservés (licence MIT)');
 });

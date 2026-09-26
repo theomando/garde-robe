@@ -69,7 +69,7 @@ export function ouvrirSelecteur({ catalogue, titre, mode = 'choisir', reference 
       oninput: (e) => { filtre.texte = e.target.value; filtre.limite = PAR_PAGE; afficher(); },
     });
 
-    const libellesSources = { toutes: 'Toutes', wada: 'Wada', 'papier-tigre': 'Papier Tigre' };
+    const libellesSources = { toutes: 'Toutes', wada: 'Combinaisons', 'papier-tigre': 'Papier Tigre' };
     const puces = el('div', { class: 'puces' });
     const sources = ['toutes', ...sourcesPresentes];
     const boutonsSource = sourcesPresentes.length > 1 ? sources.map((s) => el('button', {

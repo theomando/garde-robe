@@ -3,7 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#f2f2f0">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f2f2f7">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000">
+<meta name="color-scheme" content="light dark">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Garde-robe">
@@ -25,10 +27,10 @@
   <button type="button" class="bouton petit principal" id="recharger-version">Recharger</button>
 </div>
 <nav id="onglets" class="onglets" aria-label="Écrans" hidden>
-  <button type="button" data-ecran="garde-robe">Garde-robe</button>
-  <button type="button" data-ecran="tenue">Tenue</button>
-  <button type="button" data-ecran="manques">Manques</button>
-  <button type="button" data-ecran="reglages">Réglages</button>
+  <button type="button" data-ecran="garde-robe"><span class="libelle-onglet">Garde-robe</span></button>
+  <button type="button" data-ecran="tenue"><span class="libelle-onglet">Tenue</span></button>
+  <button type="button" data-ecran="manques"><span class="libelle-onglet">Manques</span></button>
+  <button type="button" data-ecran="reglages"><span class="libelle-onglet">Réglages</span></button>
 </nav>
 <noscript><p class="vide">Cette app a besoin de JavaScript.</p></noscript>
 </body>

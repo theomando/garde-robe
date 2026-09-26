@@ -1,7 +1,8 @@
-// Écran Réglages : teint, interrupteur, étalonnage de la caméra, tolérance, favoris, catalogue Papier Tigre,
-// export et import, crédits.
+// Écran Réglages (dans le style de l'app Réglages d'iOS) : teint, interrupteur, étalonnage de la caméra, tolérance,
+// favoris, catalogue Papier Tigre, export et import, version et crédits.
 
-import { el, pastille, confirmer, annoncer } from '../ui.js';
+import { el, pastille, confirmer, annoncer, barreNavigation, interrupteur } from '../ui.js';
+import { icone } from '../icones.js';
 import {
   MST, TOLERANCE_MIN, TOLERANCE_MAX, TOLERANCE_PAS, TOLERANCE_DEFAUT, VERSION_APP, MODES_SCAN, LIBELLES_MODES_SCAN,
 } from '../constantes.js';
@@ -12,8 +13,19 @@ import { etalonner } from './etalonnage.js';
 
 const ACCEPT_JSON = '.json,application/json';
 
-function section(titre, ...contenu) {
-  return el('section', { class: 'carte' }, el('h2', {}, titre), contenu);
+// Section groupée : titre au-dessus, cellules dans un bloc arrondi, note en dessous.
+function groupe(titre, lignes, pied = null, attributs = {}) {
+  return el('section', attributs,
+    el('h2', { class: 'titre-groupe' }, titre),
+    el('div', { class: 'groupe' }, lignes),
+    pied ? el('p', { class: 'pied-groupe' }, pied) : null);
+}
+
+function ligneAction(libelle, { action, onclick, danger = false, valeur = null, chevron = false }) {
+  return el('button', { type: 'button', class: `ligne ligne-action${danger ? ' danger' : ''}`, 'data-action': action, onclick },
+    el('span', { class: 'texte-ligne' }, libelle),
+    valeur !== null ? el('span', { class: 'valeur-ligne' }, valeur) : null,
+    chevron ? icone('chevron-droite', { classe: 'chevron' }) : null);
 }
 
 function formaterTolerance(valeur) {
@@ -30,12 +42,12 @@ export function rendreReglages(conteneur, app, actions) {
       onclick: () => actions.mettreAJour(modifierReglages(app.etat, { mst: i + 1 })),
     }, el('span', {}, String(i + 1)))));
 
-  const interrupteur = el('input', {
-    type: 'checkbox', role: 'switch', class: 'interrupteur', id: 'reglage-teint-actif', checked: reglages.teintActif,
+  const teintActif = interrupteur({
+    id: 'reglage-teint-actif', checked: reglages.teintActif,
     onchange: (e) => actions.mettreAJour(modifierReglages(app.etat, { teintActif: e.target.checked })),
   });
 
-  const valeurTolerance = el('output', { for: 'reglage-tolerance', class: 'valeur' }, formaterTolerance(reglages.tolerance));
+  const valeurTolerance = el('output', { for: 'reglage-tolerance', class: 'valeur valeur-ligne' }, formaterTolerance(reglages.tolerance));
   const curseur = el('input', {
     type: 'range', id: 'reglage-tolerance', min: TOLERANCE_MIN, max: TOLERANCE_MAX, step: TOLERANCE_PAS, value: reglages.tolerance,
     oninput: (e) => { valeurTolerance.textContent = formaterTolerance(Number(e.target.value)); },
@@ -45,91 +57,84 @@ export function rendreReglages(conteneur, app, actions) {
   const favoris = reglages.favoris.map((id) => app.catalogue.couleurParId.get(id));
   const connus = favoris.filter(Boolean);
   const absents = favoris.length - connus.length;
-
   const papierTigre = app.papierTigre?.catalogue;
 
   conteneur.replaceChildren(
-    el('div', { class: 'entete-ecran' }, el('h1', {}, 'Réglages')),
+    ...barreNavigation({ titre: 'Réglages' }),
 
-    section('Teint',
-      el('p', { class: 'discret' }, 'Échelle Monk, de 1 (le plus clair) à 10 (le plus foncé).'),
+    groupe('Teint', [
       teintes,
-      el('label', { class: 'ligne-interrupteur', for: 'reglage-teint-actif' },
-        el('span', {}, 'Teint dans les combinaisons',
-          el('small', { class: 'discret' }, 'La peau peut porter une couleur proche de ton teint.')),
-        interrupteur)),
+      el('label', { class: 'ligne ligne-interrupteur', for: 'reglage-teint-actif' },
+        el('span', { class: 'texte-ligne' }, 'Teint dans les combinaisons'), teintActif),
+    ], 'Échelle Monk, de 1 (le plus clair) à 10 (le plus foncé). Avec l\'interrupteur, la peau peut porter une couleur proche de ton teint.'),
 
-    section('Étalonnage de la caméra',
-      el('p', { class: 'discret' },
-        'À faire une seule fois : scanne un vêtement entièrement blanc, puis un entièrement noir. Les scans suivants faits de la même façon ',
-        'sont corrigés (exposition automatique de l\'iPhone, dominante bleue de la torche).'),
-      el('ul', { class: 'etat-etalonnage' }, MODES_SCAN.map((mode) => {
+    groupe('Étalonnage de la caméra', [
+      ...MODES_SCAN.map((mode) => {
         const mesures = reglages.etalonnage?.[mode];
-        return el('li', { 'data-mode': mode },
-          `${LIBELLES_MODES_SCAN[mode]} : `,
-          mesures
-            ? [`étalonné le ${new Date(mesures.date).toLocaleDateString('fr-FR')} `,
-              pastille(rgbVersHex(mesures.blanc), { titre: `blanc mesuré ${rgbVersHex(mesures.blanc)}` }),
-              pastille(rgbVersHex(mesures.noir), { titre: `noir mesuré ${rgbVersHex(mesures.noir)}` })]
-            : 'non étalonné');
-      })),
-      el('button', { type: 'button', class: 'bouton principal', 'data-action': 'etalonner', onclick: () => etalonner(app, actions) },
-        reglages.etalonnage ? 'Refaire l\'étalonnage' : 'Étalonner la caméra'),
-      reglages.etalonnage ? el('button', {
-        type: 'button', class: 'bouton lien danger', 'data-action': 'supprimer-etalonnage',
+        return el('div', { class: 'ligne etat-etalonnage', 'data-mode': mode },
+          el('span', { class: 'texte-ligne' }, LIBELLES_MODES_SCAN[mode]),
+          mesures ? pastille(rgbVersHex(mesures.blanc), { titre: `blanc mesuré ${rgbVersHex(mesures.blanc)}` }) : null,
+          mesures ? pastille(rgbVersHex(mesures.noir), { titre: `noir mesuré ${rgbVersHex(mesures.noir)}` }) : null,
+          el('span', { class: 'valeur-ligne' }, mesures ? `étalonné le ${new Date(mesures.date).toLocaleDateString('fr-FR')}` : 'non étalonné'));
+      }),
+      ligneAction(reglages.etalonnage ? 'Refaire l\'étalonnage' : 'Étalonner la caméra', { action: 'etalonner', onclick: () => etalonner(app, actions) }),
+      reglages.etalonnage ? ligneAction('Supprimer l\'étalonnage', {
+        action: 'supprimer-etalonnage', danger: true,
         onclick: async () => {
           if (!(await confirmer('Supprimer l\'étalonnage ?', 'Les prochains scans ne seront plus corrigés. Tes vêtements déjà enregistrés ne changent pas.', 'Supprimer'))) return;
           if (actions.mettreAJour(supprimerEtalonnage(app.etat))) annoncer('Étalonnage supprimé');
         },
-      }, 'Supprimer l\'étalonnage') : null),
+      }) : null,
+    ], 'À faire une seule fois : scanne un vêtement entièrement blanc, puis un entièrement noir. Les scans suivants faits de la même façon sont corrigés (exposition automatique de l\'iPhone, dominante bleue de la torche).'),
 
-    section('Tolérance',
-      el('label', { class: 'ligne-curseur', for: 'reglage-tolerance' }, el('span', {}, 'Écart maximal (ΔE00)'), valeurTolerance),
-      curseur,
-      el('p', { class: 'discret' },
-        `Un vêtement correspond à une couleur si leur écart ne dépasse pas cette valeur. ${TOLERANCE_DEFAUT} par défaut : `,
-        'valeur de départ, à ajuster à l\'usage (plus bas = plus exigeant).')),
+    groupe('Tolérance', [
+      el('label', { class: 'ligne', for: 'reglage-tolerance' }, el('span', { class: 'texte-ligne' }, 'Écart maximal (ΔE00)'), valeurTolerance),
+      el('div', { class: 'ligne ligne-curseur' }, curseur),
+    ], `Un vêtement correspond à une couleur si leur écart ne dépasse pas cette valeur. ${TOLERANCE_DEFAUT} par défaut : valeur de départ, à ajuster à l'usage (plus bas = plus exigeant).`),
 
-    section('Favoris',
-      el('p', {}, connus.length === 0 ? 'Aucune couleur favorite.' : `${connus.length} couleur${connus.length > 1 ? 's' : ''} favorite${connus.length > 1 ? 's' : ''}.`),
-      connus.length > 0 ? el('div', { class: 'rangee-pastilles' }, connus.slice(0, 40).map((c) => pastille(c.hex, { titre: c.nom }))) : null,
-      absents > 0 ? el('p', { class: 'discret' }, `${absents} favori(s) du catalogue Papier Tigre, absent sur cet appareil.`) : null,
-      el('button', {
-        type: 'button', class: 'bouton secondaire', 'data-action': 'gerer-favoris',
+    groupe('Favoris', [
+      ligneAction('Gérer mes favoris', {
+        action: 'gerer-favoris', valeur: String(connus.length), chevron: true,
         onclick: async () => {
           await ouvrirSelecteur({ catalogue: app.catalogue, titre: 'Mes favoris', mode: 'favoris', ...actions.favorisPourSelecteur() });
           actions.rafraichir();
         },
-      }, 'Gérer mes favoris')),
+      }),
+      connus.length > 0 ? el('div', { class: 'ligne' }, el('div', { class: 'rangee-pastilles' }, connus.slice(0, 40).map((c) => pastille(c.hex, { titre: c.nom })))) : null,
+    ], [
+      connus.length === 0 ? 'Aucune couleur favorite.' : `${connus.length} couleur${connus.length > 1 ? 's' : ''} favorite${connus.length > 1 ? 's' : ''}.`,
+      absents > 0 ? ` ${absents} favori(s) du catalogue Papier Tigre, absent sur cet appareil.` : '',
+      ' Les propositions qui contiennent tes favoris passent devant.',
+    ].join('')),
 
-    section('Catalogue Papier Tigre',
-      el('p', { 'data-info': 'papier-tigre' }, papierTigre
+    groupe('Catalogue Papier Tigre', [
+      el('div', { class: 'ligne', 'data-info': 'papier-tigre' }, el('span', { class: 'texte-ligne' }, papierTigre
         ? `Importé : ${papierTigre.combinaisons.length} harmonies, ${papierTigre.couleurs.length} couleurs.`
-        : 'Non importé. Saisis les harmonies des livres dans un fichier JSON, puis importe-le ici. Il reste sur cet appareil.'),
-      el('div', { class: 'rangee-boutons' },
-        el('button', { type: 'button', class: 'bouton secondaire', 'data-action': 'importer-papier-tigre', onclick: () => actions.importerPapierTigre(ACCEPT_JSON) },
-          papierTigre ? 'Remplacer le fichier' : 'Importer un fichier'),
-        papierTigre ? el('button', { type: 'button', class: 'bouton secondaire danger', 'data-action': 'retirer-papier-tigre', onclick: () => actions.retirerPapierTigre() }, 'Retirer') : null),
-      el('button', { type: 'button', class: 'bouton lien', onclick: () => actions.importerPapierTigre('') }, 'Le fichier apparaît grisé ? Choisir sans filtre')),
+        : 'Non importé.')),
+      ligneAction(papierTigre ? 'Remplacer le fichier' : 'Importer un fichier', { action: 'importer-papier-tigre', onclick: () => actions.importerPapierTigre(ACCEPT_JSON) }),
+      papierTigre ? ligneAction('Retirer le catalogue', { action: 'retirer-papier-tigre', danger: true, onclick: () => actions.retirerPapierTigre() }) : null,
+      ligneAction('Fichier grisé ? Choisir sans filtre', { onclick: () => actions.importerPapierTigre('') }),
+    ], 'Saisis les harmonies des livres dans un fichier JSON, puis importe-le ici. Il reste sur cet appareil.'),
 
-    section('Mes données',
-      el('p', { class: 'discret' }, 'Tes vêtements et réglages restent sur cet appareil. Exporte-les régulièrement pour les sauvegarder ou les passer sur un autre appareil.'),
-      el('div', { class: 'rangee-boutons' },
-        el('button', { type: 'button', class: 'bouton secondaire', 'data-action': 'exporter', onclick: () => actions.exporterDonnees() }, 'Exporter'),
-        el('button', { type: 'button', class: 'bouton secondaire', 'data-action': 'importer', onclick: () => actions.importerDonnees(ACCEPT_JSON) }, 'Importer')),
-      el('button', { type: 'button', class: 'bouton lien', 'data-action': 'copier-texte', onclick: () => actions.afficherTexteDonnees() }, 'Afficher mes données en texte (à copier)'),
-      el('button', { type: 'button', class: 'bouton lien', onclick: () => actions.importerDonnees('') }, 'Le fichier apparaît grisé ? Importer sans filtre'),
-      el('p', { class: 'discret', 'data-info': 'persistance' }, `Stockage persistant : ${app.persistance}.`)),
+    groupe('Mes données', [
+      ligneAction('Exporter mes données', { action: 'exporter', onclick: () => actions.exporterDonnees() }),
+      ligneAction('Importer des données', { action: 'importer', onclick: () => actions.importerDonnees(ACCEPT_JSON) }),
+      ligneAction('Afficher mes données en texte', { action: 'copier-texte', onclick: () => actions.afficherTexteDonnees() }),
+      ligneAction('Fichier grisé ? Importer sans filtre', { onclick: () => actions.importerDonnees('') }),
+    ], [
+      'Tes vêtements et réglages restent sur cet appareil. Exporte-les régulièrement pour les sauvegarder ou les passer sur un autre appareil. ',
+      el('span', { 'data-info': 'persistance' }, `Stockage persistant : ${app.persistance}.`),
+    ]),
 
-    section('Crédits',
-      el('ul', { class: 'credits' },
+    groupe('À propos', [
+      el('div', { class: 'ligne' }, el('span', { class: 'texte-ligne' }, 'Version'), el('span', { class: 'valeur-ligne' }, VERSION_APP)),
+      ligneAction('Charger la dernière version', { action: 'derniere-version', onclick: () => actions.chargerDerniereVersion() }),
+      el('div', { class: 'ligne' }, el('ul', { class: 'credits' },
         el('li', {}, 'Combinaisons : Sanzō Wada, A Dictionary of Color Combinations. Données de Matt DesLauriers ',
           '(mattdesl/dictionary-of-colour-combinations) et Dain M. Blodorn Kim (dblodorn/sanzo-wada), licence MIT : ',
           // Nouvel onglet : dans l'app installée, une navigation sur place n'aurait pas de bouton retour.
           el('a', { href: 'data/LICENSE-wada.md', target: '_blank', rel: 'noopener' }, 'texte des licences'), '.'),
-        el('li', {}, 'Teintes : Monk, Ellis. « Monk Skin Tone Scale », 2019, skintone.google, licence CC BY 4.0.'),
-        el('li', {}, 'Harmonies Papier Tigre : Color Inspiration, volumes 1 à 3, saisies par l\'utilisateur, jamais publiées.')),
-      el('p', { class: 'discret' }, `Version ${VERSION_APP}`),
-      el('button', { type: 'button', class: 'bouton lien', 'data-action': 'derniere-version', onclick: () => actions.chargerDerniereVersion() },
-        'Charger la dernière version')));
+        el('li', {}, 'Teintes : Monk, Ellis. « Monk Skin Tone Scale », 2019, skintone.google, licence CC BY 4.0.'),
+        el('li', {}, 'Harmonies Papier Tigre : Color Inspiration, volumes 1 à 3, saisies par l\'utilisateur, jamais publiées.'))),
+    ], null, { 'data-section': 'a-propos' }));
 }
