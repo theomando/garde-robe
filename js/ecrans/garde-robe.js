@@ -1,5 +1,5 @@
 // Écran Garde-robe : liste groupée par type, ajout (bouton « + » : mesure à la caméra ou choix dans le catalogue),
-// modification, suppression.
+// modification (type, couleur, marque, photo), suppression.
 
 import { el, pastille, ouvrirDialogue, confirmer, annoncer, nouvelIdentifiant, barreNavigation, boutonRond, ouvrirMenu, tuile } from '../ui.js';
 import { icone } from '../icones.js';
@@ -10,6 +10,7 @@ import { ouvrirSelecteur } from './selecteur-catalogue.js';
 import { ouvrirScan, remplirResultatVetement } from './scan.js';
 import { correcteur } from './etalonnage.js';
 import { epinglerVetement } from './tenue.js';
+import { champMarque, choisirPhoto, visuelVetement } from './fiche-vetement.js';
 
 // Mesure tout-en-un : caméra plein écran, puis feuille du résultat (ajustement, type, Enregistrer). La couleur
 // mesurée est gardée par défaut (origine « scan ») ; un choix dans le catalogue la remplace (hex du catalogue,
@@ -27,10 +28,19 @@ async function scanner(app, actions) {
     },
   });
   if (!choix) return;
-  const nouvelEtat = ajouterVetement(app.etat,
-    { type: choix.type, hex: choix.hex, origine: 'scan', ...(choix.couleur ? { idCouleurCatalogue: choix.couleur.id } : {}) },
-    { id: nouvelIdentifiant(), date: new Date() });
+  const id = nouvelIdentifiant();
+  let nouvelEtat;
+  try {
+    nouvelEtat = ajouterVetement(app.etat,
+      { type: choix.type, hex: choix.hex, origine: 'scan', ...(choix.couleur ? { idCouleurCatalogue: choix.couleur.id } : {}), marque: choix.marque, photo: Boolean(choix.photo) },
+      { id, date: new Date() });
+  } catch (erreur) {
+    annoncer(erreur.message, 'erreur');
+    return;
+  }
+  if (choix.photo) actions.enregistrerPhoto(id, choix.photo); // en mémoire tout de suite : la liste l'affiche
   if (actions.mettreAJour(nouvelEtat)) annoncer(`${LIBELLES_TYPES[choix.type]} ajouté : ${choix.couleur?.nom ?? choix.hex}`);
+  else if (choix.photo) actions.supprimerPhoto(id);
 }
 
 // Nom affiché : celui de la couleur du catalogue si le vêtement en porte encore le hex, sinon le hex.
@@ -70,6 +80,30 @@ async function menuAjout(app, actions, ancre) {
 
 async function modifier(app, actions, vetement) {
   let nouvelleCouleur = null;
+  // Photo : modifiée seulement à l'enregistrement de la fiche.
+  let photo = vetement.photo ? actions.photo(vetement.id) : null;
+  let photoChangee = false;
+  const lignePhoto = el('div', { class: 'ligne ligne-photo' });
+  function afficherPhoto() {
+    // replaceChildren écrirait « null » en texte : le bouton facultatif passe par un tableau filtré.
+    lignePhoto.replaceChildren(...[
+      photo ? el('img', { class: 'vignette-fiche', src: photo, alt: 'Photo du vêtement' }) : el('span', { class: 'vignette-fiche sans-photo' }, icone('camera')),
+      el('span', { class: 'texte-ligne' }, photo ? 'Photo' : 'Aucune photo'),
+      el('button', {
+        type: 'button', class: 'bouton petit', 'data-action': 'photo-vetement',
+        onclick: async () => {
+          const choisie = await choisirPhoto();
+          if (choisie) { photo = choisie; photoChangee = true; afficherPhoto(); }
+        },
+      }, photo ? 'Changer' : 'Ajouter'),
+      photo ? el('button', {
+        type: 'button', class: 'bouton petit danger', 'data-action': 'retirer-photo',
+        onclick: () => { photo = null; photoChangee = true; afficherPhoto(); },
+      }, 'Retirer') : null,
+    ].filter(Boolean));
+  }
+  afficherPhoto();
+  const [champ, suggestions] = champMarque(app, vetement.marque ?? '', { id: 'marque-vetement' });
   const choixType = el('select', { class: 'champ-ligne', id: 'type-vetement', 'data-action': 'type-vetement' },
     TYPES.map((t) => el('option', { value: t, selected: t === vetement.type }, LIBELLES_TYPES[t])));
   const apercu = el('div', { class: 'apercu-couleur texte-ligne' });
@@ -90,7 +124,9 @@ async function modifier(app, actions, vetement) {
   const reponse = await ouvrirDialogue({
     titre: 'Modifier le vêtement',
     contenu: [
+      el('div', { class: 'groupe' }, lignePhoto),
       el('div', { class: 'groupe' },
+        el('label', { class: 'ligne', for: 'marque-vetement' }, el('span', {}, 'Marque'), champ, suggestions),
         el('label', { class: 'ligne', for: 'type-vetement' }, el('span', { class: 'texte-ligne' }, 'Type'), choixType),
         el('div', { class: 'ligne' }, apercu, changer)),
       el('div', { class: 'groupe' },
@@ -104,15 +140,30 @@ async function modifier(app, actions, vetement) {
   if (reponse === 'supprimer') { await supprimer(app, actions, vetement); return; }
   if (reponse === 'composer') { epinglerVetement(app, vetement); actions.naviguer('tenue'); return; }
   if (reponse !== 'ok') return;
-  const modifications = { type: choixType.value };
+  const modifications = { type: choixType.value, marque: champ.value };
   if (nouvelleCouleur) Object.assign(modifications, { hex: nouvelleCouleur.hex, idCouleurCatalogue: nouvelleCouleur.id });
-  if (actions.mettreAJour(modifierVetement(app.etat, vetement.id, modifications))) annoncer('Vêtement modifié');
+  if (photoChangee) modifications.photo = photo !== null;
+  let nouvelEtat;
+  try {
+    nouvelEtat = modifierVetement(app.etat, vetement.id, modifications);
+  } catch (erreur) {
+    annoncer(erreur.message, 'erreur');
+    return;
+  }
+  if (photoChangee && photo) actions.enregistrerPhoto(vetement.id, photo);
+  if (actions.mettreAJour(nouvelEtat)) {
+    if (photoChangee && !photo) actions.supprimerPhoto(vetement.id);
+    annoncer('Vêtement modifié');
+  }
 }
 
 async function supprimer(app, actions, vetement) {
   const message = `${LIBELLES_TYPES[vetement.type]} « ${nomCouleurVetement(vetement, app.catalogue)} » sera retiré de ta garde-robe.`;
   if (!(await confirmer('Supprimer ce vêtement ?', message, 'Supprimer'))) return;
-  if (actions.mettreAJour(supprimerVetement(app.etat, vetement.id))) annoncer('Vêtement supprimé');
+  if (actions.mettreAJour(supprimerVetement(app.etat, vetement.id))) {
+    actions.supprimerPhoto(vetement.id);
+    annoncer('Vêtement supprimé');
+  }
 }
 
 // Balayer une ligne vers la gauche découvre « Supprimer », comme dans Mail. Une seule ligne ouverte à la fois ;
@@ -189,10 +240,12 @@ function ligne(app, actions, vetement) {
       modifier(app, actions, vetement);
     },
   },
-  pastille(vetement.hex, { classe: 'moyenne' }),
+  visuelVetement(app, vetement),
   el('span', { class: 'infos' },
     el('span', { class: 'nom' }, nom),
-    el('span', { class: 'detail discret' }, vetement.origine === 'scan' ? 'Mesurée à la caméra' : 'Choisie dans le catalogue')),
+    el('span', { class: 'detail discret' },
+      vetement.marque ? el('span', { class: 'marque' }, `${vetement.marque} · `) : null,
+      vetement.origine === 'scan' ? 'Mesurée à la caméra' : 'Choisie dans le catalogue')),
   icone('chevron-droite', { classe: 'chevron' }));
   const action = el('button', {
     type: 'button', class: 'action-supprimer', 'data-action': 'supprimer-balayage', tabindex: '-1', 'aria-hidden': 'true',

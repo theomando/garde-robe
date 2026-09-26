@@ -10,6 +10,7 @@ import { dessinerAvatar } from '../avatar.js';
 import { piecesAvatar, referenceCombinaison } from '../tenues.js';
 import { nomCouleurVetement } from './garde-robe.js';
 import { sectionManques } from './manques.js';
+import { visuelVetement } from './fiche-vetement.js';
 
 const dateCourte = (iso) => new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -41,9 +42,8 @@ function lignePiece(app, tenue, piece) {
         cible ? `il te manque ${cible.nom}` : 'il te manque un noir ou un blanc'));
   }
   const vetement = app.etat.vetements.find((v) => v.id === piece.vetementId);
-  const photo = vetement?.photo ? app.photos?.get(vetement.id) : null;
   return el('div', { class: 'ligne piece-tenue', 'data-type': piece.type },
-    photo ? el('img', { class: 'vignette-vetement', src: photo, alt: '' }) : pastille(piece.hex, { classe: 'moyenne' }),
+    vetement ? visuelVetement(app, vetement) : pastille(piece.hex, { classe: 'moyenne' }),
     el('span', { class: 'texte-ligne' }, libelle,
       vetement ? nomCouleurVetement(vetement, app.catalogue) : `vêtement supprimé de la garde-robe (${piece.hex})`,
       vetement?.marque ? el('small', {}, vetement.marque) : null));

@@ -4,6 +4,7 @@
 import { el, annoncer, ouvrirDialogue, confirmer, afficherErreurs, choisirFichier, estInstallee } from './ui.js';
 import { etatInitial, premierLancement, exporterEtat, lireExport, basculerFavori } from './donnees.js';
 import { creerStockage } from './stockage.js';
+import { ouvrirPhotos } from './photos.js';
 import { construireWada, fusionnerCatalogues } from './catalogue.js';
 import { lirePapierTigre } from './papier-tigre.js';
 import { rendrePremierLancement } from './ecrans/premier-lancement.js';
@@ -32,7 +33,11 @@ function supportLocal() {
   }
 }
 
-const stockage = creerStockage(supportLocal(), new URLSearchParams(location.search).get('espace') ?? '');
+const espace = new URLSearchParams(location.search).get('espace') ?? '';
+const stockage = creerStockage(supportLocal(), espace);
+// Photos des vêtements : IndexedDB, à part de l'état (js/photos.js). Chargées en arrière-plan au démarrage.
+const magasinPhotos = ouvrirPhotos(espace);
+let chargementPhotos = Promise.resolve();
 
 const app = {
   etat: etatInitial(),
@@ -155,10 +160,29 @@ const actions = {
       .catch(() => { app.persistance = 'non disponible'; });
   },
 
+  photo(id) {
+    return app.photos.get(id) ?? null;
+  },
+
+  // La photo est gardée en mémoire tout de suite (affichage), puis écrite dans IndexedDB.
+  async enregistrerPhoto(id, photo) {
+    app.photos.set(id, photo);
+    try {
+      await magasinPhotos.ecrire(id, photo);
+    } catch (erreur) {
+      annoncer(`Photo non enregistrée sur l'appareil (${erreur.name ?? 'erreur'}) : elle disparaîtra au prochain lancement.`, 'erreur');
+    }
+  },
+
+  async supprimerPhoto(id) {
+    app.photos.delete(id);
+    try { await magasinPhotos.supprimer(id); } catch { /* photo orpheline : sans effet, remplacée au prochain import */ }
+  },
+
   async importerDonnees(accept = '.json,application/json') {
     const texte = await choisirFichier(accept);
     if (texte === null) return;
-    const { erreurs, etat } = lireExport(texte);
+    const { erreurs, etat, photos } = lireExport(texte);
     if (erreurs.length > 0) {
       await afficherErreurs('Import refusé', 'Le fichier n\'a pas été importé : tes données n\'ont pas changé.', erreurs);
       return;
@@ -170,12 +194,25 @@ const actions = {
         'Remplacer');
       if (!ok) return;
     }
-    if (actions.mettreAJour(etat)) annoncer('Données importées');
+    if (!actions.mettreAJour(etat)) return;
+    annoncer('Données importées');
+    // Les photos suivent l'import (un fichier de version 1 n'en a pas : les anciennes sont retirées).
+    const nouvelles = photos ?? new Map();
+    app.photos = new Map(nouvelles);
+    rendre();
+    try {
+      await magasinPhotos.remplacerTout(nouvelles);
+    } catch (erreur) {
+      annoncer(`Photos non enregistrées sur l'appareil (${erreur.name ?? 'erreur'}).`, 'erreur');
+    }
   },
 
-  exporterDonnees() {
+  // Fichier complet : état et photos des vêtements (données version 2).
+  async exporterDonnees() {
+    await chargementPhotos;
     const date = new Date();
-    const fichier = new File([exporterEtat(app.etat, date, 2)], nomFichierExport(date), { type: 'application/json' });
+    const photos = new Map(app.etat.vetements.filter((v) => v.photo && app.photos.has(v.id)).map((v) => [v.id, app.photos.get(v.id)]));
+    const fichier = new File([exporterEtat(app.etat, date, 2, photos)], nomFichierExport(date), { type: 'application/json' });
     if (navigator.canShare?.({ files: [fichier] })) {
       navigator.share({ files: [fichier], title: 'Garde-robe chromatique' }).catch((erreur) => {
         if (erreur.name !== 'AbortError') actions.telecharger(fichier);
@@ -206,7 +243,7 @@ const actions = {
           .catch(() => { zone.select(); annoncer('Sélectionne le texte puis copie-le.'); });
       },
     }, 'Copier le texte');
-    return ouvrirDialogue({ titre: 'Mes données', contenu: [el('p', { class: 'discret' }, 'Colle ce texte dans un fichier .json pour le garder.'), zone, copier] });
+    return ouvrirDialogue({ titre: 'Mes données', contenu: [el('p', { class: 'discret' }, 'Colle ce texte dans un fichier .json pour le garder. Sans les photos : pour les garder aussi, utilise « Exporter mes données ».'), zone, copier] });
   },
 
   async importerPapierTigre(accept) {
@@ -329,6 +366,15 @@ async function demarrer() {
   }
   window.addEventListener('scroll', suivreDefilement, { passive: true });
   rendre();
+  // Photos : ajoutées à celles déjà en mémoire (une photo prise pendant le chargement n'est pas écrasée) ;
+  // on ne redessine que si une photo encore utilisée arrive.
+  chargementPhotos = magasinPhotos.toutes().then((chargees) => {
+    let nouvelles = 0;
+    for (const [id, photo] of chargees) {
+      if (!app.photos.has(id) && app.etat.vetements.some((v) => v.id === id && v.photo)) { app.photos.set(id, photo); nouvelles++; }
+    }
+    if (nouvelles > 0) rendre();
+  }).catch(() => { /* IndexedDB indisponible : pas de photos */ });
   if (avertissement) annoncer(avertissement, 'erreur');
   if (!premierLancement(app.etat) && estInstallee()) actions.demanderPersistance();
   else navigator.storage?.persisted?.().then((oui) => { app.persistance = oui ? 'accordé' : 'non demandé'; });

@@ -278,11 +278,12 @@ export function annoncer(message, genre = 'info') {
 
 // ---------- Fichiers ----------
 
-// Photo prise avec l'appareil photo (repli du scan) : renvoie un File ou null. capture ouvre directement
-// l'appareil photo arrière sur iOS ; à appeler pendant le geste de l'utilisateur.
-export function choisirImage() {
+// Photo : renvoie un File ou null ; à appeler pendant le geste de l'utilisateur. capture 'environment' ouvre
+// directement l'appareil photo arrière (repli du scan) ; capture null laisse iOS proposer « Prendre une photo » ou
+// « Photothèque » (photo d'un vêtement).
+export function choisirImage({ capture = 'environment' } = {}) {
   return new Promise((resoudre) => {
-    const champ = el('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true, 'data-choix-fichier': 'image' });
+    const champ = el('input', { type: 'file', accept: 'image/*', capture, hidden: true, 'data-choix-fichier': 'image' });
     champ.addEventListener('change', () => {
       const fichier = champ.files?.[0] ?? null;
       champ.remove();

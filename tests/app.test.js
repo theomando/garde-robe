@@ -2,10 +2,13 @@
 // réservé (?espace=tests-ui) vidé au départ. Les tests s'enchaînent sur la même instance.
 // Le lanceur démarre Edge avec une caméra simulée (--use-fake-device-for-media-stream), sans torche.
 import { test, vrai, egal, egalProfond, attendre } from './mini-test.js';
-import { photoSynthetique, photoUnie, attendreReel } from './aides.js';
+import { photoSynthetique, photoUnie, attendreReel, avecTempsReel } from './aides.js';
+import { ouvrirPhotos } from '../js/photos.js';
 import { labDepuisHex } from '../js/couleur.js';
 
 const ESPACE = 'garde-robe-tests-ui:';
+// Base de photos de l'espace de test (IndexedDB), lue en temps réel (le temps virtuel ne l'attend pas).
+const photosDeTest = () => avecTempsReel(ouvrirPhotos('tests-ui').toutes(), 'photos de test');
 let fenetre = null;
 let doc = null;
 
@@ -67,6 +70,7 @@ async function fournirPhoto(blob) {
 
 test('app : premier lancement, teint obligatoire, puis garde-robe vide', async () => {
   for (const cle of Object.keys(localStorage)) if (cle.startsWith(ESPACE)) localStorage.removeItem(cle);
+  await avecTempsReel(ouvrirPhotos('tests-ui').remplacerTout(new Map()), 'photos de test vidées');
   const cadre = document.createElement('iframe');
   cadre.style.cssText = 'position:absolute;left:-10000px;width:390px;height:844px';
   cadre.src = new URL('../index.html?espace=tests-ui', import.meta.url);
@@ -171,10 +175,37 @@ test('app : modification du type (pull → veste) en touchant la ligne', async (
   cliquer('[data-type="pull"] [data-action="modifier"]');
   const dialogue = await dialogueOuvert();
   dialogue.querySelector('[data-action="type-vetement"]').value = 'veste';
+  vrai(!dialogue.querySelector('.ligne-photo').textContent.includes('null'), 'aucun « null » affiché');
+  const marque = dialogue.querySelector('#marque-vetement');
+  marque.value = '  Uniqlo ';
+  // Photo depuis la fiche : iOS propose appareil photo ou photothèque (pas d'attribut capture).
+  cliquer('[data-action="photo-vetement"]', dialogue);
+  const champ = await fournirPhoto(await photoUnie('#aa5533', 300, 200));
+  egal(champ.getAttribute('capture'), null, 'appareil photo ou photothèque au choix');
+  await attendreReel(() => dialogue.querySelector('img.vignette-fiche'), 'vignette de la photo');
   cliquer('[data-valeur="ok"]', dialogue);
   await dialoguesFermes();
   await quand(() => doc.querySelector('[data-type="veste"] .vetement'), 'rangé sous Veste');
-  egal(stocke().vetements[0].type, 'veste');
+  const [vetement] = stocke().vetements;
+  egal(vetement.type, 'veste');
+  egal(vetement.marque, 'Uniqlo', 'marque enregistrée (espaces retirés)');
+  egal(vetement.photo, true);
+  vrai(doc.querySelector('[data-type="veste"] .visuel-vetement img'), 'photo dans la liste');
+  vrai(doc.querySelector('[data-type="veste"] .marque').textContent.startsWith('Uniqlo'), 'marque dans la liste');
+  let enBase = null; // l'écriture dans IndexedDB suit l'enregistrement : on relit jusqu'à la trouver
+  for (let essai = 0; essai < 30 && !enBase?.get(vetement.id); essai++) enBase = await photosDeTest();
+  vrai(enBase.get(vetement.id)?.startsWith('data:image/jpeg'), 'photo gardée dans IndexedDB');
+
+  // Retirer la photo depuis la fiche.
+  cliquer('[data-type="veste"] [data-action="modifier"]');
+  const fiche = await dialogueOuvert();
+  cliquer('[data-action="retirer-photo"]', fiche);
+  cliquer('[data-valeur="ok"]', fiche);
+  await dialoguesFermes();
+  await quand(() => stocke().vetements[0].photo === undefined, 'photo retirée');
+  egal(doc.querySelector('[data-type="veste"] .visuel-vetement'), null);
+  for (let essai = 0; essai < 30 && enBase.has(vetement.id); essai++) enBase = await photosDeTest();
+  egal(enBase.has(vetement.id), false, 'photo effacée de IndexedDB');
 });
 
 test('app : favori depuis les réglages', async () => {
@@ -320,11 +351,18 @@ test('app : mesure par photo, feuille tout-en-un (couleur, ajustement, type) san
   vrai(feuille.querySelector('[data-action="enregistrer-scan"]').disabled, 'type à choisir d\'abord');
   cliquer('[data-type="chaussures"]', feuille);
   vrai(!feuille.querySelector('[data-action="enregistrer-scan"]').disabled);
+  // Marque et photo, facultatives, directement dans la feuille de mesure.
+  feuille.querySelector('[data-action="marque"]').value = 'Lacoste';
+  cliquer('[data-action="photo-resultat"]', feuille);
+  await fournirPhoto(await photoUnie('#205080', 240, 320));
+  await attendreReel(() => feuille.querySelector('.bouton-photo img'), 'vignette dans la feuille');
+  vrai(feuille.scrollHeight <= feuille.clientHeight + 1, 'toujours sans défilement avec marque et photo');
   cliquer('[data-action="enregistrer-scan"]', feuille);
   await dialoguesFermes();
   await quand(() => stocke().vetements.length === 1, 'vêtement mesuré enregistré');
   const { id, dateAjout, ...vetement } = stocke().vetements[0];
-  egalProfond(vetement, { type: 'chaussures', hex: '#a07e56', origine: 'scan' });
+  egalProfond(vetement, { type: 'chaussures', hex: '#a07e56', origine: 'scan', marque: 'Lacoste', photo: true });
+  vrai(doc.querySelector('[data-type="chaussures"] .visuel-vetement img'), 'photo dans la liste');
   vrai(doc.querySelector('[data-type="chaussures"] .nom').textContent.includes('#a07e56'));
 });
 

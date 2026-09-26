@@ -14,6 +14,7 @@ import { carreCentral, combinerMesures, viseeStable } from '../mesure.js';
 import { plusProches } from '../catalogue.js';
 import { creerCamera, ErreurCamera, mesurerSource, mesurerPhoto } from '../scan.js';
 import { ouvrirSelecteur } from './selecteur-catalogue.js';
+import { champMarque, choisirPhoto } from './fiche-vetement.js';
 
 const MESSAGES_MESURE = {
   reflet: 'Reflet trop fort : incline un peu le vêtement ou éloigne le téléphone, puis recommence.',
@@ -310,7 +311,8 @@ function resultatSimple(mesure, feuille, { valider, recommencer }) {
 }
 
 // Feuille du résultat pour un vêtement : tout sur un écran. mesure : { rgb (corrigée si étalonnage), brut? }.
-// valider({ type, hex, couleur }) : couleur du catalogue retenue (null = couleur mesurée).
+// valider({ type, hex, couleur, marque, photo }) : couleur du catalogue retenue (null = couleur mesurée) ; marque
+// saisie et photo (vignette) facultatives.
 export function remplirResultatVetement(app, actions, mesure, feuille, { valider, recommencer }, { typeImpose = null } = {}) {
   const hexMesure = rgbVersHex(mesure.rgb);
   const labMesure = labDepuisHex(hexMesure);
@@ -324,6 +326,18 @@ export function remplirResultatVetement(app, actions, mesure, feuille, { valider
   let couleur = null;
   let type = typeImpose;
   let onglet = 'proches';
+  let photo = null;
+  const [champ, suggestions] = champMarque(app, '', { classe: 'champ champ-marque', placeholder: 'Marque (facultatif)' });
+  const boutonPhoto = el('button', {
+    type: 'button', class: 'bouton-photo', 'data-action': 'photo-resultat', 'aria-label': 'Photo du vêtement (facultatif)',
+    onclick: async () => {
+      const choisie = await choisirPhoto();
+      if (!choisie) return;
+      photo = choisie;
+      boutonPhoto.replaceChildren(el('img', { src: choisie, alt: '' }));
+      boutonPhoto.classList.add('avec-photo');
+    },
+  }, icone('camera'));
 
   const pastilleEntete = pastille(hexMesure, { classe: 'resultat-pastille' });
   const nomEntete = el('strong', {});
@@ -331,7 +345,7 @@ export function remplirResultatVetement(app, actions, mesure, feuille, { valider
   const rangee = el('div', { class: 'rangee-choix', role: 'listbox', 'aria-label': 'Couleur retenue' });
   const enregistrer = el('button', {
     type: 'button', class: 'bouton principal', 'data-action': 'enregistrer-scan',
-    onclick: () => valider({ type, hex: couleur?.hex ?? hexMesure, couleur }),
+    onclick: () => valider({ type, hex: couleur?.hex ?? hexMesure, couleur, marque: champ.value, photo }),
   }, 'Enregistrer');
 
   function majEntete() {
@@ -397,6 +411,7 @@ export function remplirResultatVetement(app, actions, mesure, feuille, { valider
     segments, rangee,
     el('p', { class: 'etiquette-resultat' }, 'Type de vêtement'),
     grilleTypes,
+    el('div', { class: 'ligne-marque-photo' }, champ, suggestions, boutonPhoto),
     el('div', { class: 'boutons-resultat' },
       el('button', { type: 'button', class: 'bouton', 'data-action': 'recommencer', onclick: recommencer }, 'Recommencer'),
       enregistrer),
