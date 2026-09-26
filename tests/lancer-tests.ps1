@@ -4,7 +4,8 @@
 # (fichier en ASCII : Windows PowerShell 5.1 lit les scripts sans BOM en ANSI)
 param(
     [switch]$ControleEchec,
-    [int]$Port = 8765
+    [int]$Port = 8765,
+    [string]$Fichiers = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -49,8 +50,9 @@ try {
     else {
         $url = $base + 'tests/tests.html'
         if ($ControleEchec) { $url += '?controle-echec' }
+        if ($Fichiers) { $url += $(if ($url.Contains('?')) { '&' } else { '?' }) + 'fichiers=' + $Fichiers }
         $profil = Join-Path $tmp 'profil-edge'
-        $arguments = "--headless=new --disable-gpu --no-first-run --no-default-browser-check --user-data-dir=`"$profil`" --virtual-time-budget=60000 --dump-dom $url"
+        $arguments = "--headless=new --disable-gpu --no-first-run --no-default-browser-check --use-fake-device-for-media-stream --use-fake-ui-for-media-stream --user-data-dir=`"$profil`" --virtual-time-budget=60000 --dump-dom $url"
         $navigateur = Start-Process -FilePath $edge -ArgumentList $arguments -PassThru -WindowStyle Hidden -RedirectStandardOutput $domFichier -RedirectStandardError (Join-Path $tmp 'edge.err')
         if (-not $navigateur.WaitForExit(120000)) {
             Stop-Process -Id $navigateur.Id -Force

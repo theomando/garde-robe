@@ -15,6 +15,7 @@ import http.server
 import os
 import sys
 import threading
+import time
 import webbrowser
 
 TYPES = {
@@ -30,6 +31,25 @@ TYPES = {
 
 
 class Gestionnaire(http.server.SimpleHTTPRequestHandler):
+    def do_GET(self):
+        # /__attente?ms=N (tests seulement) : répond après N ms réelles (au plus 2 s). Une requête en cours
+        # suspend le temps virtuel d'Edge sans fenêtre : les tests laissent ainsi s'écouler du temps réel
+        # pendant un décodage d'image ou l'ouverture de la caméra simulée.
+        if self.path.startswith("/__attente"):
+            try:
+                ms = int(self.path.split("ms=", 1)[1]) if "ms=" in self.path else 50
+            except ValueError:
+                ms = 50
+            time.sleep(min(max(ms, 0), 2000) / 1000)
+            self.send_response(204)
+            self.end_headers()
+            return
+        super().do_GET()
+
+    def log_message(self, format, *args):
+        if not self.path.startswith("/__attente"):
+            super().log_message(format, *args)
+
     def guess_type(self, path):
         extension = os.path.splitext(path)[1].lower()
         return TYPES.get(extension) or super().guess_type(path)

@@ -174,7 +174,7 @@ input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--accent)
 }
 .dialogue::backdrop { background: var(--voile); }
 /* La page ne défile pas derrière un dialogue ouvert (enchaînement de défilement sur iOS). */
-.dialogue { overscroll-behavior: contain; }
+.dialogue { overscroll-behavior: contain; overflow: auto; }
 html:has(dialog[open]) { overflow: hidden; }
 .dialogue h2[tabindex="-1"]:focus { outline: none; }
 .dialogue-boutons { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; }
@@ -207,6 +207,44 @@ html:has(dialog[open]) { overflow: hidden; }
 }
 .carte-couleur .etoile[aria-pressed="true"] { color: #f2c200; }
 .plus { display: block; margin: 1rem auto 0; }
+
+/* Ajout d'un vêtement. */
+.rangee-ajout { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin: 0.75rem 0; }
+
+/* Scan : vidéo en object-fit: contain, réticule centré de la taille exacte de la zone mesurée. */
+.scan .consigne { margin-top: 0; }
+.cadre-video { position: relative; background: #000000; border-radius: 12px; overflow: hidden; }
+.scan-video { display: block; width: 100%; height: 52dvh; object-fit: contain; }
+.reticule {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  border: 2px solid #ffffff; box-shadow: 0 0 0 2px #000000; pointer-events: none;
+}
+.barre-scan { display: flex; align-items: center; gap: 0.75rem; margin: 0.75rem 0 0.25rem; }
+.texte-direct { flex: 1; font-variant-numeric: tabular-nums; }
+.etat-scan { min-height: 2.9em; }
+
+/* Résultat du scan. */
+.resultat-scan h3 { font-size: 1rem; margin: 1rem 0 0.5rem; }
+.pastille.grande-mesure { width: 4.5rem; height: 4.5rem; border-radius: 12px; }
+.apercu-couleur .infos { display: flex; flex-direction: column; min-width: 0; }
+.vignette { display: flex; justify-content: center; margin-bottom: 0.5rem; }
+.vignette canvas { max-width: 100%; height: auto; border-radius: 8px; }
+.choix-type[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-texte); }
+.ajuster { margin-top: 1rem; }
+.ajuster summary { min-height: 44px; display: flex; align-items: center; color: var(--accent); font-weight: 600; cursor: pointer; list-style: none; }
+.ajuster summary::-webkit-details-marker { display: none; }
+.ajuster summary::before { content: "▸"; margin-right: 0.5rem; }
+.ajuster[open] summary::before { content: "▾"; }
+/* Boutons toujours visibles en bas de la fenêtre de résultat, même quand on fait défiler. */
+.resultat-scan .dialogue-boutons { position: sticky; bottom: -1rem; background: var(--carte); padding: 0.75rem 0 1rem; margin-bottom: -1rem; }
+.carte-proche {
+  font: inherit; text-align: left; padding: 0.35rem; border-radius: 10px; border: 1px solid var(--bord);
+  background: var(--carte); color: var(--texte); display: flex; flex-direction: column; gap: 0.25rem;
+}
+.carte-proche .nom { font-size: 0.8rem; line-height: 1.2; overflow-wrap: anywhere; }
+.carte-proche .detail { font-size: 0.75rem; color: var(--discret); }
+.carte-proche[aria-pressed="true"] { outline: 3px solid var(--accent); outline-offset: 1px; }
+.ajuster .bouton.secondaire { margin-top: 0.75rem; }
 
 .credits { padding-left: 1.2rem; font-size: 0.9rem; }
 .credits li { margin-bottom: 0.4rem; }

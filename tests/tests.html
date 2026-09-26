@@ -21,12 +21,17 @@
     './moteur.test.js',
     './donnees.test.js',
     './stockage.test.js',
+    './mesure.test.js',
+    './scan.test.js',
     './app.test.js',
   ];
-  if (new URLSearchParams(location.search).has('controle-echec')) {
+  const parametres = new URLSearchParams(location.search);
+  if (parametres.has('controle-echec')) {
     fichiers.push('./controle-echec.test.js');
   }
-  lancer(fichiers, document.getElementById('resultat'));
+  // ?fichiers=scan.test.js,mesure.test.js : ne lance que ces fichiers (diagnostic).
+  const choisis = parametres.get('fichiers')?.split(',').map((f) => `./${f.trim()}`);
+  lancer(choisis ?? fichiers, document.getElementById('resultat'));
 </script>
 </body>
 </html>

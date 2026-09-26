@@ -126,6 +126,22 @@ export function annoncer(message, genre = 'info') {
   minuterie = setTimeout(() => { zone.replaceChildren(); montrer(zone, false); }, genre === 'erreur' ? 8000 : 4000);
 }
 
+// Photo prise avec l'appareil photo (repli du scan) : renvoie un File ou null. capture ouvre directement
+// l'appareil photo arrière sur iOS ; à appeler pendant le geste de l'utilisateur.
+export function choisirImage() {
+  return new Promise((resoudre) => {
+    const champ = el('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true, 'data-choix-fichier': 'image' });
+    champ.addEventListener('change', () => {
+      const fichier = champ.files?.[0] ?? null;
+      champ.remove();
+      resoudre(fichier);
+    });
+    champ.addEventListener('cancel', () => { champ.remove(); resoudre(null); });
+    document.body.append(champ);
+    champ.click();
+  });
+}
+
 // Sélection d'un fichier par l'utilisateur. accept vide = aucun filtre (repli iOS si le fichier apparaît grisé).
 export function choisirFichier(accept) {
   return new Promise((resoudre) => {

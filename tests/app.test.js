@@ -1,6 +1,8 @@
-// Parcours de l'interface (étape 4) : l'app tourne dans un cadre invisible, avec un espace de stockage
+// Parcours de l'interface : l'app tourne dans un cadre invisible, avec un espace de stockage
 // réservé (?espace=tests-ui) vidé au départ. Les tests s'enchaînent sur la même instance.
-import { test, vrai, egal, attendre } from './mini-test.js';
+// Le lanceur démarre Edge avec une caméra simulée (--use-fake-device-for-media-stream), sans torche.
+import { test, vrai, egal, egalProfond, attendre } from './mini-test.js';
+import { photoSynthetique, attendreReel } from './aides.js';
 
 const ESPACE = 'garde-robe-tests-ui:';
 let fenetre = null;
@@ -185,4 +187,55 @@ test('app : données affichées en texte, puis réimportées après confirmation
   cliquer('[data-valeur="oui"]', confirmation);
   await dialoguesFermes();
   await quand(() => stocke().vetements.length === 0, 'données remplacées');
+});
+
+test('app : scan par photo (repli), couleur mesurée gardée par défaut, type obligatoire', async () => {
+  cliquer('#onglets [data-ecran="garde-robe"]');
+  cliquer('[data-action="scanner"]');
+  const scan = await dialogueOuvert('dialog.scan[open]');
+  cliquer('[data-action="photo"]', scan);
+  const champ = await attendre(() => doc.querySelector('input[data-choix-fichier="image"]'), 'appareil photo');
+  vrai(champ.getAttribute('capture') === 'environment' && champ.accept === 'image/*', 'appareil photo arrière');
+  const transfert = new fenetre.DataTransfer();
+  transfert.items.add(new fenetre.File([await photoSynthetique()], 'photo.png', { type: 'image/png' }));
+  champ.files = transfert.files;
+  champ.dispatchEvent(new fenetre.Event('change'));
+  const resultat = await attendreReel(() => [...doc.querySelectorAll('dialog.resultat-scan[open]')].find((d) => 'pret' in d.dataset), 'décodage de la photo');
+  vrai(resultat.querySelector('.infos').textContent.includes('#a07e56'), 'couleur mesurée affichée');
+  vrai(resultat.querySelector('.vignette canvas'), 'vignette de la photo');
+  egal(resultat.querySelector('[data-type="bijoux"]'), null, 'bijoux : choix manuel seulement');
+  vrai(resultat.querySelector('[data-action="enregistrer-scan"]').disabled, 'type à choisir d\'abord');
+  cliquer('[data-type="chaussures"]', resultat);
+  cliquer('[data-action="enregistrer-scan"]', resultat);
+  await dialoguesFermes();
+  await quand(() => stocke().vetements.length === 1, 'vêtement scanné enregistré');
+  const { id, dateAjout, ...vetement } = stocke().vetements[0];
+  egalProfond(vetement, { type: 'chaussures', hex: '#a07e56', origine: 'scan' });
+  vrai(doc.querySelector('[data-type="chaussures"] .nom').textContent.includes('#a07e56'));
+});
+
+test('app : scan avec la caméra (caméra simulée, sans torche), puis « Ajuster »', async () => {
+  cliquer('[data-action="scanner"]');
+  const scan = await dialogueOuvert('dialog.scan[open]');
+  const mesurer = await attendreReel(() => {
+    const bouton = scan.querySelector('[data-action="mesurer"]');
+    return bouton && !bouton.disabled ? bouton : null;
+  }, 'image de la caméra simulée');
+  vrai(scan.querySelector('[data-action="torche"]').hidden, 'pas de bouton torche sans torche');
+  vrai(!scan.querySelector('.reticule').hidden && parseFloat(scan.querySelector('.reticule').style.width) > 0, 'réticule placé');
+  mesurer.click();
+  const resultat = await attendreReel(() => [...doc.querySelectorAll('dialog.resultat-scan[open]')].find((d) => 'pret' in d.dataset), `résultat (état : ${scan.querySelector('.etat-scan')?.textContent})`);
+  cliquer('[data-type="pull"]', resultat);
+  cliquer('[data-action="ajuster"]', resultat);
+  egal(resultat.querySelectorAll('.carte-proche').length, 12, '12 couleurs proches');
+  const proche = resultat.querySelector('.carte-proche');
+  proche.click();
+  egal(proche.getAttribute('aria-pressed'), 'true');
+  cliquer('[data-action="enregistrer-scan"]', resultat);
+  await dialoguesFermes();
+  await quand(() => stocke().vetements.length === 2, 'second vêtement scanné enregistré');
+  const vetement = stocke().vetements[1];
+  egal(vetement.origine, 'scan');
+  egal(vetement.idCouleurCatalogue, proche.dataset.couleur);
+  egal(doc.querySelector('[data-type="pull"] .nom').textContent, proche.querySelector('.nom').textContent, 'nom et hex du catalogue');
 });

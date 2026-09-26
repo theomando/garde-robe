@@ -1,11 +1,28 @@
-// Écran Garde-robe : liste par type, ajout (choix dans le catalogue), modification, suppression.
-// Le scan (étape 5) s'ajoutera comme second mode d'ajout.
+// Écran Garde-robe : liste par type, ajout (scan à la caméra ou choix dans le catalogue), modification, suppression.
 
 import { el, pastille, ouvrirDialogue, confirmer, annoncer, nouvelIdentifiant } from '../ui.js';
 import { TYPES, LIBELLES_TYPES } from '../constantes.js';
 import { ajouterVetement, modifierVetement, supprimerVetement } from '../donnees.js';
 import { labDepuisHex } from '../couleur.js';
 import { ouvrirSelecteur } from './selecteur-catalogue.js';
+import { ouvrirScan, choisirApresMesure } from './scan.js';
+
+// Scan : mesure, puis type et « Ajuster ». La couleur mesurée est gardée par défaut (origine « scan ») ;
+// « Ajuster » la remplace par celle du catalogue (hex du catalogue, idCouleurCatalogue, origine toujours « scan »).
+async function scanner(app, actions) {
+  for (;;) {
+    const mesure = await ouvrirScan();
+    if (!mesure) return;
+    const choix = await choisirApresMesure(app, actions, mesure);
+    if (choix === 'recommencer') continue;
+    if (!choix) return;
+    const nouvelEtat = ajouterVetement(app.etat,
+      { type: choix.type, hex: choix.hex, origine: 'scan', ...(choix.couleur ? { idCouleurCatalogue: choix.couleur.id } : {}) },
+      { id: nouvelIdentifiant(), date: new Date() });
+    if (actions.mettreAJour(nouvelEtat)) annoncer(`${LIBELLES_TYPES[choix.type]} ajouté : ${choix.couleur?.nom ?? choix.hex}`);
+    return;
+  }
+}
 
 // Nom affiché : celui de la couleur du catalogue si le vêtement en porte encore le hex, sinon le hex.
 export function nomCouleurVetement(vetement, catalogue) {
@@ -94,8 +111,11 @@ export function rendreGardeRobe(conteneur, app, actions) {
     el('div', { class: 'entete-ecran' },
       el('h1', {}, 'Garde-robe'),
       el('span', { class: 'discret' }, `${vetements.length} vêtement${vetements.length > 1 ? 's' : ''}`)),
-    el('button', { type: 'button', class: 'bouton principal large', 'data-action': 'ajouter-vetement', onclick: () => ajouter(app, actions) },
-      'Ajouter un vêtement'),
+    el('div', { class: 'rangee-ajout' },
+      el('button', { type: 'button', class: 'bouton principal', 'data-action': 'scanner', onclick: () => scanner(app, actions) },
+        'Scanner un vêtement'),
+      el('button', { type: 'button', class: 'bouton secondaire', 'data-action': 'ajouter-vetement', onclick: () => ajouter(app, actions) },
+        'Choisir dans le catalogue')),
   ];
   if (vetements.length === 0) {
     contenu.push(el('p', { class: 'vide' }, 'Ta garde-robe est vide. Ajoute tes vêtements pour obtenir des propositions de tenues.'));

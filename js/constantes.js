@@ -13,7 +13,7 @@ export const LIBELLES_TYPES = {
 };
 
 // Version affichée dans les réglages (numéro de l'étape du plan tant que l'app est en construction).
-export const VERSION_APP = '0.4.1';
+export const VERSION_APP = '0.5';
 
 // Couches du haut, du corps vers l'extérieur (avatar). Chemise, veste et manteau sont portés ouverts.
 export const COUCHES = ['t-shirt', 'pull', 'chemise', 'veste', 'manteau'];
@@ -40,6 +40,14 @@ export const TOLERANCE_DEFAUT = 10;
 export const TOLERANCE_MIN = 1;
 export const TOLERANCE_MAX = 30;
 export const TOLERANCE_PAS = 0.5;
+
+// Scan (CLAUDE.md, section Scan de couleur). Valeurs de départ, à calibrer sur l'iPhone.
+export const SCAN_FRACTION_CARRE = 0.1; // côté du carré mesuré, en fraction du plus petit côté de l'image
+export const SCAN_SEUIL_SATURE = 250; // pixel exclu (reflet) si l'un de ses canaux atteint ce seuil
+export const SCAN_PART_VALIDE_MIN = 0.5; // sous cette part de pixels valides : « reflet trop fort »
+export const SCAN_DELAI_BALANCE_MS = 1500; // attente sous la torche avant de verrouiller la balance des blancs
+export const SCAN_DELAI_SANS_IMAGE_MS = 5000; // sans image de la caméra passé ce délai : repli photo proposé
+export const SCAN_APERCU_MS = 300; // rafraîchissement de la couleur affichée en direct
 
 // Jokers : noir si L* ≤ NOIR_L_MAX, blanc si L* ≥ BLANC_L_MIN, et C*ab ≤ NEUTRE_C_MAX. À calibrer.
 export const NOIR_L_MAX = 20;

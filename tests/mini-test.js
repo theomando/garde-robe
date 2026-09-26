@@ -3,6 +3,7 @@
 // Un test peut renvoyer une chaîne : elle s'affiche comme note à côté de « ok ».
 
 const tests = [];
+const DELAI_TEST_MS = 20000; // un test qui ne se termine pas échoue au lieu de figer toute la page
 
 export class EchecAssertion extends Error {}
 
@@ -72,12 +73,20 @@ export async function lancer(fichiers, sortie) {
   }
   for (const { nom, fn } of tests) {
     total++;
+    // Progression visible : si la page se fige, le dernier test lancé apparaît dans la sortie.
+    sortie.textContent = [...lignes, `EN COURS : ${nom}`].join('\n');
+    let minuterie = null;
+    const delai = new Promise((_, rejeter) => {
+      minuterie = setTimeout(() => rejeter(new EchecAssertion(`délai de ${DELAI_TEST_MS / 1000} s dépassé`)), DELAI_TEST_MS);
+    });
     try {
-      const note = await fn();
+      const note = await Promise.race([Promise.resolve().then(fn), delai]);
       reussis++;
       lignes.push(`ok     ${nom}${typeof note === 'string' ? ` (${note})` : ''}`);
     } catch (erreur) {
       lignes.push(`ECHEC  ${nom} : ${erreur.message}`);
+    } finally {
+      clearTimeout(minuterie);
     }
   }
   lignes.push(`RESULTAT ${reussis}/${total}`);
