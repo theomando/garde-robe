@@ -1,50 +1,72 @@
-// Avatar 2D (SVG) : silhouette neutre à la teinte MST choisie, une zone par type de vêtement porté.
+// Avatar 2D (SVG) en style figurine à blocs (demande de Théo, 2026-09-26) : tête cylindrique à plot, torse
+// en trapèze, bras le long du corps, mains en pince, hanches et jambes en blocs. Dessin original, sans marque.
+// La peau prend la teinte MST choisie ; une zone par type de vêtement porté.
 // Couches du haut, du corps vers l'extérieur : t-shirt, pull, chemise, veste, manteau. Chemise, veste et manteau
-// sont portés ouverts : leurs pans laissent voir la couche du dessous au centre. Ceinture, chapeau et bijoux
+// sont « imprimés » ouverts sur le torse : la couche du dessous reste visible au centre. Ceinture, chapeau et bijoux
 // sont toujours visibles. Pièce en manque : hachurée dans la couleur manquante (noir et blanc pour un joker).
-// Couleurs d'interface (contours, fond des hachures) : choix graphiques.
+// Couleurs d'interface (contours, reflets, traits du visage, fond des hachures) : choix graphiques.
+
+import { labDepuisHex } from './couleur.js';
 
 const NS = 'http://www.w3.org/2000/svg';
-const CONTOUR = 'rgba(0, 0, 0, 0.35)';
+const CONTOUR = 'rgba(0, 0, 0, 0.4)';
 const FOND_HACHURES = '#ffffff';
 const NOIR_JOKER = '#000000';
+const TRAIT_FONCE = '#1d1d1b';
+const TRAIT_CLAIR = '#f2f2f0';
 
-// Formes dans un repère de 200 × 320 (viewBox décalée pour le chapeau). [élément, attributs]
+// Repère de 200 × 300 (viewBox décalée vers le haut pour la casquette). [élément, attributs]
 const CORPS = [
-  ['ellipse', { cx: 100, cy: 38, rx: 19, ry: 22 }],
-  ['rect', { x: 92, y: 56, width: 16, height: 14 }],
-  ['polygon', { points: '62,72 138,72 132,168 68,168' }],
-  ['polygon', { points: '68,160 132,160 134,192 66,192' }],
-  ['polygon', { points: '62,72 50,78 38,184 50,188 66,100' }],
-  ['polygon', { points: '138,72 150,78 162,184 150,188 134,100' }],
-  ['ellipse', { cx: 44, cy: 194, rx: 7, ry: 9 }],
-  ['ellipse', { cx: 156, cy: 194, rx: 7, ry: 9 }],
-  ['polygon', { points: '67,188 99,188 96,294 76,294' }],
-  ['polygon', { points: '101,188 133,188 124,294 104,294' }],
-  ['ellipse', { cx: 84, cy: 300, rx: 12, ry: 6 }],
-  ['ellipse', { cx: 116, cy: 300, rx: 12, ry: 6 }],
+  ['rect', { x: 86, y: 14, width: 28, height: 11, rx: 3 }], // plot de la tête
+  ['rect', { x: 66, y: 22, width: 68, height: 58, rx: 16 }], // tête
+  ['rect', { x: 88, y: 78, width: 24, height: 11 }], // cou
+  ['polygon', { points: '70,88 130,88 135,92 142,170 58,170 65,92' }], // torse
+  ['polygon', { points: '66,92 54,96 42,158 56,162 64,122' }], // bras gauche
+  ['polygon', { points: '134,92 146,96 158,158 144,162 136,122' }], // bras droit
+  ['circle', { cx: 48, cy: 172, r: 10 }], // main gauche
+  ['circle', { cx: 152, cy: 172, r: 10 }], // main droite
+  ['rect', { x: 58, y: 170, width: 84, height: 16, rx: 2 }], // hanches
+  ['rect', { x: 58, y: 186, width: 41, height: 66, rx: 2 }], // jambe gauche
+  ['rect', { x: 101, y: 186, width: 41, height: 66, rx: 2 }], // jambe droite
+  ['rect', { x: 56, y: 250, width: 45, height: 18, rx: 4 }], // pied gauche
+  ['rect', { x: 99, y: 250, width: 45, height: 18, rx: 4 }], // pied droit
 ];
 
-const manches = (gauche, droite) => [['polygon', { points: gauche }], ['polygon', { points: droite }]];
+const TORSE = ['polygon', { points: '70,88 130,88 135,92 142,170 58,170 65,92' }];
+const MANCHES_LONGUES = [
+  ['polygon', { points: '66,92 54,96 42,158 56,162 64,122' }],
+  ['polygon', { points: '134,92 146,96 158,158 144,162 136,122' }],
+];
 
 export const FORMES = {
-  pantalon: [['polygon', { points: '65,158 135,158 128,294 103,294 100,196 97,294 72,294' }]],
-  short: [['polygon', { points: '65,158 135,158 134,226 103,226 100,196 97,226 66,226' }]],
-  chaussures: [['ellipse', { cx: 83, cy: 300, rx: 15, ry: 8 }], ['ellipse', { cx: 117, cy: 300, rx: 15, ry: 8 }]],
-  't-shirt': [['polygon', { points: '60,70 140,70 134,172 66,172' }],
-    ...manches('60,70 44,104 57,110 67,90', '140,70 156,104 143,110 133,90')],
-  pull: [['polygon', { points: '59,69 141,69 135,174 65,174' }],
-    ...manches('59,69 37,182 51,186 68,93', '141,69 163,182 149,186 132,93')],
-  ceinture: [['rect', { x: 65, y: 158, width: 70, height: 9 }]],
-  chemise: [['polygon', { points: '57,68 93,66 93,178 63,178' }], ['polygon', { points: '107,66 143,68 137,178 107,178' }],
-    ...manches('57,68 36,182 50,187 67,94', '143,68 164,182 150,187 133,94')],
-  veste: [['polygon', { points: '54,66 86,62 84,184 60,184' }], ['polygon', { points: '114,62 146,66 140,184 116,184' }],
-    ...manches('54,66 34,182 49,188 66,96', '146,66 166,182 151,188 134,96')],
-  manteau: [['polygon', { points: '51,64 80,60 80,246 54,246' }], ['polygon', { points: '120,60 149,64 146,246 120,246' }],
-    ...manches('51,64 31,184 48,190 65,98', '149,64 169,184 152,190 135,98')],
-  bijoux: [['path', { d: 'M89,66 Q100,88 111,66', trait: 3.5 }]],
-  chapeau: [['ellipse', { cx: 100, cy: 20, rx: 34, ry: 6 }], ['path', { d: 'M80,20 Q80,-4 100,-4 Q120,-4 120,20 Z' }]],
+  pantalon: [['rect', { x: 58, y: 170, width: 84, height: 16, rx: 2 }],
+    ['rect', { x: 58, y: 186, width: 41, height: 66, rx: 2 }], ['rect', { x: 101, y: 186, width: 41, height: 66, rx: 2 }]],
+  short: [['rect', { x: 58, y: 170, width: 84, height: 16, rx: 2 }],
+    ['rect', { x: 58, y: 186, width: 41, height: 26, rx: 2 }], ['rect', { x: 101, y: 186, width: 41, height: 26, rx: 2 }]],
+  chaussures: [['rect', { x: 56, y: 250, width: 45, height: 18, rx: 4 }], ['rect', { x: 99, y: 250, width: 45, height: 18, rx: 4 }]],
+  't-shirt': [TORSE,
+    ['polygon', { points: '66,92 54,96 50,118 62,121' }], ['polygon', { points: '134,92 146,96 150,118 138,121' }]],
+  pull: [TORSE, ...MANCHES_LONGUES],
+  ceinture: [['rect', { x: 58, y: 166, width: 84, height: 8, rx: 1 }]],
+  chemise: [['polygon', { points: '70,88 93,88 93,170 58,170 65,92' }], ['polygon', { points: '107,88 130,88 135,92 142,170 107,170' }],
+    ...MANCHES_LONGUES,
+    ['polygon', { points: '87,88 99,88 93,101' }], ['polygon', { points: '101,88 113,88 107,101' }]], // col
+  veste: [['polygon', { points: '70,88 88,88 84,120 86,170 58,170 65,92' }], ['polygon', { points: '112,88 130,88 135,92 142,170 114,170 116,120' }],
+    ...MANCHES_LONGUES],
+  manteau: [['polygon', { points: '68,86 84,86 80,122 80,232 54,232 58,170 63,92' }],
+    ['polygon', { points: '116,86 132,86 137,92 142,170 146,232 120,232 120,122' }],
+    ['polygon', { points: '65,90 52,95 40,158 57,163 63,124' }], ['polygon', { points: '135,90 148,95 160,158 143,163 137,124' }]],
+  bijoux: [['path', { d: 'M86,90 Q100,108 114,90', trait: 3.5 }]],
+  chapeau: [['path', { d: 'M64,30 Q64,4 100,4 Q136,4 136,30 Z' }], ['rect', { x: 58, y: 28, width: 84, height: 8, rx: 3 }]],
 };
+
+// Reflets clairs posés par-dessus (aspect plastique) : zones de lumière sur la tête, le torse et les jambes.
+const REFLETS = [
+  ['rect', { x: 72, y: 28, width: 11, height: 46, rx: 5, opacity: 0.22 }],
+  ['polygon', { points: '73,93 83,93 76,164 66,164', opacity: 0.16 }],
+  ['rect', { x: 62, y: 190, width: 7, height: 56, rx: 3, opacity: 0.14 }],
+  ['rect', { x: 105, y: 190, width: 7, height: 56, rx: 3, opacity: 0.14 }],
+];
 
 // Ordre de dessin, du dessous vers le dessus (couches du haut dans l'ordre de CLAUDE.md).
 export const ORDRE_DESSIN = ['pantalon', 'short', 'chaussures', 't-shirt', 'pull', 'ceinture', 'chemise', 'veste', 'manteau', 'bijoux', 'chapeau'];
@@ -70,22 +92,32 @@ let compteur = 0;
 // Dessine l'avatar : peau (hex MST) et pièces [{ type, hex } | { type, hachures }]. Renvoie un élément <svg>.
 export function dessinerAvatar({ peau, pieces = [], description = 'Avatar' }) {
   const prefixe = `avatar-${++compteur}`;
-  const svg = noeud('svg', { viewBox: '0 -12 200 332', role: 'img', 'aria-label': description, class: 'avatar' });
+  const svg = noeud('svg', { viewBox: '0 -2 200 274', role: 'img', 'aria-label': description, class: 'avatar' });
   const definitions = noeud('defs');
   svg.append(definitions);
 
   function motifHachures(type, couleur) {
     const id = `${prefixe}-${type}`;
     const motif = noeud('pattern', { id, patternUnits: 'userSpaceOnUse', width: 8, height: 8, patternTransform: 'rotate(45)' });
-    const [fond, rayure] = couleur === 'joker' ? [FOND_HACHURES, NOIR_JOKER] : [FOND_HACHURES, couleur];
-    motif.append(noeud('rect', { width: 8, height: 8, fill: fond }), noeud('rect', { width: 4, height: 8, fill: rayure }));
+    motif.append(noeud('rect', { width: 8, height: 8, fill: FOND_HACHURES }), noeud('rect', { width: 4, height: 8, fill: couleur === 'joker' ? NOIR_JOKER : couleur }));
     definitions.append(motif);
     return `url(#${id})`;
   }
 
   const corps = noeud('g', { 'data-zone': 'peau' });
-  for (const [forme, attributs] of CORPS) corps.append(noeud(forme, { ...attributs, fill: peau, stroke: CONTOUR, 'stroke-width': 0.8, 'data-zone': 'peau' }));
+  for (const [forme, attributs] of CORPS) corps.append(noeud(forme, { ...attributs, fill: peau, stroke: CONTOUR, 'stroke-width': 1, 'data-zone': 'peau' }));
   svg.append(corps);
+
+  // Visage et creux des mains : traits foncés sur peau claire, clairs sur peau foncée.
+  const trait = labDepuisHex(peau).L < 45 ? TRAIT_CLAIR : TRAIT_FONCE;
+  const visage = noeud('g', { 'data-zone': 'visage' });
+  visage.append(
+    noeud('ellipse', { cx: 88, cy: 48, rx: 3.4, ry: 4, fill: trait }),
+    noeud('ellipse', { cx: 112, cy: 48, rx: 3.4, ry: 4, fill: trait }),
+    noeud('path', { d: 'M86,60 Q100,72 114,60', fill: 'none', stroke: trait, 'stroke-width': 3, 'stroke-linecap': 'round' }),
+    noeud('ellipse', { cx: 49, cy: 175, rx: 4.5, ry: 5, fill: 'rgba(0, 0, 0, 0.28)' }),
+    noeud('ellipse', { cx: 151, cy: 175, rx: 4.5, ry: 5, fill: 'rgba(0, 0, 0, 0.28)' }));
+  svg.append(visage);
 
   const parType = new Map(pieces.map((piece) => [piece.type, piece]));
   for (const type of ORDRE_DESSIN) {
@@ -93,12 +125,16 @@ export function dessinerAvatar({ peau, pieces = [], description = 'Avatar' }) {
     if (!piece) continue;
     const remplissage = piece.hachures !== undefined ? motifHachures(type, piece.hachures) : piece.hex;
     const groupe = noeud('g', { 'data-type': type, 'data-etat': piece.hachures !== undefined ? 'manque' : 'porte' });
-    for (const [forme, { trait, ...attributs }] of FORMES[type]) {
-      groupe.append(trait
-        ? noeud(forme, { ...attributs, fill: 'none', stroke: remplissage, 'stroke-width': trait, 'stroke-linecap': 'round' })
-        : noeud(forme, { ...attributs, fill: remplissage, stroke: CONTOUR, 'stroke-width': 0.8 }));
+    for (const [forme, { trait: epaisseur, ...attributs }] of FORMES[type]) {
+      groupe.append(epaisseur
+        ? noeud(forme, { ...attributs, fill: 'none', stroke: remplissage, 'stroke-width': epaisseur, 'stroke-linecap': 'round' })
+        : noeud(forme, { ...attributs, fill: remplissage, stroke: CONTOUR, 'stroke-width': 1, 'stroke-linejoin': 'round' }));
     }
     svg.append(groupe);
   }
+
+  const reflets = noeud('g', { 'data-zone': 'reflet', 'pointer-events': 'none' });
+  for (const [forme, attributs] of REFLETS) reflets.append(noeud(forme, { ...attributs, fill: '#ffffff' }));
+  svg.append(reflets);
   return svg;
 }

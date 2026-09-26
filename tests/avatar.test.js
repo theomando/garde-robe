@@ -32,11 +32,12 @@ test('avatar : couches dessinées du corps vers l\'extérieur (t-shirt, pull, ch
 });
 
 test('avatar : chemise, veste et manteau ouverts, la couche du dessous reste visible au centre', () => {
-  for (const hauteur of [100, 150]) {
+  for (const hauteur of [110, 150]) {
     vrai(couvre('pull', [100, hauteur]) && couvre('t-shirt', [100, hauteur]), `t-shirt et pull couvrent le centre (y ${hauteur})`);
     for (const ouvert of ['chemise', 'veste', 'manteau']) vrai(!couvre(ouvert, [100, hauteur]), `${ouvert} ouvert au centre (y ${hauteur})`);
-    vrai(couvre('chemise', [80, hauteur]) && couvre('veste', [70, hauteur]) && couvre('manteau', [65, hauteur]), `pans sur les côtés (y ${hauteur})`);
+    vrai(couvre('chemise', [80, hauteur]) && couvre('veste', [76, hauteur]) && couvre('manteau', [72, hauteur]), `pans sur les côtés (y ${hauteur})`);
   }
+  vrai(couvre('manteau', [70, 220]) && !couvre('veste', [70, 220]), 'le manteau descend sur les jambes, pas la veste');
   vrai(!couvre('manteau', [83, 120]) && couvre('veste', [83, 120]), 'le manteau, plus ouvert, laisse voir les revers de la veste');
 });
 
