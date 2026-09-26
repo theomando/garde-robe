@@ -1,0 +1,17 @@
+{
+  "id": "./",
+  "name": "Garde-robe chromatique",
+  "short_name": "Garde-robe",
+  "description": "Associe les couleurs de tes vêtements d'après des combinaisons de couleurs.",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f2f2f0",
+  "theme_color": "#f2f2f0",
+  "icons": [
+    { "src": "icones/icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icones/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icones/icone-1024.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any" }
+  ]
+}

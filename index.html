@@ -8,6 +8,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Garde-robe">
 <title>Garde-robe chromatique</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icones/icone-180.png">
+<link rel="icon" type="image/png" href="icones/icone-192.png">
 <link rel="stylesheet" href="css/app.css">
 <script type="module" src="js/app.js"></script>
 </head>
@@ -17,6 +20,10 @@
 <main id="contenu" class="contenu">
   <p class="discret">Chargement…</p>
 </main>
+<div id="nouvelle-version" class="nouvelle-version" role="status" hidden>
+  <span>Nouvelle version disponible.</span>
+  <button type="button" class="bouton petit principal" id="recharger-version">Recharger</button>
+</div>
 <nav id="onglets" class="onglets" aria-label="Écrans" hidden>
   <button type="button" data-ecran="garde-robe">Garde-robe</button>
   <button type="button" data-ecran="tenue">Tenue</button>

@@ -102,6 +102,15 @@ small { display: block; font-size: 0.85rem; }
 }
 .onglets button[aria-current="page"] { color: var(--accent); font-weight: 700; box-shadow: inset 0 3px 0 var(--accent); }
 
+/* Bandeau « Nouvelle version », au-dessus des onglets. */
+.nouvelle-version {
+  position: fixed; left: 1rem; right: 1rem; bottom: calc(64px + var(--bas-sur)); z-index: 20;
+  max-width: 36rem; margin: 0 auto; padding: 0.5rem 0.5rem 0.5rem 1rem; border-radius: 12px;
+  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+  background: var(--texte); color: #ffffff; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+.nouvelle-version[hidden] { display: none; }
+
 /* Annonces. */
 /* #annonces est un popover (couche supérieure, au-dessus des dialogues) : on neutralise son style par défaut. */
 .annonces {
@@ -296,8 +305,8 @@ html:has(dialog[open]) { overflow: hidden; }
 .manque-frequent .detail { font-size: 0.85rem; }
 .manque-frequent .nombre { display: flex; flex-direction: column; align-items: flex-end; font-size: 0.8rem; }
 .manque-frequent .nombre strong { font-size: 1.2rem; font-variant-numeric: tabular-nums; }
-.tenues-comptees ul { padding-left: 1.2rem; margin: 0.25rem 0 0; }
-.tenues-comptees li { margin-bottom: 0.3rem; }
+.tenues-comptees ul { list-style: none; padding: 0; margin: 0.25rem 0 0; }
+.tenues-comptees li { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.25rem 0; border-top: 1px solid var(--bord); }
 
 /* Étalonnage (Réglages). */
 .etat-etalonnage { padding-left: 1.2rem; margin: 0.5rem 0 0.75rem; }

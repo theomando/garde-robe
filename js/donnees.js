@@ -243,7 +243,6 @@ export function modifierReglages(etat, modifications) {
   return { ...etat, reglages };
 }
 
-// Ajoute la tenue (forme canonique) si elle n'est pas déjà enregistrée.
 // Enregistre l'étalonnage d'un mode de mesure (mesures brutes du vêtement blanc et du vêtement noir).
 export function enregistrerEtalonnage(etat, mode, { blanc, noir }, date) {
   if (!MODES_SCAN.includes(mode)) throw new Error(`mode de mesure « ${mode} » inconnu`);
@@ -258,9 +257,17 @@ export function supprimerEtalonnage(etat) {
   return { ...etat, reglages };
 }
 
+// Ajoute la tenue (forme canonique) si elle n'est pas déjà enregistrée.
 export function enregistrerTenueType(etat, types) {
   const canonique = normaliserTenue(types);
   const cle = canonique.join(',');
   if (etat.tenuesTypes.some((t) => t.join(',') === cle)) return etat;
   return { ...etat, tenuesTypes: [...etat.tenuesTypes, canonique] };
+}
+
+// Retire une tenue type (elle ne compte plus dans les manques fréquents). Tenue absente : état inchangé.
+export function retirerTenueType(etat, types) {
+  const cle = normaliserTenue(types).join(',');
+  if (!etat.tenuesTypes.some((t) => t.join(',') === cle)) return etat;
+  return { ...etat, tenuesTypes: etat.tenuesTypes.filter((t) => t.join(',') !== cle) };
 }

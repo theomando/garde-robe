@@ -2,7 +2,7 @@ import { test, vrai, egal, egalProfond, leve } from './mini-test.js';
 import {
   etatInitial, premierLancement, normaliserTenue, validerEtat, exporterEtat, lireExport,
   ajouterVetement, modifierVetement, supprimerVetement, basculerFavori, modifierReglages, enregistrerTenueType,
-  enregistrerEtalonnage, supprimerEtalonnage,
+  enregistrerEtalonnage, supprimerEtalonnage, retirerTenueType,
 } from '../js/donnees.js';
 
 const DATE = new Date('2026-09-24T10:00:00.000Z');
@@ -61,6 +61,15 @@ test('données : tenue type canonique, sans doublon, pantalon et short refusés'
   leve(() => normaliserTenue(['pantalon', 'short']));
   leve(() => normaliserTenue([]));
   leve(() => normaliserTenue(['pull', 'pull']));
+});
+
+test('données : retrait d\'une tenue type (ordre indifférent), tenue absente sans effet', () => {
+  const etat = enregistrerTenueType(etatExemple(), ['short', 't-shirt']);
+  const copie = JSON.stringify(etat);
+  egalProfond(retirerTenueType(etat, ['pull', 'chaussures', 'pantalon']).tenuesTypes, [['short', 't-shirt']]);
+  egal(retirerTenueType(etat, ['chapeau']), etat, 'tenue absente : même état');
+  egal(JSON.stringify(etat), copie, 'état d\'origine intact');
+  leve(() => retirerTenueType(etat, ['pantalon', 'short']));
 });
 
 test('export puis import : mêmes données', () => {

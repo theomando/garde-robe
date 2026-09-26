@@ -405,3 +405,18 @@ test('app : manques fréquents, top 10 trié, résultat gardé en mémoire puis 
   vrai(doc.querySelector('[data-info="calcul"]'), 'réglage changé : recalcul');
   await quand(() => doc.querySelector('.manque-frequent, [data-info="rien-ne-manque"]'), 'nouveau résultat');
 });
+
+test('app : manques fréquents, retrait d\'une tenue type après confirmation, dépliant resté ouvert', async () => {
+  cliquer('.tenues-comptees summary');
+  vrai(doc.querySelector('.tenues-comptees').open, 'dépliant ouvert');
+  cliquer('[data-action="retirer-tenue"][data-tenue="chaussures,pantalon,t-shirt"]');
+  const dialogue = await attendre(() => [...doc.querySelectorAll('dialog[open]')]
+    .find((d) => d.querySelector('h2').textContent === 'Retirer cette tenue ?' && 'pret' in d.dataset), 'confirmation');
+  cliquer('[data-valeur="oui"]', dialogue);
+  await dialoguesFermes();
+  await quand(() => stocke().tenuesTypes.length === 1, 'tenue retirée');
+  egalProfond(stocke().tenuesTypes, [['chaussures', 'pantalon', 'pull']]);
+  await quand(() => doc.querySelector('[data-info="bilan"]')?.textContent.includes('pour ta tenue type'), 'bilan recalculé');
+  vrai(doc.querySelector('.tenues-comptees').open, 'le dépliant reste ouvert');
+  egal(doc.querySelectorAll('.tenues-comptees li').length, 1);
+});

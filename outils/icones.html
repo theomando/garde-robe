@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Icônes de l'app</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 1rem; background: #f2f2f0; color: #1d1d1b; }
+  .grille { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+  figure { margin: 0; text-align: center; font-size: 0.75rem; }
+  figure svg, figure img { display: block; width: 96px; height: 96px; border-radius: 22px; }
+</style>
+</head>
+<body>
+<h1>Icônes de l'app</h1>
+<p>Figurine de l'app (js/avatar.js) en buste, pull à la première couleur d'une combinaison Wada, sur des bandes de ses
+  autres couleurs ; peau MST 5. Couleurs : data/wada.json et constantes.js (sources nommées).</p>
+<p>Sans paramètre : dessine l'icône retenue aux tailles de l'app (PNG dans le bloc « sortie », lu par
+  outils/generer-icones.ps1). <code>?apercu</code> : toutes les combinaisons de 3 couleurs, pour choisir.</p>
+<div id="apercu" class="grille"></div>
+<pre id="sortie"></pre>
+<script type="module">
+  import { construireWada, fusionnerCatalogues } from '../js/catalogue.js';
+  import { dessinerAvatar } from '../js/avatar.js';
+  import { MST } from '../js/constantes.js';
+  import { attendreReel, avecTempsReel } from '../tests/aides.js';
+
+  // Combinaison retenue pour l'icône de l'app.
+  const COMBINAISON = new URLSearchParams(location.search).get('combinaison') ?? 'wada-n155';
+  const PEAU = MST[4];
+  const TAILLES = { 'icone-180.png': 180, 'icone-192.png': 192, 'icone-512.png': 512, 'icone-1024.png': 1024 };
+  const NS = 'http://www.w3.org/2000/svg';
+
+  const wada = fusionnerCatalogues(construireWada(await (await fetch('../data/wada.json')).json()));
+
+  function noeud(nom, attributs = {}) {
+    const element = document.createElementNS(NS, nom);
+    for (const [cle, valeur] of Object.entries(attributs)) element.setAttribute(cle, String(valeur));
+    return element;
+  }
+
+  // Icône carrée, pleine (iOS remplit la transparence en noir et arrondit lui-même les coins).
+  function icone(combinaison) {
+    const [pull, ...fond] = combinaison.couleurs.map((id) => wada.couleurParId.get(id).hex);
+    const svg = noeud('svg', { xmlns: NS, viewBox: '0 0 144 144', width: 144, height: 144 });
+    const largeur = 144 / fond.length;
+    fond.forEach((hex, i) => svg.append(noeud('rect', { x: i * largeur, y: 0, width: largeur + 0.5, height: 144, fill: hex })));
+    const avatar = dessinerAvatar({ peau: PEAU, pieces: [{ type: 'pull', hex: pull, manque: false }], description: 'Icône' });
+    avatar.removeAttribute('class');
+    for (const [cle, valeur] of Object.entries({ viewBox: '20 -2 160 160', x: 0, y: 0, width: 144, height: 144 })) avatar.setAttribute(cle, valeur);
+    svg.append(avatar);
+    return svg;
+  }
+
+  async function png(svg, taille) {
+    const image = new Image();
+    image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(svg))}`;
+    await avecTempsReel(image.decode(), 'décodage du SVG');
+    const canvas = document.createElement('canvas');
+    canvas.width = taille;
+    canvas.height = taille;
+    canvas.getContext('2d').drawImage(image, 0, 0, taille, taille);
+    return canvas.toDataURL('image/png');
+  }
+
+  const apercu = document.getElementById('apercu');
+  if (new URLSearchParams(location.search).has('apercu')) {
+    for (const combinaison of wada.combinaisons.filter((c) => c.couleurs.length === 3)) {
+      apercu.append(Object.assign(document.createElement('figure'), { title: combinaison.id }));
+      apercu.lastChild.append(icone(combinaison), `${combinaison.ref}`);
+    }
+    document.body.dataset.etat = 'pret';
+  } else {
+    const combinaison = wada.combinaisonParId.get(COMBINAISON);
+    const sortie = {};
+    for (const [nom, taille] of Object.entries(TAILLES)) sortie[nom] = await png(icone(combinaison), taille);
+    for (const [nom, adresse] of Object.entries(sortie)) {
+      const figure = document.createElement('figure');
+      figure.append(Object.assign(new Image(), { src: adresse, alt: nom }), nom);
+      apercu.append(figure);
+    }
+    await attendreReel(() => [...apercu.querySelectorAll('img')].every((i) => i.complete), 'aperçu');
+    document.getElementById('sortie').textContent = JSON.stringify({ combinaison: COMBINAISON, fichiers: sortie });
+    document.body.dataset.etat = 'pret';
+  }
+</script>
+</body>
+</html>

@@ -11,6 +11,8 @@ import { rendreGardeRobe } from './ecrans/garde-robe.js';
 import { rendreReglages } from './ecrans/reglages.js';
 import { rendreTenue } from './ecrans/tenue.js';
 import { rendreManques } from './ecrans/manques.js';
+import { installerServiceWorker, estDeveloppementLocal } from './mise-a-jour.js';
+import { VERSION_APP } from './constantes.js';
 
 // localStorage peut être inaccessible (Safari avec « Bloquer tous les cookies », données de site bloquées).
 // On ne bascule pas en mémoire en silence : chaque accès échoue, l'app le signale et n'enregistre rien.
@@ -214,9 +216,24 @@ const actions = {
     }
   },
 
-  // L'hébergeur garde les fichiers quelques minutes en cache HTTP (10 min sur GitHub Pages) :
-  // on retélécharge chaque fichier déjà chargé en contournant ce cache, puis on recharge la page.
+  // Avec le service worker : on lui demande de chercher une version plus récente et de l'activer.
+  // Sans (développement local, navigateur sans service worker) : l'hébergeur garde les fichiers quelques minutes
+  // en cache HTTP (10 min sur GitHub Pages) ; on retélécharge chaque fichier déjà chargé en contournant ce cache,
+  // puis on recharge la page.
   async chargerDerniereVersion() {
+    if (miseAJour) {
+      annoncer('Recherche d\'une nouvelle version…');
+      let trouvee;
+      try {
+        trouvee = await miseAJour.chercher();
+      } catch {
+        annoncer('Vérification impossible : es-tu connecté à internet ?', 'erreur');
+        return;
+      }
+      // Version trouvée : elle prend la main, puis la page se recharge (controllerchange).
+      if (!trouvee) annoncer(`Tu as déjà la dernière version (${VERSION_APP}).`);
+      return;
+    }
     annoncer('Téléchargement de la dernière version…');
     const adresses = new Set([location.href.split('?')[0], location.href]);
     for (const ressource of performance.getEntriesByType('resource')) {
@@ -241,7 +258,27 @@ const actions = {
   },
 };
 
+// Service worker : hors ligne et mises à jour (bandeau « Nouvelle version »). Son échec n'empêche pas l'app de marcher.
+let miseAJour = null;
+function preparerMisesAJour() {
+  if (estDeveloppementLocal(location.hostname) || !navigator.serviceWorker) return;
+  const bandeau = document.getElementById('nouvelle-version');
+  document.getElementById('recharger-version').addEventListener('click', () => {
+    if (!miseAJour?.activer()) location.reload();
+  });
+  installerServiceWorker({
+    conteneur: navigator.serviceWorker,
+    surNouvelleVersion: () => { bandeau.hidden = false; },
+    recharger: () => location.reload(),
+  }).then((resultat) => { miseAJour = resultat; }).catch(() => {});
+  // L'app installée reste ouverte en arrière-plan : on vérifie aussi à chaque retour au premier plan.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') miseAJour?.enregistrement.update().catch(() => {});
+  });
+}
+
 async function demarrer() {
+  preparerMisesAJour();
   const { etat, avertissement } = stockage.chargerEtat();
   app.etat = etat;
   try {

@@ -11,6 +11,7 @@
 <pre id="resultat">EN COURS</pre>
 <script type="module">
   import { lancer } from './mini-test.js';
+  import { avecTempsReel } from './aides.js';
 
   const fichiers = [
     './harnais.test.js',
@@ -27,8 +28,19 @@
     './etalonnage.test.js',
     './avatar.test.js',
     './app.test.js',
+    './mise-a-jour.test.js',
+    './pwa.test.js', // en dernier : enregistre un vrai service worker (retiré à la fin du test)
   ];
   const parametres = new URLSearchParams(location.search);
+
+  // Le profil d'Edge est conservé d'un lancement à l'autre : un service worker laissé par un lancement
+  // interrompu servirait d'anciens fichiers depuis son cache. On le retire, avec ses caches, avant tout
+  // (en temps réel : le temps virtuel n'attend pas les promesses de caches et de serviceWorker).
+  async function nettoyer() {
+    for (const enregistrement of await navigator.serviceWorker?.getRegistrations() ?? []) await enregistrement.unregister();
+    for (const nom of await caches.keys()) if (nom.startsWith('garde-robe-')) await caches.delete(nom);
+  }
+  await avecTempsReel(nettoyer(), 'retrait des service workers');
   if (parametres.has('controle-echec')) {
     fichiers.push('./controle-echec.test.js');
   }
