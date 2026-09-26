@@ -41,22 +41,33 @@ test('avatar : chemise, veste et manteau ouverts, la couche du dessous reste vis
   vrai(!couvre('manteau', [83, 120]) && couvre('veste', [83, 120]), 'le manteau, plus ouvert, laisse voir les revers de la veste');
 });
 
-test('avatar : pièce manquante hachurée dans la couleur manquante, joker manquant en noir et blanc', () => {
-  const svg = dessinerAvatar({ peau: '#d7bd96', pieces: [{ type: 'chaussures', hachures: '#ae5224' }, { type: 'pull', hachures: 'joker' }, { type: 'bijoux', hachures: '#f9c1ce' }] });
-  const motif = (type) => {
-    const groupe = svg.querySelector(`g[data-type="${type}"]`);
-    egal(groupe.dataset.etat, 'manque');
-    const forme = groupe.firstElementChild;
-    const reference = (forme.getAttribute('fill') === 'none' ? forme.getAttribute('stroke') : forme.getAttribute('fill')).match(/^url\(#(.+)\)$/)[1];
-    return [...svg.getElementById(reference).querySelectorAll('rect')].map((r) => r.getAttribute('fill'));
-  };
-  egalProfond(motif('chaussures'), ['#ffffff', '#ae5224']);
-  egalProfond(motif('pull'), ['#ffffff', '#000000']);
-  egalProfond(motif('bijoux'), ['#ffffff', '#f9c1ce'], 'collier : trait hachuré');
-  const ids = [...svg.querySelectorAll('pattern')].map((p) => p.id);
-  egal(new Set(ids).size, ids.length, 'motifs à identifiant unique');
-  const autre = dessinerAvatar({ peau: '#d7bd96', pieces: [{ type: 'chaussures', hachures: '#ae5224' }] });
-  vrai(autre.querySelector('pattern').id !== svg.querySelector('pattern').id, 'deux avatars ne partagent pas leurs motifs');
+test('avatar : pièce manquante dessinée dans sa couleur, avec un panneau d\'avertissement, sans hachures', () => {
+  const svg = dessinerAvatar({ peau: '#d7bd96', pieces: [
+    { type: 'chaussures', hex: '#ae5224', manque: true },
+    { type: 'pull', hex: '#000000', manque: true },
+    { type: 'pantalon', hex: '#111314', manque: false },
+    { type: 'bijoux', hex: '#f9c1ce', manque: true },
+  ] });
+  egal(svg.querySelector('g[data-type="chaussures"]').dataset.etat, 'manque');
+  vrai([...svg.querySelectorAll('g[data-type="chaussures"] > *')].every((f) => f.getAttribute('fill') === '#ae5224'), 'couleur manquante');
+  vrai([...svg.querySelectorAll('g[data-type="pull"] > *')].every((f) => f.getAttribute('fill') === '#000000'), 'joker manquant en noir');
+  egal(svg.querySelector('g[data-type="bijoux"] > path').getAttribute('stroke'), '#f9c1ce', 'collier : trait de la couleur manquante');
+  egalProfond([...svg.querySelectorAll('[data-avertissement]')].map((g) => g.dataset.avertissement), ['chaussures', 'pull', 'bijoux'], 'un panneau par pièce manquante');
+  egal(svg.querySelector('g[data-type="pantalon"]').dataset.etat, 'porte');
+  egal(svg.querySelectorAll('pattern').length, 0, 'plus aucune hachure');
+  const ids = [...svg.querySelectorAll('[id]')].map((e) => e.id);
+  egal(new Set(ids).size, ids.length, 'identifiants uniques');
+  const autre = dessinerAvatar({ peau: '#d7bd96', pieces: [] });
+  vrai(autre.querySelector('linearGradient').id !== svg.querySelector('linearGradient').id, 'deux avatars ne partagent pas leurs dégradés');
+});
+
+test('avatar : relief (épaisseur des pièces, ombrages, ombre portée) sans toucher aux couleurs des pièces', () => {
+  const svg = dessinerAvatar({ peau: '#d7bd96', pieces: [{ type: 'veste', hex: '#1f2f4f', manque: false }] });
+  vrai(svg.querySelector('[data-zone="epaisseur"]').getAttribute('transform').startsWith('translate('), 'épaisseur du corps décalée');
+  vrai(svg.querySelector('[data-epaisseur="veste"]'), 'épaisseur de la veste');
+  vrai(svg.querySelector('[data-ombre-pans="veste"]'), 'ombre des pans ouverts');
+  vrai(svg.querySelector('[data-zone="figure"]').getAttribute('filter').startsWith('url(#'), 'ombre portée');
+  vrai([...svg.querySelectorAll('g[data-type="veste"] > *')].every((f) => f.getAttribute('fill') === '#1f2f4f'), 'la pièce garde sa couleur');
 });
 
 test('avatar : plan tiré d\'une proposition du moteur (vêtement porté, manque coloré, manque joker)', () => {
@@ -70,9 +81,9 @@ test('avatar : plan tiré d\'une proposition du moteur (vêtement porté, manque
     ],
   };
   egalProfond(planAvatar(proposition, catalogue), [
-    { type: 'pantalon', hex: '#111314' },
-    { type: 'pull', hex: '#b05a2a' },
-    { type: 'chaussures', hachures: '#ae5224' },
-    { type: 'ceinture', hachures: 'joker' },
+    { type: 'pantalon', hex: '#111314', manque: false },
+    { type: 'pull', hex: '#b05a2a', manque: false },
+    { type: 'chaussures', hex: '#ae5224', manque: true },
+    { type: 'ceinture', hex: '#000000', manque: true },
   ]);
 });

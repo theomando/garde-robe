@@ -28,7 +28,7 @@ function reference(combinaison) {
 function resume(proposition) {
   const n = proposition.nbManques;
   return [
-    n === 0 ? 'rien ne manque' : `${n} manque${n > 1 ? 's' : ''}`,
+    n === 0 ? 'rien ne manque' : `⚠ ${n} manque${n > 1 ? 's' : ''}`,
     proposition.peauUtilisee ? 'avec la peau' : null,
     `écart moyen ${proposition.ecartMoyen === Infinity ? '—' : ecartTexte(proposition.ecartMoyen)}`,
     proposition.nbFavoris > 0 ? `★ ${proposition.nbFavoris}` : null,
@@ -100,15 +100,15 @@ export function rendreTenue(conteneur, app, actions) {
       el('div', { class: 'legende' },
         choisie ? el('strong', {}, reference(choisie.combinaison)) : el('span', {}, 'Aucune proposition'),
         choisie ? el('span', { class: 'discret' }, resume(choisie)) : null,
-        el('span', { class: 'discret' }, 'Hachuré : pièce qui te manque.')));
+        el('span', { class: 'discret' }, '⚠ : pièce qui te manque (dessinée dans sa couleur).')));
   }
 
   function detailPiece(piece, proposition) {
     const cible = piece.couleurId ? couleur(piece.couleurId) : null;
     if (piece.manque) {
       const texte = cible ? `il te manque ${cible.nom}` : 'il te manque un noir ou un blanc';
-      return el('li', { class: 'manque' }, el('span', { class: 'pastille hachuree', style: `--hachure: ${cible?.hex ?? '#000000'}` }),
-        el('span', {}, el('strong', {}, `${libelle(piece.type)} : `), texte));
+      return el('li', { class: 'manque' }, pastille(cible?.hex ?? '#000000'),
+        el('span', {}, el('span', { class: 'avertissement', 'aria-label': 'Manque' }, '⚠'), el('strong', {}, ` ${libelle(piece.type)} : `), texte));
     }
     const vetement = piece.vetement;
     const nom = nomCouleurVetement(vetement, app.catalogue);
