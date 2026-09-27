@@ -251,7 +251,8 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
       relancer.hidden = mode === 'photo'; // retour à la caméra en direct
       retourFeuille.hidden = !suite;
       cacherPhoto(false); // changer de photo
-      pointeursMax = mode ? 1 : (suite ? restantesSuite : POINTEURS_MAX);
+      // Une seule couleur attendue (étalonnage, couleur d'une fiche ou d'une envie : feuille simple) : un seul pointeur.
+      pointeursMax = mode || resultat === resultatSimple ? 1 : (suite ? restantesSuite : POINTEURS_MAX);
       if (nouveaux || pointeurs.length === 0) pointeurs = [{ ...PLACES_POINTEURS[0] }];
       pointeurs = pointeurs.slice(0, pointeursMax);
       actif = Math.min(actif, pointeurs.length - 1);

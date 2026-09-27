@@ -1122,3 +1122,64 @@ test('app : vêtement en pause (fiche et balayage), grisé, absent des propositi
   await quand(() => !('enPause' in stocke().vetements.find((v) => v.type === 'short')), 'repris par balayage');
   await attendre(() => doc.querySelector('[data-type="short"] .vetement:not(.en-pause)'), 'plus grisé');
 });
+
+// Wishlist (demande de Théo, 2026-09-27) : bouton dans la garde-robe, envie ajoutée (catalogue, note), ajout rapide
+// depuis une pièce ⚠ d'une proposition et depuis « Ce qui te manque », « Je l'ai » puis retrait.
+test('app : wishlist, envie ajoutée avec sa couleur et une note, ajout rapide, « Je l\'ai » range dans la garde-robe', async () => {
+  cliquer('#onglets [data-ecran="garde-robe"]');
+  const bouton = await attendre(() => doc.querySelector('.barre-nav [data-action="wishlist"]'), 'bouton Wishlist');
+  egal(bouton.textContent, 'Wishlist', 'aucune envie : pas de nombre');
+  bouton.click();
+  const feuille = await dialogueOuvert('dialog.feuille-wishlist[open]');
+  vrai(!feuille.querySelector('[data-info="wishlist-vide"]').hidden, 'liste vide expliquée');
+  cliquer('[data-action="ajouter-envie"]', feuille);
+  cliquer('[data-choix="manteau"]', await dialogueOuvert('dialog[open]:not(.feuille-wishlist)'));
+  (await attendre(() => doc.querySelector('.menu [data-action="couleur-carte"]'), 'menu couleur')).click();
+  const selecteur = await dialogueOuvert('dialog.selecteur[open]');
+  await rechercher(selecteur, 'camel');
+  (await attendre(() => [...selecteur.querySelectorAll('[data-action="choisir-couleur"]')].find((b) => b.querySelector('.nom').textContent === 'Camel'), 'Camel')).click();
+  const confirmation = await attendre(() => [...doc.querySelectorAll('dialog[open]')].find((d) => d.querySelector('h2').textContent === 'Nouvelle envie' && 'pret' in d.dataset), 'nouvelle envie');
+  confirmation.querySelector('#note-envie').value = ' taille M ';
+  cliquer('[data-valeur="ok"]', confirmation);
+  await quand(() => stocke().wishlist?.length === 1, 'envie enregistrée');
+  const [envie] = stocke().wishlist;
+  egalProfond([envie.type, envie.note], ['manteau', 'taille M']);
+  const ligne = await attendre(() => feuille.querySelector(`[data-envie="${envie.id}"]`), 'ligne de l\'envie');
+  vrai(ligne.textContent.includes('Manteau · Camel') && ligne.textContent.includes('taille M'), ligne.textContent);
+  cliquer('[data-action="fermer-feuille"]', feuille);
+  await dialoguesFermes();
+  await quand(() => doc.querySelector('.barre-nav [data-action="wishlist"] .compte-capsule')?.textContent === '1', 'nombre d\'envies');
+
+  // Ajout rapide depuis une pièce ⚠ d'une proposition.
+  cliquer('#onglets [data-ecran="tenue"]');
+  const proposer = doc.querySelector('[data-action="proposer"]');
+  if (proposer) proposer.click();
+  const manque = await attendre(() => [...doc.querySelectorAll('.proposition')].find((p) => /\d+ manque/.test(p.textContent)), 'proposition avec un manque');
+  manque.click();
+  const boutonManque = await attendre(() => doc.querySelector('.details li.manque [data-action="ajouter-a-la-wishlist"]'), '🎁 sur la pièce ⚠');
+  boutonManque.click();
+  await quand(() => stocke().wishlist.length === 2, 'manque ajouté à la wishlist');
+  await attendre(() => doc.querySelector('.details li.manque [data-action="ajouter-a-la-wishlist"]:disabled'), '✓ une fois dedans');
+
+  // Ajout rapide depuis « Ce qui te manque ».
+  cliquer('#onglets [data-ecran="mes-tenues"]');
+  const rapide = await attendre(() => doc.querySelector('.manque-frequent [data-action="ajouter-a-la-wishlist"]:not(:disabled)'), '🎁 dans Ce qui te manque');
+  rapide.click();
+  await quand(() => stocke().wishlist.length === 3, 'manque fréquent ajouté');
+
+  // « Je l'ai » : l'envie rejoint la garde-robe ; ✕ en retire une autre.
+  cliquer('#onglets [data-ecran="garde-robe"]');
+  const avant = stocke().vetements.length;
+  cliquer('.barre-nav [data-action="wishlist"]');
+  const liste = await dialogueOuvert('dialog.feuille-wishlist[open]');
+  cliquer(`[data-envie="${envie.id}"] [data-action="envie-obtenue"]`, liste);
+  await sansPhoto();
+  await quand(() => stocke().vetements.length === avant + 1 && stocke().wishlist.length === 2, 'rangée dans la garde-robe');
+  egalProfond([stocke().vetements.at(-1).type, stocke().vetements.at(-1).hex], ['manteau', envie.hex]);
+  await attendre(() => !liste.querySelector(`[data-envie="${envie.id}"]`), 'plus dans la liste');
+  cliquer('[data-action="retirer-envie"]', liste);
+  await quand(() => stocke().wishlist.length === 1, 'envie retirée');
+  cliquer('[data-action="fermer-feuille"]', liste);
+  await dialoguesFermes();
+  await attendre(() => doc.querySelector('[data-type="manteau"] .vetement'), 'manteau dans la garde-robe');
+});

@@ -14,6 +14,8 @@ import { estNoir, labDepuisHex } from '../couleur.js';
 import { nomCouleurVetement } from './garde-robe.js';
 import { partagerTenue } from './partage-tenue.js';
 import { pastilleCouleurs, hexDuVetement } from './fiche-vetement.js';
+import { boutonEnvie } from './wishlist.js';
+import { envieDuManque } from './manques.js';
 
 const ecartTexte = (ecart) => ecart.toFixed(1).replace('.', ',');
 
@@ -204,7 +206,8 @@ export function rendreTenue(conteneur, app, actions) {
     if (piece.manque) {
       const texte = cible ? `il te manque ${cible.nom}` : 'il te manque un noir ou un blanc';
       return el('li', { class: 'manque' }, cible ? pastille(cible.hex) : pastilleJoker(),
-        el('span', {}, el('span', { class: 'avertissement', 'aria-label': 'Manque' }, '⚠'), el('strong', {}, ` ${libelle(piece.type)} : `), texte));
+        el('span', {}, el('span', { class: 'avertissement', 'aria-label': 'Manque' }, '⚠'), el('strong', {}, ` ${libelle(piece.type)} : `), texte),
+        boutonEnvie(app, actions, envieDuManque(app, piece), `${libelle(piece.type)}, ${cible ? cible.nom : 'noir ou blanc'}`));
     }
     const vetement = piece.vetement;
     const nom = nomCouleurVetement(vetement, app.catalogue);

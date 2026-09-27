@@ -4,7 +4,7 @@ import {
   ajouterVetement, modifierVetement, supprimerVetement, basculerFavori, modifierReglages, enregistrerTenueType,
   enregistrerEtalonnage, supprimerEtalonnage, retirerTenueType,
   garderTenue, retirerTenueGardee, renommerTenueGardee, marquesConnues, noterSauvegarde, reporterRappelSauvegarde, rappelSauvegardeDu,
-  couleursDuVetement, vetementsEnService,
+  couleursDuVetement, vetementsEnService, ajouterEnvie, retirerEnvie, obtenirEnvie, estDansWishlist,
 } from '../js/donnees.js';
 import { signatureTenue } from '../js/tenues.js';
 
@@ -25,6 +25,7 @@ const PHOTO = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2w==';
 test('données v2 : un export de version 1 reste lisible (sans les champs de la version 2)', () => {
   const v1 = JSON.parse(exporterEtat(etatExemple(), DATE));
   v1.version = 1;
+  delete v1.wishlist;
   delete v1.tenuesGardees;
   const { erreurs, etat } = lireExport(JSON.stringify(v1));
   egalProfond(erreurs, []);
@@ -195,7 +196,7 @@ test('export puis import : mêmes données', () => {
   const texte = exporterEtat(etat, DATE, 2);
   const doc = JSON.parse(texte);
   egal(doc.format, 'garde-robe-chromatique');
-  egal(doc.version, 4);
+  egal(doc.version, 5);
   egal(doc.dateExport, '2026-09-24T10:00:00.000Z');
   const { erreurs, etat: relu } = lireExport(texte);
   egalProfond(erreurs, []);
@@ -313,9 +314,10 @@ test('données v3 : couleurs secondaires (2 au plus), exportées, relues ; une v
   const relu = lireExport(exporterEtat(etat, DATE));
   egalProfond(relu.erreurs, []);
   egalProfond(relu.etat, etat);
-  egal(JSON.parse(exporterEtat(etat, DATE)).version, 4);
+  egal(JSON.parse(exporterEtat(etat, DATE)).version, 5);
   const v2 = JSON.parse(exporterEtat(etatExemple(), DATE));
   v2.version = 2;
+  delete v2.wishlist;
   egalProfond(lireExport(JSON.stringify(v2)).erreurs, [], 'version 2 lisible');
   v2.vetements[0].couleursSecondaires = [{ hex: '#ffffff' }];
   vrai(lireExport(JSON.stringify(v2)).erreurs.some((e) => e.includes('champ inconnu « couleursSecondaires »')), 'absentes de la version 2');
@@ -338,6 +340,7 @@ test('données v4 : vêtement en pause (demande de Théo), exporté, relu ; une 
   egalProfond(relu.etat, enPause);
   const v3 = JSON.parse(exporterEtat(etat, DATE));
   v3.version = 3;
+  delete v3.wishlist;
   egalProfond(lireExport(JSON.stringify(v3)).erreurs, [], 'version 3 lisible');
   v3.vetements[0].enPause = true;
   vrai(lireExport(JSON.stringify(v3)).erreurs.some((e) => e.includes('champ inconnu « enPause »')), 'absent de la version 3');
@@ -345,5 +348,41 @@ test('données v4 : vêtement en pause (demande de Théo), exporté, relu ; une 
   mauvais.vetements[0].enPause = false;
   vrai(lireExport(JSON.stringify(mauvais)).erreurs.some((e) => e.includes('« enPause » doit valoir true ou être absent')), 'false refusé');
   vrai(lireExport(JSON.stringify({ ...mauvais, version: 7 })).erreurs[0].includes('plus récente'));
-  vrai(lireExport(JSON.stringify({ ...mauvais, version: 0 })).erreurs[0].includes('« version » doit valoir 1, 2, 3 ou 4'));
+  vrai(lireExport(JSON.stringify({ ...mauvais, version: 0 })).erreurs[0].includes('« version » doit valoir 1, 2, 3, 4 ou 5'));
+});
+
+test('données v5 : wishlist (demande de Théo), envies ajoutées, retirées, obtenues ; une version 4 reste lisible', () => {
+  let etat = etatExemple();
+  egalProfond(etat.wishlist, [], 'vide au départ');
+  etat = ajouterEnvie(etat, { type: 'pull', hex: '#AE5224', idCouleurCatalogue: 'wada-7', note: '  chez Uniqlo ' }, { id: 'e1', date: DATE });
+  etat = ajouterEnvie(etat, { type: 'chaussures', hex: '#111314' }, { id: 'e2', date: DATE });
+  egalProfond(etat.wishlist.map((e) => e.id), ['e2', 'e1'], 'la plus récente d\'abord');
+  egalProfond(etat.wishlist[1], { id: 'e1', type: 'pull', hex: '#ae5224', idCouleurCatalogue: 'wada-7', note: 'chez Uniqlo', dateAjout: '2026-09-24T10:00:00.000Z' });
+  vrai(estDansWishlist(etat, 'pull', '#AE5224'));
+  egal(ajouterEnvie(etat, { type: 'pull', hex: '#ae5224' }, { id: 'e3', date: DATE }), etat, 'même type et même couleur : une seule fois');
+  leve(() => ajouterEnvie(etat, { type: 'cape', hex: '#000000' }, { id: 'e4', date: DATE }), 'type inconnu');
+  leve(() => ajouterEnvie(etat, { type: 'pull', hex: 'rouge' }, { id: 'e4', date: DATE }), 'couleur invalide');
+  leve(() => ajouterEnvie(etat, { type: 'pull', hex: '#123456', note: 'x'.repeat(61) }, { id: 'e4', date: DATE }), 'note trop longue');
+  const relu = lireExport(exporterEtat(etat, DATE));
+  egalProfond(relu.erreurs, []);
+  egalProfond(relu.etat, etat, 'exportée et relue');
+  // « Je l'ai » : l'envie devient un vêtement.
+  const obtenu = obtenirEnvie(etat, 'e1', { id: 'v9', date: DATE, photo: true });
+  egalProfond(obtenu.wishlist.map((e) => e.id), ['e2']);
+  egalProfond(obtenu.vetements.at(-1), { id: 'v9', type: 'pull', hex: '#ae5224', origine: 'manuel', idCouleurCatalogue: 'wada-7', dateAjout: '2026-09-24T10:00:00.000Z', photo: true });
+  egalProfond(retirerEnvie(etat, 'e2').wishlist.map((e) => e.id), ['e1']);
+  leve(() => retirerEnvie(etat, 'inconnue'));
+  // Version 4 : pas de wishlist.
+  const v4 = JSON.parse(exporterEtat(etat, DATE));
+  v4.version = 4;
+  vrai(lireExport(JSON.stringify(v4)).erreurs.some((e) => e.includes('champ inconnu « wishlist »')), 'absente de la version 4');
+  delete v4.wishlist;
+  const relu4 = lireExport(JSON.stringify(v4));
+  egalProfond(relu4.erreurs, []);
+  egalProfond(relu4.etat.wishlist, [], 'version 4 lisible, wishlist vide');
+  const mauvais = JSON.parse(exporterEtat(etat, DATE));
+  mauvais.wishlist[0].taille = 'M';
+  mauvais.wishlist[1].id = mauvais.wishlist[0].id;
+  const erreurs = lireExport(JSON.stringify(mauvais)).erreurs;
+  vrai(erreurs.some((e) => e.includes('envie 1 : champ inconnu « taille »')) && erreurs.some((e) => e.includes('en double')), erreurs.join(' ; '));
 });

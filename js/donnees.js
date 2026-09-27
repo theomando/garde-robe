@@ -5,17 +5,19 @@
 // ajoute les photos des vêtements (photos: { id: data URL }), gardées à part sur l'appareil (js/photos.js).
 // Version 2 (2026-09-26) : marque et photo des vêtements, tenues gardées (« Mes tenues »), dates de sauvegarde.
 // Version 3 (2026-09-27) : jusqu'à deux couleurs secondaires par vêtement (vêtements multicolores), gardées aussi
-// dans les tenues. Un document de version 1 ou 2 reste lisible (sans ces champs).
+// dans les tenues. Version 4 : vêtement en pause. Version 5 : wishlist (envies : type, couleur, note). Un document
+// d'une version antérieure reste lisible (sans ces champs).
 
 import {
   TYPES, conflitTypes, TOLERANCE_DEFAUT, TOLERANCE_MIN, TOLERANCE_MAX, TOLERANCE_PAS, MODES_SCAN,
   MARQUE_MAX, NOM_TENUE_MAX, PHOTO_TAILLE_MAX, RAPPEL_SAUVEGARDE_JOURS, RAPPEL_PREMIER_JOURS, RAPPEL_REPORT_JOURS,
+  NOTE_ENVIE_MAX,
 } from './constantes.js';
 import { estHexValide } from './couleur.js';
 import { verifierMesuresEtalonnage } from './etalonnage.js';
 
 export const FORMAT_DONNEES = 'garde-robe-chromatique';
-export const VERSION_DONNEES = 4;
+export const VERSION_DONNEES = 5;
 export const COULEURS_SECONDAIRES_MAX = 2; // un vêtement a au plus 3 couleurs
 export const ORIGINES = ['scan', 'manuel'];
 
@@ -24,18 +26,21 @@ const CLES_DOCUMENT = {
   2: ['format', 'version', 'dateExport', 'vetements', 'reglages', 'tenuesTypes', 'tenuesGardees', 'photos'],
   3: ['format', 'version', 'dateExport', 'vetements', 'reglages', 'tenuesTypes', 'tenuesGardees', 'photos'],
   4: ['format', 'version', 'dateExport', 'vetements', 'reglages', 'tenuesTypes', 'tenuesGardees', 'photos'],
+  5: ['format', 'version', 'dateExport', 'vetements', 'reglages', 'tenuesTypes', 'tenuesGardees', 'wishlist', 'photos'],
 };
 const CLES_VETEMENT = {
   1: ['id', 'type', 'hex', 'origine', 'idCouleurCatalogue', 'dateAjout'],
   2: ['id', 'type', 'hex', 'origine', 'idCouleurCatalogue', 'dateAjout', 'marque', 'photo'],
   3: ['id', 'type', 'hex', 'origine', 'idCouleurCatalogue', 'dateAjout', 'marque', 'photo', 'couleursSecondaires'],
   4: ['id', 'type', 'hex', 'origine', 'idCouleurCatalogue', 'dateAjout', 'marque', 'photo', 'couleursSecondaires', 'enPause'],
+  5: ['id', 'type', 'hex', 'origine', 'idCouleurCatalogue', 'dateAjout', 'marque', 'photo', 'couleursSecondaires', 'enPause'],
 };
 const CLES_REGLAGES = {
   1: ['mst', 'teintActif', 'tolerance', 'favoris', 'etalonnage'],
   2: ['mst', 'teintActif', 'tolerance', 'favoris', 'etalonnage', 'derniereSauvegarde', 'rappelSauvegarde'],
   3: ['mst', 'teintActif', 'tolerance', 'favoris', 'etalonnage', 'derniereSauvegarde', 'rappelSauvegarde'],
   4: ['mst', 'teintActif', 'tolerance', 'favoris', 'etalonnage', 'derniereSauvegarde', 'rappelSauvegarde'],
+  5: ['mst', 'teintActif', 'tolerance', 'favoris', 'etalonnage', 'derniereSauvegarde', 'rappelSauvegarde'],
 };
 const CLES_ETALONNAGE = ['blanc', 'noir', 'date'];
 const CLES_TENUE_GARDEE = ['id', 'nom', 'date', 'types', 'combinaison', 'pieces', 'peau'];
@@ -45,7 +50,9 @@ const CLES_PIECE_GARDEE = {
   2: ['type', 'hex', 'manque', 'joker', 'couleurId', 'vetementId'],
   3: ['type', 'hex', 'manque', 'joker', 'couleurId', 'vetementId', 'hexSecondaires'],
   4: ['type', 'hex', 'manque', 'joker', 'couleurId', 'vetementId', 'hexSecondaires'],
+  5: ['type', 'hex', 'manque', 'joker', 'couleurId', 'vetementId', 'hexSecondaires'],
 };
+const CLES_ENVIE = ['id', 'type', 'hex', 'idCouleurCatalogue', 'note', 'dateAjout'];
 const CLES_COULEUR_SECONDAIRE = ['hex', 'idCouleurCatalogue'];
 const SOURCES = ['wada', 'papier-tigre', 'vetements'];
 const ROLES = ['dominante', 'soutien'];
@@ -94,6 +101,7 @@ export function etatInitial() {
     reglages: { mst: null, teintActif: false, tolerance: TOLERANCE_DEFAUT, favoris: [] },
     tenuesTypes: [],
     tenuesGardees: [],
+    wishlist: [],
   };
 }
 
@@ -214,7 +222,7 @@ function validerTenueGardee(t, ou, erreurs, version = VERSION_DONNEES) {
 // Valide un état et le renvoie normalisé (hex en minuscules, tenues dans l'ordre de TYPES).
 // version : champs admis (1 : sans marque, photo, tenues gardées ni dates de sauvegarde).
 // Renvoie { erreurs, etat } ; etat vaut null dès qu'il y a une erreur.
-export function validerEtat({ vetements, reglages, tenuesTypes, tenuesGardees = [] }, { version = VERSION_DONNEES } = {}) {
+export function validerEtat({ vetements, reglages, tenuesTypes, tenuesGardees = [], wishlist = [] }, { version = VERSION_DONNEES } = {}) {
   const erreurs = [];
 
   if (!Array.isArray(vetements)) erreurs.push('« vetements » doit être une liste');
@@ -308,6 +316,31 @@ export function validerEtat({ vetements, reglages, tenuesTypes, tenuesGardees = 
     });
   }
 
+  const envies = [];
+  if (!Array.isArray(wishlist)) erreurs.push('« wishlist » doit être une liste');
+  else {
+    const ids = new Set();
+    wishlist.forEach((e, i) => {
+      const ou = `envie ${i + 1}`;
+      if (!estObjet(e)) { erreurs.push(`${ou} : un objet est attendu`); return; }
+      champsInconnus(e, CLES_ENVIE, ou, erreurs);
+      if (!estTexteNonVide(e.id)) erreurs.push(`${ou} : identifiant manquant`);
+      else if (ids.has(e.id)) erreurs.push(`${ou} : identifiant « ${e.id} » en double`);
+      else ids.add(e.id);
+      if (!TYPES.includes(e.type)) erreurs.push(`${ou} : type « ${e.type} » inconnu`);
+      if (!estHexValide(e.hex)) erreurs.push(`${ou} : couleur « ${e.hex} » invalide (#rrggbb attendu)`);
+      if (e.idCouleurCatalogue !== undefined && !estTexteNonVide(e.idCouleurCatalogue)) erreurs.push(`${ou} : idCouleurCatalogue invalide`);
+      if (e.note !== undefined && !estTexteLibre(e.note, NOTE_ENVIE_MAX)) erreurs.push(`${ou} : note invalide (${NOTE_ENVIE_MAX} caractères au plus)`);
+      if (!estDateIso(e.dateAjout)) erreurs.push(`${ou} : date d'ajout « ${e.dateAjout} » invalide`);
+      envies.push({
+        id: e.id, type: e.type, hex: String(e.hex).toLowerCase(),
+        ...(e.idCouleurCatalogue !== undefined ? { idCouleurCatalogue: e.idCouleurCatalogue } : {}),
+        ...(e.note !== undefined ? { note: e.note } : {}),
+        dateAjout: e.dateAjout,
+      });
+    });
+  }
+
   if (erreurs.length > 0) return { erreurs, etat: null };
   return {
     erreurs,
@@ -332,6 +365,7 @@ export function validerEtat({ vetements, reglages, tenuesTypes, tenuesGardees = 
       },
       tenuesTypes: tenues,
       tenuesGardees: gardees,
+      wishlist: envies,
     },
   };
 }
@@ -452,6 +486,39 @@ function secondairesNettes(liste) {
   const nettes = validerCouleursSecondaires(liste, 'vêtement', erreurs);
   if (erreurs.length > 0) throw new Error(erreurs[0]);
   return { couleursSecondaires: nettes };
+}
+
+// ---- Wishlist (demande de Théo, 2026-09-27) : vêtements que l'on aimerait avoir, avec leur couleur. ----
+// Une même envie (type et couleur) n'est gardée qu'une fois ; la plus récente d'abord.
+export const estDansWishlist = (etat, type, hex) => etat.wishlist.some((e) => e.type === type && e.hex === String(hex).toLowerCase());
+
+export function ajouterEnvie(etat, { type, hex, idCouleurCatalogue, note }, { id, date }) {
+  if (!TYPES.includes(type)) throw new Error(`type « ${type} » inconnu`);
+  if (!estHexValide(hex)) throw new Error(`couleur « ${hex} » invalide`);
+  if (idCouleurCatalogue !== undefined && idCouleurCatalogue !== null && !estTexteNonVide(idCouleurCatalogue)) throw new Error('idCouleurCatalogue invalide');
+  if (!estTexteNonVide(id) || etat.wishlist.some((e) => e.id === id)) throw new Error('identifiant d\'envie invalide');
+  const noteNette = nettoyerTexteLibre(note, NOTE_ENVIE_MAX, 'note');
+  if (estDansWishlist(etat, type, hex)) return etat;
+  const envie = {
+    id, type, hex: hex.toLowerCase(), ...(idCouleurCatalogue ? { idCouleurCatalogue } : {}),
+    ...(noteNette !== null ? { note: noteNette } : {}), dateAjout: date.toISOString(),
+  };
+  return { ...etat, wishlist: [envie, ...etat.wishlist] };
+}
+
+export function retirerEnvie(etat, id) {
+  if (!etat.wishlist.some((e) => e.id === id)) throw new Error(`envie ${id} introuvable`);
+  return { ...etat, wishlist: etat.wishlist.filter((e) => e.id !== id) };
+}
+
+// « Je l'ai » : l'envie devient un vêtement de la garde-robe (origine « manuel », même type, même couleur).
+export function obtenirEnvie(etat, id, { id: idVetement, date, photo = false }) {
+  const envie = etat.wishlist.find((e) => e.id === id);
+  if (!envie) throw new Error(`envie ${id} introuvable`);
+  const avec = ajouterVetement(etat, {
+    type: envie.type, hex: envie.hex, origine: 'manuel', ...(envie.idCouleurCatalogue ? { idCouleurCatalogue: envie.idCouleurCatalogue } : {}), photo,
+  }, { id: idVetement, date });
+  return { ...avec, wishlist: avec.wishlist.filter((e) => e.id !== id) };
 }
 
 // Vêtements en service (demande de Théo, 2026-09-27) : un vêtement en pause (lavage, prêt…) n'entre pas dans les

@@ -2,10 +2,11 @@
 // déjà demandées, avec la garde-robe et les réglages actuels (CLAUDE.md, section « Favoris et statistiques »).
 
 import { el, pastille, pastilleJoker, confirmer, annoncer } from '../ui.js';
-import { TYPES, LIBELLES_TYPES } from '../constantes.js';
+import { TYPES, LIBELLES_TYPES, ETALONNAGE_CIBLE_NOIR } from '../constantes.js';
 import { retirerTenueType } from '../donnees.js';
 import { manquesFrequents } from '../statistiques.js';
 import { icone } from '../icones.js';
+import { boutonEnvie } from './wishlist.js';
 
 // Délai avant le calcul, pour que Safari affiche d'abord « Calcul des manques… » (le calcul bloque la page).
 const DELAI_AVANT_CALCUL_MS = 30;
@@ -32,6 +33,16 @@ function calculer(app) {
 
 const pluriel = (n, mot) => `${n} ${mot}${n > 1 ? 's' : ''}`;
 const libelleTenue = (types) => TYPES.filter((t) => types.includes(t)).map((t) => LIBELLES_TYPES[t].toLowerCase()).join(', ');
+
+// Envie de la wishlist pour un manque : sa couleur ; « noir ou blanc » (joker) : le noir du catalogue, avec une note.
+export function envieDuManque(app, { type, couleurId }) {
+  if (couleurId) {
+    const couleur = app.catalogue.couleurParId.get(couleurId);
+    return { type, hex: couleur.hex, idCouleurCatalogue: couleur.id };
+  }
+  const noir = app.catalogue.couleurs.find((c) => c.hex === ETALONNAGE_CIBLE_NOIR);
+  return { type, hex: ETALONNAGE_CIBLE_NOIR, ...(noir ? { idCouleurCatalogue: noir.id } : {}), note: 'ou blanc' };
+}
 
 // Écran qui porte la section (le calcul différé ne redessine que si l'on y est encore).
 const ECRAN = 'mes-tenues';
@@ -81,7 +92,8 @@ export function sectionManques(app, actions) {
         el('span', { class: 'nom' }, couleur ? couleur.nom : 'Noir ou blanc'),
         el('span', { class: 'discret detail' }, icone(manque.type), LIBELLES_TYPES[manque.type])),
       el('span', { class: 'nombre' }, el('strong', {}, String(manque.nombre)),
-        el('span', { class: 'discret' }, manque.nombre > 1 ? 'propositions' : 'proposition')));
+        el('span', { class: 'discret' }, manque.nombre > 1 ? 'propositions' : 'proposition')),
+      boutonEnvie(app, actions, envieDuManque(app, manque), `${LIBELLES_TYPES[manque.type]}, ${couleur ? couleur.nom : 'noir ou blanc'}`));
     }));
   }
 

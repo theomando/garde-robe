@@ -13,6 +13,7 @@ import { ouvrirScan, remplirResultatVetement } from './scan.js';
 import { correcteur } from './etalonnage.js';
 import { epinglerVetement } from './tenue.js';
 import { champMarque, choisirPhoto, proposerPhoto, visuelVetement } from './fiche-vetement.js';
+import { boutonWishlist } from './wishlist.js';
 
 // Mesure tout-en-un : caméra plein écran, puis feuille du résultat (ajustement, type, Enregistrer). La couleur
 // mesurée est gardée par défaut (origine « scan ») ; un choix dans le catalogue la remplace (hex du catalogue,
@@ -97,7 +98,7 @@ async function menuAjout(app, actions, ancre) {
 
 // Une couleur de vêtement, par la caméra ou sur la carte des couleurs (menu près du bouton touché).
 // Renvoie { hex, idCouleurCatalogue? } ou null.
-async function choisirUneCouleur(app, actions, ancre, reference) {
+export async function choisirUneCouleur(app, actions, ancre, reference) {
   const moyen = await ouvrirMenu(ancre, [
     { libelle: 'Mesurer avec la caméra', icone: 'camera', valeur: 'camera', action: 'couleur-camera' },
     { libelle: 'Choisir sur la carte', icone: 'mosaique', valeur: 'carte', action: 'couleur-carte' },
@@ -370,7 +371,10 @@ export function rendreGardeRobe(conteneur, app, actions) {
   const contenu = barreNavigation({
     titre: 'Garde-robe',
     sousTitre: n > 0 ? `${n} vêtement${n > 1 ? 's' : ''}${enPause > 0 ? `, dont ${enPause} en pause` : ''}` : null,
-    droite: [boutonRond({ icone: 'plus', libelle: 'Ajouter un vêtement', action: 'ajouter', onclick: (e) => menuAjout(app, actions, e.currentTarget) })],
+    droite: [
+      boutonWishlist(app, actions),
+      boutonRond({ icone: 'plus', libelle: 'Ajouter un vêtement', action: 'ajouter', onclick: (e) => menuAjout(app, actions, e.currentTarget) }),
+    ],
   });
   if (rappelSauvegardeDu(app.etat, new Date())) contenu.push(encartSauvegarde(app, actions));
   if (n === 0) {
