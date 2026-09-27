@@ -105,3 +105,22 @@ test('avatar : chaussettes hautes sans pantalon, fine bande à la cheville sous 
   const robe = dessinerAvatar({ peau: '#d7bd96', pieces: [{ type: 'robe', hex: '#aa3366' }, { type: 'pull', hex: '#223344' }] });
   egalProfond([...robe.querySelectorAll('g[data-type]')].map((g) => g.dataset.type), ['robe', 'pull'], 'le pull se dessine par-dessus la robe');
 });
+
+test('avatar : vêtement multicolore en rayures horizontales, la couleur principale dominante ; unicolore sans motif', () => {
+  const svg = dessinerAvatar({ peau: '#d7bd96', pieces: [
+    { type: 'pull', hex: '#aa0000', rayures: ['#aa0000', '#ffffff'] },
+    { type: 'short', hex: '#112233', rayures: ['#112233', '#ffffff', '#ffcc00'] },
+    { type: 'chaussures', hex: '#000000' },
+  ] });
+  egalProfond([...svg.querySelectorAll('pattern[data-rayures]')].map((m) => m.dataset.rayures), ['short', 'pull'], 'un motif par pièce multicolore');
+  const bandes = (type) => [...svg.querySelector(`pattern[data-rayures="${type}"]`).children].map((r) => [r.getAttribute('fill'), Number(r.getAttribute('height'))]);
+  egalProfond(bandes('pull'), [['#aa0000', 8], ['#ffffff', 4]], 'deux couleurs : la principale sur les deux tiers');
+  egalProfond(bandes('short'), [['#112233', 6], ['#ffffff', 3], ['#ffcc00', 3]], 'trois couleurs : la principale sur la moitié');
+  const motifPull = svg.querySelector('pattern[data-rayures="pull"]').id;
+  vrai([...svg.querySelectorAll('g[data-type="pull"] > *')].every((f) => f.getAttribute('fill') === `url(#${motifPull})`), 'pull rempli de rayures');
+  vrai([...svg.querySelectorAll('g[data-type="chaussures"] > *')].every((f) => f.getAttribute('fill') === '#000000'), 'unicolore : couleur pleine');
+  egal(dessinerAvatar({ peau: '#d7bd96', pieces: [{ type: 'pull', hex: '#aa0000' }] }).querySelectorAll('pattern').length, 0, 'aucun motif sans vêtement multicolore');
+  const proposition = { pieces: [{ type: 'pull', couleurId: 'c1', joker: false, manque: false, vetement: { hex: '#b05a2a', couleursSecondaires: [{ hex: '#ffffff' }] } }] };
+  egalProfond(planAvatar(proposition, { couleurParId: new Map() }), [{ type: 'pull', hex: '#b05a2a', manque: false, rayures: ['#b05a2a', '#ffffff'] }],
+    'plan d\'une proposition : toutes les couleurs, la principale d\'abord');
+});

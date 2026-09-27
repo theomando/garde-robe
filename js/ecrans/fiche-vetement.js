@@ -4,7 +4,7 @@
 
 import { el, pastille, choisirImage, annoncer, ouvrirDialogue } from '../ui.js';
 import { MARQUE_MAX } from '../constantes.js';
-import { marquesConnues } from '../donnees.js';
+import { marquesConnues, couleursDuVetement } from '../donnees.js';
 import { vignetteDepuisFichier } from '../photos.js';
 
 let compteur = 0;
@@ -49,10 +49,25 @@ export async function proposerPhoto() {
   return choix === 'photo' ? photo : null;
 }
 
-// Visuel d'un vêtement : sa photo (avec la pastille de sa couleur dans un coin) ou, à défaut, la pastille seule.
+// Pastille d'une ou plusieurs couleurs : rayures horizontales pour un vêtement multicolore (principale dominante).
+export function pastilleCouleurs(hexes, options = {}) {
+  const rond = pastille(hexes[0], options);
+  if (hexes.length > 1) {
+    const bandes = hexes.length === 2
+      ? `${hexes[0]} 0 5px, ${hexes[1]} 5px 8px`
+      : `${hexes[0]} 0 4px, ${hexes[1]} 4px 6px, ${hexes[2]} 6px 8px`;
+    rond.style.backgroundImage = `repeating-linear-gradient(to bottom, ${bandes})`;
+    rond.classList.add('rayee');
+  }
+  return rond;
+}
+
+export const hexDuVetement = (vetement) => couleursDuVetement(vetement).map((c) => c.hex);
+
+// Visuel d'un vêtement : sa photo (avec la pastille de ses couleurs dans un coin) ou, à défaut, la pastille seule.
 export function visuelVetement(app, vetement) {
   const photo = vetement.photo ? app.photos.get(vetement.id) : null;
-  if (!photo) return pastille(vetement.hex, { classe: 'moyenne' });
+  if (!photo) return pastilleCouleurs(hexDuVetement(vetement), { classe: 'moyenne' });
   return el('span', { class: 'visuel-vetement', 'aria-hidden': 'true' },
-    el('img', { class: 'vignette-vetement', src: photo, alt: '' }), pastille(vetement.hex, { classe: 'coin' }));
+    el('img', { class: 'vignette-vetement', src: photo, alt: '' }), pastilleCouleurs(hexDuVetement(vetement), { classe: 'coin' }));
 }

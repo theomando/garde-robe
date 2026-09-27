@@ -4,7 +4,8 @@
 // Le même document JSON sert à l'export et au stockage local : { format, version, dateExport, …état } ; l'export
 // ajoute les photos des vêtements (photos: { id: data URL }), gardées à part sur l'appareil (js/photos.js).
 // Version 2 (2026-09-26) : marque et photo des vêtements, tenues gardées (« Mes tenues »), dates de sauvegarde.
-// Un document de version 1 reste lisible (sans ces champs).
+// Version 3 (2026-09-27) : jusqu'à deux couleurs secondaires par vêtement (vêtements multicolores), gardées aussi
+// dans les tenues. Un document de version 1 ou 2 reste lisible (sans ces champs).
 
 import {
   TYPES, conflitTypes, TOLERANCE_DEFAUT, TOLERANCE_MIN, TOLERANCE_MAX, TOLERANCE_PAS, MODES_SCAN,
@@ -14,26 +15,34 @@ import { estHexValide } from './couleur.js';
 import { verifierMesuresEtalonnage } from './etalonnage.js';
 
 export const FORMAT_DONNEES = 'garde-robe-chromatique';
-export const VERSION_DONNEES = 2;
+export const VERSION_DONNEES = 3;
+export const COULEURS_SECONDAIRES_MAX = 2; // un vêtement a au plus 3 couleurs
 export const ORIGINES = ['scan', 'manuel'];
 
 const CLES_DOCUMENT = {
   1: ['format', 'version', 'dateExport', 'vetements', 'reglages', 'tenuesTypes'],
   2: ['format', 'version', 'dateExport', 'vetements', 'reglages', 'tenuesTypes', 'tenuesGardees', 'photos'],
+  3: ['format', 'version', 'dateExport', 'vetements', 'reglages', 'tenuesTypes', 'tenuesGardees', 'photos'],
 };
 const CLES_VETEMENT = {
   1: ['id', 'type', 'hex', 'origine', 'idCouleurCatalogue', 'dateAjout'],
   2: ['id', 'type', 'hex', 'origine', 'idCouleurCatalogue', 'dateAjout', 'marque', 'photo'],
+  3: ['id', 'type', 'hex', 'origine', 'idCouleurCatalogue', 'dateAjout', 'marque', 'photo', 'couleursSecondaires'],
 };
 const CLES_REGLAGES = {
   1: ['mst', 'teintActif', 'tolerance', 'favoris', 'etalonnage'],
   2: ['mst', 'teintActif', 'tolerance', 'favoris', 'etalonnage', 'derniereSauvegarde', 'rappelSauvegarde'],
+  3: ['mst', 'teintActif', 'tolerance', 'favoris', 'etalonnage', 'derniereSauvegarde', 'rappelSauvegarde'],
 };
 const CLES_ETALONNAGE = ['blanc', 'noir', 'date'];
 const CLES_TENUE_GARDEE = ['id', 'nom', 'date', 'types', 'combinaison', 'pieces', 'peau'];
 const CLES_COMBINAISON_GARDEE = ['id', 'source', 'ref', 'nom', 'couleurs'];
 const CLES_COULEUR_GARDEE = ['id', 'nom', 'hex', 'role'];
-const CLES_PIECE_GARDEE = ['type', 'hex', 'manque', 'joker', 'couleurId', 'vetementId'];
+const CLES_PIECE_GARDEE = {
+  2: ['type', 'hex', 'manque', 'joker', 'couleurId', 'vetementId'],
+  3: ['type', 'hex', 'manque', 'joker', 'couleurId', 'vetementId', 'hexSecondaires'],
+};
+const CLES_COULEUR_SECONDAIRE = ['hex', 'idCouleurCatalogue'];
 const SOURCES = ['wada', 'papier-tigre'];
 const ROLES = ['dominante', 'soutien'];
 const MOTIF_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
@@ -108,6 +117,30 @@ function champsInconnus(objet, connues, ou, erreurs) {
   }
 }
 
+// Couleurs secondaires d'un vêtement : 1 à COULEURS_SECONDAIRES_MAX objets { hex, idCouleurCatalogue? }.
+function validerCouleursSecondaires(liste, ou, erreurs) {
+  if (!Array.isArray(liste) || liste.length === 0 || liste.length > COULEURS_SECONDAIRES_MAX) {
+    erreurs.push(`${ou} : « couleursSecondaires » doit contenir 1 à ${COULEURS_SECONDAIRES_MAX} couleurs`);
+    return [];
+  }
+  return liste.map((c, j) => {
+    const ouC = `${ou}, couleur ${j + 2}`;
+    if (!estObjet(c)) { erreurs.push(`${ouC} : un objet est attendu`); return null; }
+    champsInconnus(c, CLES_COULEUR_SECONDAIRE, ouC, erreurs);
+    if (!estHexValide(c.hex)) erreurs.push(`${ouC} : couleur « ${c.hex} » invalide`);
+    if (c.idCouleurCatalogue !== undefined && !estTexteNonVide(c.idCouleurCatalogue)) erreurs.push(`${ouC} : idCouleurCatalogue invalide`);
+    return { hex: String(c.hex).toLowerCase(), ...(c.idCouleurCatalogue !== undefined ? { idCouleurCatalogue: c.idCouleurCatalogue } : {}) };
+  });
+}
+
+// Toutes les couleurs d'un vêtement, la principale d'abord : [{ hex, idCouleurCatalogue? }].
+export function couleursDuVetement(vetement) {
+  return [
+    { hex: vetement.hex, ...(vetement.idCouleurCatalogue !== undefined ? { idCouleurCatalogue: vetement.idCouleurCatalogue } : {}) },
+    ...(vetement.couleursSecondaires ?? []),
+  ];
+}
+
 // Couleur figée dans une tenue gardée : { id, nom, hex, role? }. Renvoie une copie normalisée.
 function validerCouleurGardee(c, ou, erreurs, { role = false } = {}) {
   if (!estObjet(c)) { erreurs.push(`${ou} : un objet est attendu`); return null; }
@@ -120,7 +153,7 @@ function validerCouleurGardee(c, ou, erreurs, { role = false } = {}) {
 }
 
 // Tenue gardée (« Mes tenues ») : instantané d'une proposition, lisible même si la garde-robe ou le catalogue change.
-function validerTenueGardee(t, ou, erreurs) {
+function validerTenueGardee(t, ou, erreurs, version = VERSION_DONNEES) {
   if (!estObjet(t)) { erreurs.push(`${ou} : un objet est attendu`); return null; }
   champsInconnus(t, CLES_TENUE_GARDEE, ou, erreurs);
   if (!estTexteNonVide(t.id)) erreurs.push(`${ou} : identifiant manquant`);
@@ -149,15 +182,20 @@ function validerTenueGardee(t, ou, erreurs) {
     pieces = t.pieces.map((p, j) => {
       const ouP = `${ou}, pièce ${j + 1}`;
       if (!estObjet(p)) { erreurs.push(`${ouP} : un objet est attendu`); return null; }
-      champsInconnus(p, CLES_PIECE_GARDEE, ouP, erreurs);
+      champsInconnus(p, CLES_PIECE_GARDEE[Math.max(2, version)], ouP, erreurs);
       if (!TYPES.includes(p.type)) erreurs.push(`${ouP} : type « ${p.type} » inconnu`);
       if (!estHexValide(p.hex)) erreurs.push(`${ouP} : couleur « ${p.hex} » invalide`);
       if (typeof p.manque !== 'boolean' || typeof p.joker !== 'boolean') erreurs.push(`${ouP} : « manque » et « joker » doivent valoir true ou false`);
       if (p.couleurId !== undefined && !estTexteNonVide(p.couleurId)) erreurs.push(`${ouP} : couleurId invalide`);
       if (p.vetementId !== undefined && !estTexteNonVide(p.vetementId)) erreurs.push(`${ouP} : vetementId invalide`);
+      if (p.hexSecondaires !== undefined && (!Array.isArray(p.hexSecondaires) || p.hexSecondaires.length === 0
+        || p.hexSecondaires.length > COULEURS_SECONDAIRES_MAX || !p.hexSecondaires.every(estHexValide))) {
+        erreurs.push(`${ouP} : « hexSecondaires » doit contenir 1 à ${COULEURS_SECONDAIRES_MAX} couleurs #rrggbb`);
+      }
       return {
         type: p.type, hex: String(p.hex).toLowerCase(), manque: p.manque, joker: p.joker,
         ...(p.couleurId !== undefined ? { couleurId: p.couleurId } : {}), ...(p.vetementId !== undefined ? { vetementId: p.vetementId } : {}),
+        ...(Array.isArray(p.hexSecondaires) ? { hexSecondaires: p.hexSecondaires.map((h) => String(h).toLowerCase()) } : {}),
       };
     });
     if (new Set(t.pieces.map((p) => p?.type)).size !== t.pieces.length) erreurs.push(`${ou} : pièce en double`);
@@ -194,6 +232,7 @@ export function validerEtat({ vetements, reglages, tenuesTypes, tenuesGardees = 
       if (!estDateIso(v.dateAjout)) erreurs.push(`${ou} : date d'ajout « ${v.dateAjout} » invalide`);
       if (v.marque !== undefined && !estTexteLibre(v.marque, MARQUE_MAX)) erreurs.push(`${ou} : marque invalide (${MARQUE_MAX} caractères au plus)`);
       if (v.photo !== undefined && v.photo !== true) erreurs.push(`${ou} : « photo » doit valoir true ou être absent`);
+      if (v.couleursSecondaires !== undefined) validerCouleursSecondaires(v.couleursSecondaires, ou, erreurs);
     });
   }
 
@@ -255,7 +294,7 @@ export function validerEtat({ vetements, reglages, tenuesTypes, tenuesGardees = 
     const ids = new Set();
     tenuesGardees.forEach((t, i) => {
       const ou = `tenue gardée ${i + 1}`;
-      const copie = validerTenueGardee(t, ou, erreurs);
+      const copie = validerTenueGardee(t, ou, erreurs, version);
       if (copie && estTexteNonVide(copie.id)) {
         if (ids.has(copie.id)) erreurs.push(`${ou} : identifiant « ${copie.id} » en double`);
         ids.add(copie.id);
@@ -277,6 +316,7 @@ export function validerEtat({ vetements, reglages, tenuesTypes, tenuesGardees = 
         dateAjout: v.dateAjout,
         ...(v.marque !== undefined ? { marque: v.marque } : {}),
         ...(v.photo !== undefined ? { photo: true } : {}),
+        ...(v.couleursSecondaires !== undefined ? { couleursSecondaires: validerCouleursSecondaires(v.couleursSecondaires, '', []) } : {}),
       })),
       reglages: {
         mst: reglages.mst, teintActif: reglages.teintActif, tolerance: reglages.tolerance, favoris: [...reglages.favoris],
@@ -314,7 +354,7 @@ export function lireExport(texte) {
   if (Number.isInteger(doc.version) && doc.version > VERSION_DONNEES) {
     return refus(`version ${doc.version} plus récente que cette app (version ${VERSION_DONNEES}) : mets l'app à jour`);
   }
-  if (!Object.hasOwn(CLES_DOCUMENT, doc.version)) return refus(`« version » doit valoir 1 ou ${VERSION_DONNEES}`);
+  if (!Object.hasOwn(CLES_DOCUMENT, doc.version)) return refus(`« version » doit valoir 1, 2 ou ${VERSION_DONNEES}`);
   const erreurs = [];
   champsInconnus(doc, CLES_DOCUMENT[doc.version], 'document', erreurs);
   if (!estDateIso(doc.dateExport)) erreurs.push('« dateExport » invalide');
@@ -352,7 +392,8 @@ function verifierVetement({ type, hex, origine, idCouleurCatalogue }) {
 }
 
 // marque : texte libre (nettoyé ; vide = pas de marque) ; photo : true si une photo est gardée (js/photos.js).
-export function ajouterVetement(etat, { type, hex, origine, idCouleurCatalogue, marque, photo }, { id, date }) {
+// couleursSecondaires : [{ hex, idCouleurCatalogue? }] (au plus COULEURS_SECONDAIRES_MAX ; vide = unicolore).
+export function ajouterVetement(etat, { type, hex, origine, idCouleurCatalogue, marque, photo, couleursSecondaires }, { id, date }) {
   verifierVetement({ type, hex, origine, idCouleurCatalogue });
   if (!estTexteNonVide(id) || etat.vetements.some((v) => v.id === id)) throw new Error('identifiant de vêtement invalide');
   const marqueNette = nettoyerTexteLibre(marque, MARQUE_MAX, 'marque');
@@ -362,6 +403,7 @@ export function ajouterVetement(etat, { type, hex, origine, idCouleurCatalogue, 
     dateAjout: date.toISOString(),
     ...(marqueNette !== null ? { marque: marqueNette } : {}),
     ...(photo ? { photo: true } : {}),
+    ...secondairesNettes(couleursSecondaires),
   };
   return { ...etat, vetements: [...etat.vetements, vetement] };
 }
@@ -381,11 +423,24 @@ export function modifierVetement(etat, id, modifications) {
     if (marque === null) delete nouveau.marque;
     else nouveau.marque = marque;
   }
+  if (modifications.couleursSecondaires !== undefined) {
+    delete nouveau.couleursSecondaires;
+    Object.assign(nouveau, secondairesNettes(modifications.couleursSecondaires));
+  }
   if (modifications.photo === true) nouveau.photo = true;
   else if (modifications.photo === false) delete nouveau.photo;
   verifierVetement(nouveau);
   nouveau.hex = nouveau.hex.toLowerCase();
   return { ...etat, vetements: etat.vetements.map((v) => (v.id === id ? nouveau : v)) };
+}
+
+// { couleursSecondaires } normalisées, ou {} si la liste est vide ou absente. Lève une erreur si elle est invalide.
+function secondairesNettes(liste) {
+  if (!liste || liste.length === 0) return {};
+  const erreurs = [];
+  const nettes = validerCouleursSecondaires(liste, 'vêtement', erreurs);
+  if (erreurs.length > 0) throw new Error(erreurs[0]);
+  return { couleursSecondaires: nettes };
 }
 
 // Marques déjà saisies (suggestions), sans doublon ni différence de casse, dans l'ordre alphabétique français.

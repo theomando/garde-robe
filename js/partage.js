@@ -31,7 +31,7 @@ function chargerImage(adresse) {
 }
 
 // params : { titre, sousTitre, peau (hex), pieces (pour l'avatar : { type, hex, manque }), couleurs ([{ hex, role? }]),
-// lignes ([{ hex, joker?, type, texte, manque }]) }. Renvoie une promesse de Blob PNG.
+// lignes ([{ hex, rayures?, joker?, type, texte, manque }]) }. Renvoie une promesse de Blob PNG.
 export async function imageTenue({ titre, sousTitre, peau, pieces, couleurs, lignes }) {
   const canvas = document.createElement('canvas');
   canvas.width = LARGEUR_IMAGE;
@@ -95,6 +95,15 @@ export async function imageTenue({ titre, sousTitre, peau, pieces, couleurs, lig
       c.lineTo(x + 44, y - 32);
       c.lineTo(x, y + 12);
       c.fill();
+      c.restore();
+    } else if (ligne.rayures?.length > 1) {
+      // Vêtement multicolore : rayures horizontales dans la pastille, la couleur principale d'abord.
+      c.save();
+      c.clip();
+      for (let k = 0, yBande = y - 32; yBande < y + 12; k++, yBande += 8) {
+        c.fillStyle = ligne.rayures[k % ligne.rayures.length];
+        c.fillRect(x, yBande, 44, 8);
+      }
       c.restore();
     } else {
       c.fillStyle = ligne.hex;

@@ -10,7 +10,7 @@ import { dessinerAvatar } from '../avatar.js';
 import { piecesAvatar, referenceCombinaison } from '../tenues.js';
 import { nomCouleurVetement } from './garde-robe.js';
 import { sectionManques } from './manques.js';
-import { visuelVetement } from './fiche-vetement.js';
+import { visuelVetement, pastilleCouleurs } from './fiche-vetement.js';
 import { partagerTenue } from './partage-tenue.js';
 
 const dateCourte = (iso) => new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -44,7 +44,7 @@ function lignePiece(app, tenue, piece) {
   }
   const vetement = app.etat.vetements.find((v) => v.id === piece.vetementId);
   return el('div', { class: 'ligne piece-tenue', 'data-type': piece.type },
-    vetement ? visuelVetement(app, vetement) : pastille(piece.hex, { classe: 'moyenne' }),
+    vetement ? visuelVetement(app, vetement) : pastilleCouleurs([piece.hex, ...(piece.hexSecondaires ?? [])], { classe: 'moyenne' }),
     el('span', { class: 'texte-ligne' }, libelle,
       vetement ? nomCouleurVetement(vetement, app.catalogue) : `vêtement supprimé de la garde-robe (${piece.hex})`,
       vetement?.marque ? el('small', {}, vetement.marque) : null));

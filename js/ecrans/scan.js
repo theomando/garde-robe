@@ -83,6 +83,9 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
     });
     aide.setAttribute('aria-controls', 'aide-scan');
     const feuille = el('div', { class: 'feuille-resultat', hidden: true, role: 'region', 'aria-label': 'Résultat de la mesure' });
+    let suite = null; // mesure attendue pour une couleur de plus (vêtement multicolore)
+    let imageAvant = null; // image figée de la mesure précédente, remontrée par « Retour à la fiche »
+    const retourFeuille = el('button', { type: 'button', class: 'bouton petit relancer', hidden: true, 'data-action': 'retour-feuille' }, 'Retour à la fiche');
 
     const dialogue = el('dialog', { class: 'dialogue scan', 'aria-labelledby': 'titre-scan' },
       video, figee, photoFigee, reticule, capsuleDirect,
@@ -93,7 +96,7 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
       astuce ? el('p', { class: 'astuce-scan' }, astuce) : null,
       panneauAide,
       el('div', { class: 'scan-bas' },
-        etat, relancer,
+        etat, relancer, retourFeuille,
         el('div', { class: 'commandes-scan' }, photo, mesurer, aide)),
       feuille);
 
@@ -162,7 +165,8 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
       boutonTorche.hidden = true;
       reticule.hidden = true;
       capsuleDirect.hidden = true;
-      etat.textContent = 'Ouverture de la caméra…';
+      etat.textContent = suite ? 'Vise la couleur suivante du vêtement.' : 'Ouverture de la caméra…';
+      retourFeuille.hidden = !suite;
       historique = [];
       capsuleDirect.classList.remove('stable');
       const courante = creerCamera({ mediaDevices, surPerte });
@@ -201,20 +205,51 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
     }
 
     // Image figée, caméra coupée (torche éteinte), puis feuille du résultat.
+    // « Autre couleur » (vêtement multicolore) : la caméra repart ; la mesure suivante va à suite() et la feuille,
+    // gardée telle quelle, réapparaît avec la nouvelle couleur.
     function afficherResultat(mesure) {
       clearInterval(intervalle);
       camera?.arreter();
       reticule.hidden = true;
       capsuleDirect.hidden = true;
       panneauAide.hidden = true;
+      retourFeuille.hidden = true;
       dialogue.dataset.etape = 'resultat';
       feuille.dataset.images = String(mesure.images ?? 1);
-      feuille.replaceChildren();
       feuille.hidden = false;
-      resultat(mesure, feuille, { valider: (valeur) => terminer(valeur), recommencer: () => lancer() });
-      feuille.scrollTop = 0;
+      if (suite) {
+        const rappel = suite;
+        suite = null;
+        rappel(mesure);
+      } else {
+        feuille.replaceChildren();
+        resultat(mesure, feuille, {
+          valider: (valeur) => terminer(valeur),
+          recommencer: () => { suite = null; lancer(); },
+          mesurerAutre: (rappel) => {
+            suite = rappel;
+            imageAvant = [figee, photoFigee].find((image) => !image.hidden) ?? null;
+            lancer();
+          },
+        });
+        feuille.scrollTop = 0;
+      }
       rearmerDialogue(dialogue); // nouveaux boutons sous le doigt : anti double tape
     }
+
+    // Retour à la feuille sans mesurer (après « Autre couleur »).
+    retourFeuille.addEventListener('click', () => {
+      suite = null;
+      camera?.arreter();
+      clearInterval(intervalle);
+      reticule.hidden = true;
+      capsuleDirect.hidden = true;
+      retourFeuille.hidden = true;
+      if (imageAvant) imageAvant.hidden = false;
+      dialogue.dataset.etape = 'resultat';
+      feuille.hidden = false;
+      rearmerDialogue(dialogue);
+    });
 
     boutonTorche.addEventListener('click', async () => {
       boutonTorche.disabled = true;
@@ -311,23 +346,32 @@ function resultatSimple(mesure, feuille, { valider, recommencer }) {
 }
 
 // Feuille du résultat pour un vêtement : tout sur un écran. mesure : { rgb (corrigée si étalonnage), brut? }.
-// valider({ type, hex, couleur, marque, photo }) : couleur du catalogue retenue (null = couleur mesurée) ; marque
-// saisie et photo (vignette) facultatives.
-export function remplirResultatVetement(app, actions, mesure, feuille, { valider, recommencer }, { typeImpose = null } = {}) {
-  const hexMesure = rgbVersHex(mesure.rgb);
-  const labMesure = labDepuisHex(hexMesure);
-  const proches = plusProches(labMesure, app.catalogue, 12);
+// Vêtement multicolore (demande de Théo, 2026-09-27) : « Autre couleur » relance la caméra pour mesurer la couleur
+// suivante (3 au plus) ; chaque couleur s'ajuste d'un toucher comme la première (pastille active).
+// valider({ type, couleurs: [{ hex, couleur }], hex, couleur, marque, photo }) : couleurs[0] est la principale ;
+// couleur = couleur du catalogue retenue (null = couleur mesurée) ; marque et photo (vignette) facultatives.
+// options.corrigerMesure : correction d'étalonnage des mesures suivantes (la première arrive déjà corrigée).
+export function remplirResultatVetement(app, actions, mesure, feuille, { valider, recommencer, mesurerAutre }, { typeImpose = null, corrigerMesure = (m) => m } = {}) {
   // L'exposition automatique de l'iPhone fausse surtout les noirs, gris et blancs (un noir remonte vers le gris,
   // la torche le bleuit) : les neutres du catalogue restent à un toucher, du plus foncé au plus clair.
-  const neutres = app.catalogue.couleurs
-    .filter((c) => chroma(c.lab) <= NEUTRE_C_MAX)
-    .sort((x, y) => x.lab.L - y.lab.L)
-    .map((c) => ({ couleur: c, ecart: deltaE00(labMesure, c.lab) }));
-  let couleur = null;
+  const neutresCatalogue = app.catalogue.couleurs.filter((c) => chroma(c.lab) <= NEUTRE_C_MAX).sort((x, y) => x.lab.L - y.lab.L);
+  function entree(m) {
+    const hexMesure = rgbVersHex(m.rgb);
+    const labMesure = labDepuisHex(hexMesure);
+    return {
+      hexMesure, labMesure, brut: m.brut ?? null, couleur: null,
+      proches: plusProches(labMesure, app.catalogue, 12),
+      neutres: neutresCatalogue.map((c) => ({ couleur: c, ecart: deltaE00(labMesure, c.lab) })),
+    };
+  }
+  const couleurs = [entree(mesure)];
+  let actif = 0;
   let type = typeImpose;
   let onglet = 'proches';
   let photo = null;
   let photoProposee = false;
+  const courante = () => couleurs[actif];
+  const hexFinal = (c) => c.couleur?.hex ?? c.hexMesure;
   const montrerPhoto = (choisie) => {
     boutonPhoto.replaceChildren(el('img', { src: choisie, alt: '' }));
     boutonPhoto.classList.add('avec-photo');
@@ -343,9 +387,11 @@ export function remplirResultatVetement(app, actions, mesure, feuille, { valider
     },
   }, icone('camera'));
 
-  const pastilleEntete = pastille(hexMesure, { classe: 'resultat-pastille' });
+  const pastilleEntete = pastille(hexFinal(courante()), { classe: 'resultat-pastille' });
   const nomEntete = el('strong', {});
   const detailEntete = el('span', { class: 'discret' });
+  const noteEtalonnage = el('p', { class: 'note-resultat', 'data-info': 'etalonnage' });
+  const puces = el('div', { class: 'puces-couleurs', role: 'group', 'aria-label': 'Couleurs du vêtement' });
   const rangee = el('div', { class: 'rangee-choix', role: 'listbox', 'aria-label': 'Couleur retenue' });
   const enregistrer = el('button', {
     type: 'button', class: 'bouton principal', 'data-action': 'enregistrer-scan',
@@ -356,19 +402,47 @@ export function remplirResultatVetement(app, actions, mesure, feuille, { valider
         const choisie = await proposerPhoto();
         if (choisie) { photo = choisie; montrerPhoto(choisie); }
       }
-      valider({ type, hex: couleur?.hex ?? hexMesure, couleur, marque: champ.value, photo });
+      const liste = couleurs.map((c) => ({ hex: hexFinal(c), couleur: c.couleur }));
+      valider({ type, couleurs: liste, hex: liste[0].hex, couleur: liste[0].couleur, marque: champ.value, photo });
     },
   }, 'Enregistrer');
 
+  // Une pastille par couleur (touchée : c'est elle qui s'ajuste), ✕ en coin pour une couleur secondaire, puis
+  // « Autre couleur ».
+  function majPuces() {
+    puces.replaceChildren(el('span', { class: 'etiquette-puces' }, 'Couleurs'), ...couleurs.map((c, i) => el('span', { class: 'couleur-mesure' },
+      el('button', {
+        type: 'button', class: 'puce-couleur', 'data-index': i, 'aria-pressed': String(i === actif),
+        'aria-label': i === 0 ? 'Couleur principale' : `Couleur ${i + 1}`,
+        onclick: () => { actif = i; remplirRangee(); },
+      }, pastille(hexFinal(c))),
+      ...(i > 0 ? [el('button', {
+        type: 'button', class: 'retirer-puce', 'data-action': 'retirer-couleur-mesure', 'data-index': i, 'aria-label': `Retirer la couleur ${i + 1}`,
+        onclick: () => { couleurs.splice(i, 1); if (actif >= i) actif -= 1; remplirRangee(); },
+      }, icone('fermer'))] : []))),
+    ...(couleurs.length < 3 && mesurerAutre ? [el('button', {
+      type: 'button', class: 'ajouter-puce', 'data-action': 'ajouter-couleur-mesure', 'aria-label': 'Mesurer une autre couleur du vêtement',
+      onclick: () => mesurerAutre((suivante) => {
+        couleurs.push(entree(corrigerMesure(suivante)));
+        actif = couleurs.length - 1;
+        remplirRangee();
+      }),
+    }, icone('plus'), 'Autre couleur')] : []));
+  }
+
   function majEntete() {
-    pastilleEntete.style.backgroundColor = couleur?.hex ?? hexMesure;
-    nomEntete.textContent = couleur ? couleur.nom : 'Couleur mesurée';
-    detailEntete.textContent = couleur
-      ? `${couleur.hex}, au lieu de la mesure ${hexMesure}`
-      : `${hexMesure} · la plus proche : ${proches[0].couleur.nom} (${ecartTexte(proches[0].ecart)})`;
+    const c = courante();
+    pastilleEntete.style.backgroundColor = hexFinal(c);
+    nomEntete.textContent = c.couleur ? c.couleur.nom : (couleurs.length > 1 ? `Couleur mesurée ${actif + 1}` : 'Couleur mesurée');
+    detailEntete.textContent = c.couleur
+      ? `${c.couleur.hex}, au lieu de la mesure ${c.hexMesure}`
+      : `${c.hexMesure} · la plus proche : ${c.proches[0].couleur.nom} (${ecartTexte(c.proches[0].ecart)})`;
+    noteEtalonnage.hidden = !c.brut;
+    noteEtalonnage.textContent = c.brut ? `Corrigée par l'étalonnage (mesure brute ${rgbVersHex(c.brut)}).` : '';
     for (const carte of rangee.querySelectorAll('[data-couleur]')) {
-      carte.setAttribute('aria-selected', String(carte.dataset.couleur === (couleur?.id ?? 'mesure')));
+      carte.setAttribute('aria-selected', String(carte.dataset.couleur === (c.couleur?.id ?? 'mesure')));
     }
+    majPuces();
     enregistrer.disabled = type === null;
   }
 
@@ -377,17 +451,18 @@ export function remplirResultatVetement(app, actions, mesure, feuille, { valider
   }, pastille(hex, { classe: 'grande' }), el('span', { class: 'nom' }, nom), el('span', { class: 'detail' }, detail));
 
   function remplirRangee() {
-    const liste = onglet === 'proches' ? proches : neutres;
+    const c = courante();
+    const liste = onglet === 'proches' ? c.proches : c.neutres;
     rangee.replaceChildren(
-      carte('mesure', hexMesure, 'Mesure', hexMesure, () => { couleur = null; majEntete(); }, 'mesure'),
-      ...liste.map(({ couleur: c, ecart }) => carte(c.id, c.hex, c.nom, ecartTexte(ecart), () => { couleur = c; majEntete(); })),
+      carte('mesure', c.hexMesure, 'Mesure', c.hexMesure, () => { courante().couleur = null; majEntete(); }, 'mesure'),
+      ...liste.map(({ couleur: choix, ecart }) => carte(choix.id, choix.hex, choix.nom, ecartTexte(ecart), () => { courante().couleur = choix; majEntete(); })),
       el('button', {
         type: 'button', class: 'carte-choix tout', 'data-action': 'tout-catalogue',
         onclick: async () => {
           const choisie = await ouvrirSelecteur({
-            catalogue: app.catalogue, titre: 'Couleur la plus juste', reference: labMesure, ...actions.favorisPourSelecteur(),
+            catalogue: app.catalogue, titre: 'Couleur la plus juste', reference: courante().labMesure, ...actions.favorisPourSelecteur(),
           });
-          if (choisie) { couleur = choisie; majEntete(); }
+          if (choisie) { courante().couleur = choisie; majEntete(); }
         },
       }, icone('mosaique'), el('span', { class: 'nom' }, 'Tout le catalogue')));
     rangee.scrollLeft = 0;
@@ -414,11 +489,11 @@ export function remplirResultatVetement(app, actions, mesure, feuille, { valider
       },
     })));
 
-  // append écrirait « null » en texte : les éléments facultatifs passent par un tableau filtré.
-  feuille.append(...[
+  feuille.append(
     el('div', { class: 'poignee', 'aria-hidden': 'true' }),
     el('div', { class: 'resultat-entete' }, pastilleEntete, el('div', { class: 'infos' }, nomEntete, detailEntete)),
-    mesure.brut ? el('p', { class: 'note-resultat', 'data-info': 'etalonnage' }, `Corrigée par l'étalonnage (mesure brute ${rgbVersHex(mesure.brut)}).`) : null,
+    puces,
+    noteEtalonnage,
     el('p', { class: 'etiquette-resultat' }, 'Plus juste ? Touche une couleur'),
     segments, rangee,
     el('p', { class: 'etiquette-resultat' }, 'Type de vêtement'),
@@ -426,7 +501,6 @@ export function remplirResultatVetement(app, actions, mesure, feuille, { valider
     el('div', { class: 'ligne-marque-photo' }, champ, suggestions, boutonPhoto),
     el('div', { class: 'boutons-resultat' },
       el('button', { type: 'button', class: 'bouton', 'data-action': 'recommencer', onclick: recommencer }, 'Recommencer'),
-      enregistrer),
-  ].filter(Boolean));
+      enregistrer));
   remplirRangee();
 }

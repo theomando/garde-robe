@@ -4,6 +4,7 @@ import {
   ajouterVetement, modifierVetement, supprimerVetement, basculerFavori, modifierReglages, enregistrerTenueType,
   enregistrerEtalonnage, supprimerEtalonnage, retirerTenueType,
   garderTenue, retirerTenueGardee, renommerTenueGardee, marquesConnues, noterSauvegarde, reporterRappelSauvegarde, rappelSauvegardeDu,
+  couleursDuVetement,
 } from '../js/donnees.js';
 import { signatureTenue } from '../js/tenues.js';
 
@@ -194,7 +195,7 @@ test('export puis import : mêmes données', () => {
   const texte = exporterEtat(etat, DATE, 2);
   const doc = JSON.parse(texte);
   egal(doc.format, 'garde-robe-chromatique');
-  egal(doc.version, 2);
+  egal(doc.version, 3);
   egal(doc.dateExport, '2026-09-24T10:00:00.000Z');
   const { erreurs, etat: relu } = lireExport(texte);
   egalProfond(erreurs, []);
@@ -296,4 +297,27 @@ test('données : jupe, robe, chaussettes et sac ; un seul bas, robe sans bas ni 
   vrai(leve(() => normaliserTenue(['t-shirt', 'robe'])).message.includes('t-shirt et robe ensemble'));
   const etat = ajouterVetement(etatExemple(), { type: 'sac', hex: '#3a2a1a', origine: 'manuel' }, { id: 'v9', date: DATE });
   egalProfond(lireExport(exporterEtat(etat, DATE)).erreurs, [], 'nouveau type exporté et relu');
+});
+
+test('données v3 : couleurs secondaires (2 au plus), exportées, relues ; une version 2 reste lisible', () => {
+  let etat = ajouterVetement(etatExemple(), {
+    type: 't-shirt', hex: '#1C4286', origine: 'scan', couleursSecondaires: [{ hex: '#FFFFFF' }, { hex: '#e31f26', idCouleurCatalogue: 'wada-42' }],
+  }, { id: 'v3', date: DATE });
+  egalProfond(etat.vetements[2].couleursSecondaires, [{ hex: '#ffffff' }, { hex: '#e31f26', idCouleurCatalogue: 'wada-42' }]);
+  egalProfond(couleursDuVetement(etat.vetements[2]).map((c) => c.hex), ['#1c4286', '#ffffff', '#e31f26'], 'la principale d\'abord');
+  leve(() => ajouterVetement(etat, { type: 'pull', hex: '#000000', origine: 'manuel', couleursSecondaires: [{ hex: '#111111' }, { hex: '#222222' }, { hex: '#333333' }] }, { id: 'v4', date: DATE }), 'trois secondaires : trop');
+  egal(modifierVetement(etat, 'v3', { couleursSecondaires: [] }).vetements[2].couleursSecondaires, undefined, 'redevenu unicolore');
+  egalProfond(modifierVetement(etat, 'v1', { couleursSecondaires: [{ hex: '#abcdef' }] }).vetements[0].couleursSecondaires, [{ hex: '#abcdef' }]);
+  const relu = lireExport(exporterEtat(etat, DATE));
+  egalProfond(relu.erreurs, []);
+  egalProfond(relu.etat, etat);
+  egal(JSON.parse(exporterEtat(etat, DATE)).version, 3);
+  const v2 = JSON.parse(exporterEtat(etatExemple(), DATE));
+  v2.version = 2;
+  egalProfond(lireExport(JSON.stringify(v2)).erreurs, [], 'version 2 lisible');
+  v2.vetements[0].couleursSecondaires = [{ hex: '#ffffff' }];
+  vrai(lireExport(JSON.stringify(v2)).erreurs.some((e) => e.includes('champ inconnu « couleursSecondaires »')), 'absentes de la version 2');
+  const mauvais = JSON.parse(exporterEtat(etat, DATE));
+  mauvais.vetements[2].couleursSecondaires = [{ hex: 'blanc' }];
+  vrai(lireExport(JSON.stringify(mauvais)).erreurs.some((e) => e.includes('couleur 2 : couleur « blanc » invalide')), 'hex secondaire vérifié');
 });

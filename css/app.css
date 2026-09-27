@@ -261,6 +261,15 @@ body.defile .barre-nav .titre-barre { opacity: 1; transform: none; }
 .ligne-action.danger { color: var(--danger); }
 .ligne-action:disabled { opacity: 0.4; }
 .ligne-action:active { background: var(--remplissage); transform: none; filter: none; }
+/* Couleurs d'un vêtement (fiche) : une ligne par couleur, la principale d'abord ; ✕ retire une couleur secondaire. */
+.ligne-couleur .texte-ligne { display: flex; flex-direction: column; overflow-wrap: anywhere; }
+.ligne-couleur small { font-size: 0.76rem; color: var(--discret); }
+.retirer-couleur {
+  position: relative; width: 30px; height: 30px; flex: none; padding: 0; border: none; border-radius: 50%; cursor: pointer;
+  background: var(--remplissage); color: var(--discret); display: inline-flex; align-items: center; justify-content: center;
+}
+.retirer-couleur::before { content: ""; position: absolute; inset: -7px; } /* zone de toucher de 44 px */
+.retirer-couleur .icone { width: 14px; height: 14px; }
 
 /* ---------- Pastilles de couleur ---------- */
 
@@ -635,6 +644,25 @@ html:has(dialog[open]) { overflow: hidden; }
 .resultat-entete strong { font-size: 1.06rem; overflow-wrap: anywhere; }
 .resultat-entete .discret { font-size: 0.76rem; }
 .resultat-pastille { width: 56px; height: 56px; border-radius: 16px; }
+/* Couleurs du vêtement mesuré : une pastille par couleur (la touchée s'ajuste), ✕ en coin, « Autre couleur » pour
+   mesurer la suivante (vêtement rayé, bicolore…). */
+.puces-couleurs { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.6rem; }
+.etiquette-puces { font-size: 0.82rem; font-weight: 600; color: var(--discret); }
+.couleur-mesure { position: relative; display: inline-flex; }
+.puce-couleur { width: 34px; height: 34px; padding: 0; border: none; border-radius: 50%; background: none; cursor: pointer; }
+.puce-couleur .pastille { width: 100%; height: 100%; }
+.puce-couleur[aria-pressed="true"] { outline: 2.5px solid var(--accent); outline-offset: 2px; }
+.ajouter-puce {
+  font: inherit; font-size: 0.8rem; font-weight: 500; min-height: 34px; border: none; border-radius: 999px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 0.25rem; padding: 0 0.8rem 0 0.55rem; background: var(--carte-feuille); color: var(--accent);
+}
+.ajouter-puce .icone { width: 16px; height: 16px; }
+.retirer-puce {
+  position: absolute; top: -8px; right: -9px; width: 20px; height: 20px; padding: 0; border: none; border-radius: 50%; cursor: pointer;
+  background: var(--discret); color: var(--carte-feuille); display: inline-flex; align-items: center; justify-content: center;
+}
+.retirer-puce::before { content: ""; position: absolute; inset: -10px; } /* zone de toucher de 40 px */
+.retirer-puce .icone { width: 11px; height: 11px; stroke-width: 3; }
 .note-resultat { font-size: 0.72rem; color: var(--discret); margin: 0.2rem 0 0; }
 .etiquette-resultat { font-size: 0.82rem; font-weight: 600; color: var(--discret); margin: 0.75rem 0 0.35rem; }
 .segments { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 2px; border-radius: 999px; background: var(--remplissage); }

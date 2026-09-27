@@ -8,6 +8,7 @@
 // sont « imprimés » ouverts sur le torse : la couche du dessous reste visible au centre. Ceinture, chapeau et bijoux
 // sont toujours visibles. Pièce en manque : dessinée dans la couleur manquante (noir pour un joker), avec un petit
 // panneau d'avertissement posé dessus (demande de Théo, 2026-09-26, à la place des hachures).
+// Vêtement multicolore (demande de Théo, 2026-09-27) : rayures horizontales, la couleur principale dominante.
 // Couleurs d'interface (contours, ombrages, reflets, traits du visage, panneau) : choix graphiques.
 
 import { labDepuisHex } from './couleur.js';
@@ -112,16 +113,23 @@ const REFLETS = [
 export const ORDRE_DESSIN = ['pantalon', 'short', 'jupe', 'robe', 'chaussettes', 'chaussures', 't-shirt', 'pull', 'ceinture',
   'chemise', 'veste', 'manteau', 'bijoux', 'chapeau', 'sac'];
 
-// Pièces d'une proposition du moteur → { type, hex, manque }. Une pièce manquante prend la couleur qui manque
-// (noir pour un joker : « noir avant blanc »).
+// Pièces d'une proposition du moteur → { type, hex, manque, rayures? }. Une pièce manquante prend la couleur qui
+// manque (noir pour un joker : « noir avant blanc »). rayures : toutes les couleurs d'un vêtement multicolore.
 export function planAvatar(proposition, catalogue) {
   return proposition.pieces.map((piece) => {
     if (piece.manque) {
       return { type: piece.type, hex: piece.couleurId ? catalogue.couleurParId.get(piece.couleurId).hex : NOIR_JOKER, manque: true };
     }
-    return { type: piece.type, hex: piece.vetement.hex, manque: false };
+    const secondaires = piece.vetement.couleursSecondaires ?? [];
+    return {
+      type: piece.type, hex: piece.vetement.hex, manque: false,
+      ...(secondaires.length > 0 ? { rayures: [piece.vetement.hex, ...secondaires.map((c) => c.hex)] } : {}),
+    };
   });
 }
+
+// Hauteurs des bandes d'une période de rayures (12 unités) : la couleur principale occupe la moitié ou plus.
+const BANDES_RAYURES = { 2: [8, 4], 3: [6, 3, 3] };
 
 function noeud(nom, attributs = {}) {
   const element = document.createElementNS(NS, nom);
@@ -176,6 +184,20 @@ export function dessinerAvatar({ peau, pieces = [], description = 'Avatar' }) {
   definitions.append(ombrePortee, flou);
 
   const formesPleines = (formes) => formes.filter(([, attributs]) => !attributs.trait);
+
+  // Motif de rayures horizontales d'une pièce multicolore (repère de l'avatar : les bandes se raccordent d'une
+  // forme à l'autre de la pièce).
+  function motifRayures(type, couleurs) {
+    const hauteurs = BANDES_RAYURES[couleurs.length];
+    const motif = noeud('pattern', { id: id(`rayures-${type}`), patternUnits: 'userSpaceOnUse', width: 200, height: 12, 'data-rayures': type });
+    let y = 0;
+    hauteurs.forEach((hauteur, k) => {
+      motif.append(noeud('rect', { x: 0, y, width: 200, height: hauteur, fill: couleurs[k] }));
+      y += hauteur;
+    });
+    definitions.append(motif);
+    return `url(#${motif.id})`;
+  }
 
   // Épaisseur : chaque forme recopiée, décalée vers la droite et le bas, dans sa couleur puis assombrie.
   function epaisseur(formes, couleur, attributsGroupe) {
@@ -241,10 +263,11 @@ export function dessinerAvatar({ peau, pieces = [], description = 'Avatar' }) {
     const formes = type === 'chaussettes' && parType.has('pantalon') ? CHAUSSETTES_SOUS_PANTALON : FORMES[type];
     if (type !== 'bijoux') figure.append(epaisseur(formes, piece.hex, { 'data-epaisseur': type }));
     const groupe = noeud('g', { 'data-type': type, 'data-etat': piece.manque ? 'manque' : 'porte' });
+    const remplissage = piece.rayures?.length > 1 && BANDES_RAYURES[piece.rayures.length] ? motifRayures(type, piece.rayures) : piece.hex;
     for (const [forme, { trait: largeur, ...attributs }] of formes) {
       groupe.append(largeur
         ? noeud(forme, { ...attributs, fill: 'none', stroke: piece.hex, 'stroke-width': largeur, 'stroke-linecap': 'round' })
-        : noeud(forme, { ...attributs, fill: piece.hex, stroke: CONTOUR, 'stroke-width': 1, 'stroke-linejoin': 'round' }));
+        : noeud(forme, { ...attributs, fill: remplissage, stroke: CONTOUR, 'stroke-width': 1, 'stroke-linejoin': 'round' }));
     }
     figure.append(groupe, calqueOmbrage(formes, { 'data-ombrage': type }));
   }

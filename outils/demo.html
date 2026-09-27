@@ -42,6 +42,14 @@
       etat = ajouterVetement(etat, { type, hex: couleur.hex, origine: 'manuel', idCouleurCatalogue: couleur.id },
         { id: `demo-${i + 1}`, date: new Date(Date.UTC(2026, 0, 1 + i)) });
     });
+    // Un t-shirt rayé (vêtement multicolore) : blanc, rayures Peacock Blue.
+    const [blanc, rayure] = [plusProche('#ffffff'), parNom('Peacock Blue')];
+    if (rayure) {
+      etat = ajouterVetement(etat, {
+        type: 't-shirt', hex: blanc.hex, origine: 'manuel', idCouleurCatalogue: blanc.id,
+        couleursSecondaires: [{ hex: rayure.hex, idCouleurCatalogue: rayure.id }],
+      }, { id: 'demo-raye', date: new Date(Date.UTC(2026, 0, 20)) });
+    }
     for (const nom of ['Burnt Sienna', 'Peacock Blue']) {
       const couleur = parNom(nom);
       if (couleur) etat = basculerFavori(etat, couleur.id);

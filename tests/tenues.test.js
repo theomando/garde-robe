@@ -35,3 +35,15 @@ test('mes tenues : instantané d\'une proposition (vêtement porté, joker, manq
   egal(signatureTenue(etat.tenuesGardees[0]), signatureTenue(tenue), 'même signature une fois gardée');
   vrai(signatureTenue({ ...tenue, types: ['pantalon', 't-shirt'] }) !== signatureTenue(tenue), 'autres types : autre signature');
 });
+
+test('mes tenues : vêtement multicolore, couleurs secondaires figées dans l\'instantané, rayures de l\'avatar', () => {
+  const pantalon = { ...vet('p', 'pantalon', BLEU), couleursSecondaires: [{ hex: '#ffffff' }] };
+  const types = ['pantalon', 't-shirt'];
+  const [proposition] = proposer({ types, vetements: [pantalon, vet('t', 't-shirt', ROUGE)], catalogue, reglages }).retenues;
+  const tenue = instantaneTenue(proposition, catalogue, types);
+  egalProfond(tenue.pieces.find((p) => p.type === 'pantalon').hexSecondaires, ['#ffffff']);
+  egal('hexSecondaires' in tenue.pieces.find((p) => p.type === 't-shirt'), false, 'unicolore : pas de champ');
+  egalProfond(piecesAvatar(tenue).find((p) => p.type === 'pantalon').rayures, [BLEU, '#ffffff']);
+  const etat = garderTenue(etatInitial(), tenue, { id: 't1', date: new Date('2026-09-27T10:00:00Z') }, signatureTenue);
+  egalProfond(etat.tenuesGardees[0].pieces.find((p) => p.type === 'pantalon').hexSecondaires, ['#ffffff'], 'gardé tel quel');
+});

@@ -361,3 +361,39 @@ test('programmation dynamique identique à l\'énumération exhaustive sur 400 t
   }
   return `${comparees} tenues, dont ${retenues} retenues`;
 });
+
+// Vêtement multicolore (couleurs secondaires, 2026-09-27).
+function vetMulti(type, hex, ...secondaires) {
+  return { ...vet(type, hex), couleursSecondaires: secondaires.map((h) => ({ hex: h })) };
+}
+
+test('multicolore : un vêtement couvre une couleur par n\'importe laquelle de ses couleurs', () => {
+  const tshirt = vetMulti('t-shirt', VERT, ROUGE);
+  const r = lancer(['pantalon', 't-shirt'], [vet('pantalon', BLEU), tshirt], [[ROUGE, BLEU]]);
+  egal(r.retenues[0].nbManques, 0, 'le t-shirt vert et rouge porte le rouge');
+  egal(piece(r.retenues[0], 't-shirt').vetement.id, tshirt.id);
+  egal(piece(r.retenues[0], 't-shirt').ecart, 0, 'écart de sa couleur la plus proche');
+});
+
+test('multicolore : bonus quand toutes les couleurs du vêtement sont dans la combinaison (ou neutres)', () => {
+  // k1 bleu-rouge et k2 rouge-bleu (+ jaune en soutien) : même écart ; le t-shirt rouge et jaune n'est « en harmonie »
+  // qu'avec k2, qui passe donc devant malgré l'ordre du catalogue.
+  const garde = [vet('pantalon', BLEU), vetMulti('t-shirt', ROUGE, JAUNE)];
+  const combos = [[BLEU, ROUGE], { hex: [ROUGE, BLEU, JAUNE], roles: ['dominante', 'dominante', 'soutien'] }];
+  const r = lancer(['pantalon', 't-shirt'], garde, combos);
+  egalProfond(r.retenues.map((p) => [p.combinaison.id, p.nbHarmonieux]), [['k2', 1], ['k1', 0]]);
+  const neutre = lancer(['pantalon', 't-shirt'], [vet('pantalon', BLEU), vetMulti('t-shirt', ROUGE, BLANC)], [[BLEU, ROUGE]]);
+  egal(neutre.retenues[0].nbHarmonieux, 1, 'une couleur secondaire blanche est à sa place partout');
+  const uni = lancer(['pantalon', 't-shirt'], [vet('pantalon', BLEU), vet('t-shirt', ROUGE)], [[BLEU, ROUGE]]);
+  egal(uni.retenues[0].nbHarmonieux, 0, 'un vêtement d\'une seule couleur ne compte pas dans le bonus');
+});
+
+test('multicolore : joker seulement si toutes les couleurs sont noires ou blanches', () => {
+  const combos = [[ROUGE, BLEU]];
+  // Veste plutôt que pull : un pull masquerait le t-shirt.
+  const marinere = vetMulti('veste', NOIR, BLANC);
+  const r = lancer(['pantalon', 't-shirt', 'veste'], [vet('pantalon', BLEU), vet('t-shirt', ROUGE), marinere], combos);
+  vrai(piece(r.retenues[0], 'veste').joker && piece(r.retenues[0], 'veste').vetement.id === marinere.id, 'noir et blanc : joker');
+  const bicolore = lancer(['pantalon', 't-shirt', 'veste'], [vet('pantalon', BLEU), vet('t-shirt', ROUGE), vetMulti('veste', NOIR, VERT)], combos);
+  egal(bicolore.retenues[0].nbManques, 1, 'noir et vert : pas un joker, la veste manque');
+});

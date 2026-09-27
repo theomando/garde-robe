@@ -4,8 +4,8 @@
 import { el, pastille, ouvrirDialogue, confirmer, annoncer, nouvelIdentifiant, barreNavigation, boutonRond, ouvrirMenu, tuile } from '../ui.js';
 import { icone } from '../icones.js';
 import { TYPES, LIBELLES_TYPES } from '../constantes.js';
-import { ajouterVetement, modifierVetement, supprimerVetement, rappelSauvegardeDu } from '../donnees.js';
-import { labDepuisHex } from '../couleur.js';
+import { ajouterVetement, modifierVetement, supprimerVetement, rappelSauvegardeDu, couleursDuVetement } from '../donnees.js';
+import { labDepuisHex, rgbVersHex } from '../couleur.js';
 import { ouvrirSelecteur } from './selecteur-catalogue.js';
 import { ouvrirScan, remplirResultatVetement } from './scan.js';
 import { correcteur } from './etalonnage.js';
@@ -15,39 +15,50 @@ import { champMarque, choisirPhoto, proposerPhoto, visuelVetement } from './fich
 // Mesure tout-en-un : caméra plein écran, puis feuille du résultat (ajustement, type, Enregistrer). La couleur
 // mesurée est gardée par défaut (origine « scan ») ; un choix dans le catalogue la remplace (hex du catalogue,
 // idCouleurCatalogue, origine toujours « scan »). Si la caméra est étalonnée pour la façon de mesurer utilisée,
-// la mesure est corrigée (la brute reste affichée).
+// la mesure est corrigée (la brute reste affichée). Vêtement multicolore : « Autre couleur » mesure les couleurs
+// suivantes (couleursSecondaires), corrigées de la même façon.
 async function scanner(app, actions) {
   const corriger = correcteur(app);
   const etalonnee = Object.keys(app.etat.reglages.etalonnage ?? {}).length > 0;
+  const corrigerMesure = (mesure) => (app.etat.reglages.etalonnage?.[mesure.mode] ? { ...mesure, rgb: corriger(mesure.rgb, mesure.mode), brut: mesure.rgb } : mesure);
   const choix = await ouvrirScan({
     corriger,
     astuce: etalonnee ? null : 'Astuce : étalonne la caméra une fois (Réglages, Étalonnage) pour des noirs et des blancs plus justes.',
     resultat: (mesure, feuille, controle) => {
-      const corrigee = app.etat.reglages.etalonnage?.[mesure.mode] ? { ...mesure, rgb: corriger(mesure.rgb, mesure.mode), brut: mesure.rgb } : mesure;
-      remplirResultatVetement(app, actions, corrigee, feuille, controle);
+      remplirResultatVetement(app, actions, corrigerMesure(mesure), feuille, controle, { corrigerMesure });
     },
   });
   if (!choix) return;
   const id = nouvelIdentifiant();
+  const [principale, ...secondaires] = choix.couleurs;
   let nouvelEtat;
   try {
-    nouvelEtat = ajouterVetement(app.etat,
-      { type: choix.type, hex: choix.hex, origine: 'scan', ...(choix.couleur ? { idCouleurCatalogue: choix.couleur.id } : {}), marque: choix.marque, photo: Boolean(choix.photo) },
-      { id, date: new Date() });
+    nouvelEtat = ajouterVetement(app.etat, {
+      type: choix.type, hex: principale.hex, origine: 'scan', ...(principale.couleur ? { idCouleurCatalogue: principale.couleur.id } : {}),
+      marque: choix.marque, photo: Boolean(choix.photo),
+      ...(secondaires.length ? { couleursSecondaires: secondaires.map((c) => ({ hex: c.hex, ...(c.couleur ? { idCouleurCatalogue: c.couleur.id } : {}) })) } : {}),
+    }, { id, date: new Date() });
   } catch (erreur) {
     annoncer(erreur.message, 'erreur');
     return;
   }
   if (choix.photo) actions.enregistrerPhoto(id, choix.photo); // en mémoire tout de suite : la liste l'affiche
-  if (actions.mettreAJour(nouvelEtat)) annoncer(`Ajouté à ta garde-robe : ${LIBELLES_TYPES[choix.type]}, ${choix.couleur?.nom ?? choix.hex}`);
+  const noms = choix.couleurs.map((c) => c.couleur?.nom ?? c.hex).join(' / ');
+  if (actions.mettreAJour(nouvelEtat)) annoncer(`Ajouté à ta garde-robe : ${LIBELLES_TYPES[choix.type]}, ${noms}`);
   else if (choix.photo) actions.supprimerPhoto(id);
 }
 
-// Nom affiché : celui de la couleur du catalogue si le vêtement en porte encore le hex, sinon le hex.
+// Nom d'une couleur : celui du catalogue si le vêtement en porte encore le hex, sinon le hex (« Couleur mesurée »
+// pour la couleur principale d'un vêtement mesuré).
+function nomCouleur({ hex, idCouleurCatalogue }, catalogue, mesuree = false) {
+  const couleur = idCouleurCatalogue ? catalogue.couleurParId.get(idCouleurCatalogue) : null;
+  if (couleur && couleur.hex === hex) return couleur.nom;
+  return mesuree ? `Couleur mesurée ${hex}` : hex;
+}
+
+// Nom affiché d'un vêtement : ses couleurs, la principale d'abord (« Peacock Blue / White »).
 export function nomCouleurVetement(vetement, catalogue) {
-  const couleur = vetement.idCouleurCatalogue ? catalogue.couleurParId.get(vetement.idCouleurCatalogue) : null;
-  if (couleur && couleur.hex === vetement.hex) return couleur.nom;
-  return vetement.origine === 'scan' ? `Couleur mesurée ${vetement.hex}` : vetement.hex;
+  return couleursDuVetement(vetement).map((c, i) => nomCouleur(c, catalogue, i === 0 && vetement.origine === 'scan')).join(' / ');
 }
 
 async function ajouter(app, actions) {
@@ -82,8 +93,60 @@ async function menuAjout(app, actions, ancre) {
   else if (choix === 'catalogue') ajouter(app, actions);
 }
 
+// Une couleur de vêtement, par la caméra ou sur la carte des couleurs (menu près du bouton touché).
+// Renvoie { hex, idCouleurCatalogue? } ou null.
+async function choisirUneCouleur(app, actions, ancre, reference) {
+  const moyen = await ouvrirMenu(ancre, [
+    { libelle: 'Mesurer avec la caméra', icone: 'camera', valeur: 'camera', action: 'couleur-camera' },
+    { libelle: 'Choisir sur la carte', icone: 'mosaique', valeur: 'carte', action: 'couleur-carte' },
+  ]);
+  if (moyen === 'camera') {
+    const mesure = await ouvrirScan({ corriger: correcteur(app), titre: 'Mesurer la couleur' });
+    if (!mesure) return null;
+    const rgb = app.etat.reglages.etalonnage?.[mesure.mode] ? correcteur(app)(mesure.rgb, mesure.mode) : mesure.rgb;
+    return { hex: rgbVersHex(rgb) };
+  }
+  if (moyen === 'carte') {
+    const couleur = await ouvrirSelecteur({ catalogue: app.catalogue, titre: 'Choisir la couleur', reference, ...actions.favorisPourSelecteur() });
+    return couleur ? { hex: couleur.hex, idCouleurCatalogue: couleur.id } : null;
+  }
+  return null;
+}
+
 async function modifier(app, actions, vetement) {
-  let nouvelleCouleur = null;
+  // Couleurs (la principale d'abord, jusqu'à 3) : modifiées seulement à l'enregistrement de la fiche.
+  const couleurs = couleursDuVetement(vetement).map((c) => ({ ...c }));
+  let couleursModifiees = false;
+  const blocCouleurs = el('div', { class: 'groupe groupe-couleurs' });
+  const nomDe = (c, i) => {
+    const catalogue = c.idCouleurCatalogue ? app.catalogue.couleurParId.get(c.idCouleurCatalogue) : null;
+    if (catalogue && catalogue.hex === c.hex) return catalogue.nom;
+    return i === 0 && vetement.origine === 'scan' ? `Couleur mesurée ${c.hex}` : c.hex;
+  };
+  function afficherCouleurs() {
+    blocCouleurs.replaceChildren(...couleurs.map((c, i) => el('div', { class: 'ligne ligne-couleur', 'data-index': i },
+      pastille(c.hex, { classe: 'moyenne' }),
+      el('span', { class: 'texte-ligne' }, nomDe(c, i), el('small', {}, i === 0 ? 'Couleur principale' : `Couleur ${i + 1}`)),
+      el('button', {
+        type: 'button', class: 'bouton petit', 'data-action': 'changer-couleur', 'data-index': i,
+        onclick: async (e) => {
+          const nouvelle = await choisirUneCouleur(app, actions, e.currentTarget, labDepuisHex(c.hex));
+          if (nouvelle) { couleurs[i] = nouvelle; couleursModifiees = true; afficherCouleurs(); }
+        },
+      }, 'Changer'),
+      i > 0 ? el('button', {
+        type: 'button', class: 'retirer-couleur', 'data-action': 'retirer-couleur', 'data-index': i, 'aria-label': `Retirer la couleur ${i + 1}`,
+        onclick: () => { couleurs.splice(i, 1); couleursModifiees = true; afficherCouleurs(); },
+      }, icone('fermer')) : null)),
+    ...(couleurs.length < 3 ? [el('button', {
+      type: 'button', class: 'ligne ligne-action', 'data-action': 'ajouter-couleur',
+      onclick: async (e) => {
+        const nouvelle = await choisirUneCouleur(app, actions, e.currentTarget, labDepuisHex(couleurs[0].hex));
+        if (nouvelle) { couleurs.push(nouvelle); couleursModifiees = true; afficherCouleurs(); }
+      },
+    }, icone('plus'), el('span', { class: 'texte-ligne' }, 'Ajouter une couleur (rayures, bicolore…)'))] : []));
+  }
+  afficherCouleurs();
   // Photo : modifiée seulement à l'enregistrement de la fiche.
   let photo = vetement.photo ? actions.photo(vetement.id) : null;
   let photoChangee = false;
@@ -110,29 +173,15 @@ async function modifier(app, actions, vetement) {
   const [champ, suggestions] = champMarque(app, vetement.marque ?? '', { id: 'marque-vetement' });
   const choixType = el('select', { class: 'champ-ligne', id: 'type-vetement', 'data-action': 'type-vetement' },
     TYPES.map((t) => el('option', { value: t, selected: t === vetement.type }, LIBELLES_TYPES[t])));
-  const apercu = el('div', { class: 'apercu-couleur texte-ligne' });
-  const afficherApercu = () => apercu.replaceChildren(
-    pastille(nouvelleCouleur?.hex ?? vetement.hex, { classe: 'moyenne' }),
-    el('span', {}, nouvelleCouleur ? nouvelleCouleur.nom : nomCouleurVetement(vetement, app.catalogue)));
-  afficherApercu();
-  const changer = el('button', {
-    type: 'button', class: 'bouton petit', 'data-action': 'changer-couleur',
-    onclick: async () => {
-      const couleur = await ouvrirSelecteur({
-        catalogue: app.catalogue, titre: 'Nouvelle couleur', reference: labDepuisHex(nouvelleCouleur?.hex ?? vetement.hex),
-        ...actions.favorisPourSelecteur(),
-      });
-      if (couleur) { nouvelleCouleur = couleur; afficherApercu(); }
-    },
-  }, 'Changer');
   const reponse = await ouvrirDialogue({
     titre: 'Modifier le vêtement',
     contenu: [
       el('div', { class: 'groupe' }, lignePhoto),
       el('div', { class: 'groupe' },
         el('label', { class: 'ligne', for: 'marque-vetement' }, el('span', {}, 'Marque'), champ, suggestions),
-        el('label', { class: 'ligne', for: 'type-vetement' }, el('span', { class: 'texte-ligne' }, 'Type'), choixType),
-        el('div', { class: 'ligne' }, apercu, changer)),
+        el('label', { class: 'ligne', for: 'type-vetement' }, el('span', { class: 'texte-ligne' }, 'Type'), choixType)),
+      el('h3', { class: 'titre-groupe' }, 'Couleurs'),
+      blocCouleurs,
       el('div', { class: 'groupe' },
         el('button', { type: 'button', class: 'ligne ligne-action', 'data-choix': 'composer', 'data-action': 'composer-tenue' },
           icone('epingle'), el('span', { class: 'texte-ligne' }, 'Composer une tenue avec ce vêtement'))),
@@ -145,7 +194,10 @@ async function modifier(app, actions, vetement) {
   if (reponse === 'composer') { epinglerVetement(app, vetement); actions.naviguer('tenue'); return; }
   if (reponse !== 'ok') return;
   const modifications = { type: choixType.value, marque: champ.value };
-  if (nouvelleCouleur) Object.assign(modifications, { hex: nouvelleCouleur.hex, idCouleurCatalogue: nouvelleCouleur.id });
+  if (couleursModifiees) {
+    const [principale, ...secondaires] = couleurs;
+    Object.assign(modifications, { hex: principale.hex, idCouleurCatalogue: principale.idCouleurCatalogue ?? null, couleursSecondaires: secondaires });
+  }
   if (photoChangee) modifications.photo = photo !== null;
   let nouvelEtat;
   try {

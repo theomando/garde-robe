@@ -23,6 +23,7 @@ export function instantaneTenue(proposition, catalogue, types) {
       joker: p.joker,
       ...(p.couleurId ? { couleurId: p.couleurId } : {}),
       ...(p.vetement ? { vetementId: p.vetement.id } : {}),
+      ...(p.vetement?.couleursSecondaires?.length ? { hexSecondaires: p.vetement.couleursSecondaires.map((c) => c.hex) } : {}),
     })),
     ...(proposition.peau ? { peau: { id: proposition.peau.couleurId, nom: couleur(proposition.peau.couleurId).nom, hex: couleur(proposition.peau.couleurId).hex } } : {}),
   };
@@ -40,7 +41,7 @@ export function referenceCombinaison(combinaison) {
   return `Papier Tigre ${combinaison.ref}${combinaison.nom ? ` · ${combinaison.nom}` : ''}`;
 }
 
-// Pièces pour l'avatar (js/avatar.js) : { type, hex, manque }.
+// Pièces pour l'avatar (js/avatar.js) : { type, hex, manque, rayures? } (rayures : vêtement multicolore).
 export function piecesAvatar(tenue) {
-  return tenue.pieces.map((p) => ({ type: p.type, hex: p.hex, manque: p.manque }));
+  return tenue.pieces.map((p) => ({ type: p.type, hex: p.hex, manque: p.manque, ...(p.hexSecondaires ? { rayures: [p.hex, ...p.hexSecondaires] } : {}) }));
 }

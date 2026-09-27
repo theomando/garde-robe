@@ -744,3 +744,99 @@ test('app : rappel de sauvegarde (jamais sauvegardé), « Plus tard », puis e
   egal(stocke().reglages.rappelSauvegarde, undefined, 'report effacé');
   await quand(() => doc.querySelector('[data-info="derniere-sauvegarde"]')?.textContent.startsWith('Dernière sauvegarde : le '), 'date affichée');
 });
+
+// Vêtement multicolore (demande de Théo, 2026-09-27). L'étalonnage « photo » du test plus haut est toujours là
+// (réglages réimportés) : chaque couleur mesurée par photo est corrigée, la deuxième comme la première.
+test('app : vêtement bicolore mesuré, « Autre couleur » relance la caméra, puces, ✕, 3 couleurs au plus, puis fiche', async () => {
+  cliquer('#onglets [data-ecran="garde-robe"]');
+  await menuAjout('scanner');
+  const scan = await dialogueOuvert('dialog.scan[open]');
+  cliquer('[data-action="photo"]', scan);
+  await fournirPhoto(await photoUnie('#b03a2e'));
+  await attendreReel(() => resultatPret() === scan, 'première couleur');
+  const feuille = scan.querySelector('.feuille-resultat');
+  const puces = () => [...feuille.querySelectorAll('.puce-couleur')];
+  const hexEntete = () => feuille.querySelector('.resultat-entete .discret').textContent.slice(0, 7);
+  egal(puces().length, 1, 'une puce : la couleur principale');
+  egal(feuille.querySelector('[data-action="retirer-couleur-mesure"]'), null, 'la principale ne se retire pas');
+  const hexPrincipal = hexEntete();
+  cliquer('[data-type="short"]', feuille);
+
+  // Deuxième couleur : la caméra repart (« Retour à la fiche » possible), mesure par photo d'un noir.
+  cliquer('[data-action="ajouter-couleur-mesure"]', feuille);
+  vrai(feuille.hidden, 'caméra relancée, feuille masquée');
+  egal(scan.querySelector('.etat-scan').textContent, 'Vise la couleur suivante du vêtement.');
+  vrai(!scan.querySelector('[data-action="retour-feuille"]').hidden, 'retour à la fiche possible');
+  cliquer('[data-action="photo"]', scan);
+  await fournirPhoto(await photoUnie('#46464f'));
+  await attendreReel(() => resultatPret() === scan && puces().length === 2, 'deuxième couleur');
+  vrai(scan.querySelector('[data-action="retour-feuille"]').hidden);
+  egal(puces()[1].getAttribute('aria-pressed'), 'true', 'la nouvelle couleur est celle qui s\'ajuste');
+  egal(feuille.querySelector('.resultat-pastille').style.backgroundColor, 'rgb(17, 19, 20)', 'corrigée par l\'étalonnage, comme la première');
+  vrai(feuille.querySelector('[data-info="etalonnage"]').textContent.includes('#46464f'), 'mesure brute de la deuxième couleur');
+  egal(feuille.querySelector('[data-type="short"]').getAttribute('aria-pressed'), 'true', 'type gardé');
+  vrai(feuille.scrollHeight <= feuille.clientHeight + 1, `tout tient sans défiler (${feuille.scrollHeight} ≤ ${feuille.clientHeight})`);
+  cliquer('[data-segment="neutres"]', feuille);
+  const noir = cartesChoix(feuille).find((c) => c.querySelector('.nom').textContent === 'Black');
+  noir.click();
+  egal(puces()[1].querySelector('.pastille').style.backgroundColor, 'rgb(17, 19, 20)', 'puce à jour');
+  puces()[0].click();
+  egal(hexEntete(), hexPrincipal, 'la puce touchée revient à la principale');
+  egal(feuille.querySelector('[data-couleur="mesure"]').getAttribute('aria-selected'), 'true', 'la principale garde sa mesure');
+
+  // « Autre couleur » puis « Retour à la fiche » : rien ne change.
+  cliquer('[data-action="ajouter-couleur-mesure"]', feuille);
+  cliquer('[data-action="retour-feuille"]', scan);
+  vrai(!feuille.hidden && scan.dataset.etape === 'resultat', 'feuille revenue');
+  egal(scan.querySelector('img.image-figee').hidden, false, 'image figée remontrée');
+  egal(puces().length, 2);
+
+  // Troisième couleur, puis plus de « + » ; ✕ retire la deuxième.
+  await attendre(() => resultatPret(), 'feuille prête');
+  cliquer('[data-action="ajouter-couleur-mesure"]', feuille);
+  cliquer('[data-action="photo"]', scan);
+  await fournirPhoto(await photoUnie('#d8b040'));
+  await attendreReel(() => resultatPret() === scan && puces().length === 3, 'troisième couleur');
+  egal(feuille.querySelector('[data-action="ajouter-couleur-mesure"]'), null, '3 couleurs au plus');
+  const hexJaune = hexEntete();
+  vrai(feuille.scrollHeight <= feuille.clientHeight + 1, `trois couleurs, toujours sans défiler (${feuille.scrollHeight} ≤ ${feuille.clientHeight})`);
+  cliquer('[data-action="retirer-couleur-mesure"][data-index="1"]', feuille);
+  egal(puces().length, 2);
+  egal(puces()[1].getAttribute('aria-pressed'), 'true', 'la couleur active reste la même');
+  egal(hexEntete(), hexJaune);
+  vrai(feuille.querySelector('[data-action="ajouter-couleur-mesure"]'), '« + » de retour');
+  cliquer('[data-action="enregistrer-scan"]', feuille);
+  await sansPhoto();
+  await dialoguesFermes();
+  await quand(() => stocke().vetements.some((v) => v.type === 'short'), 'short enregistré');
+  const short = stocke().vetements.find((v) => v.type === 'short');
+  egal(short.hex, hexPrincipal);
+  egalProfond(short.couleursSecondaires, [{ hex: hexJaune }]);
+  const ligne = doc.querySelector('[data-type="short"] .vetement');
+  vrai(ligne.querySelector('.pastille.rayee'), 'pastille rayée dans la liste');
+  vrai(ligne.querySelector('.nom').textContent.endsWith(` / ${hexJaune}`), ligne.querySelector('.nom').textContent);
+
+  // Fiche : ✕ retire la couleur, « Ajouter une couleur » la choisit sur la carte.
+  cliquer('[data-type="short"] [data-action="modifier"]');
+  const fiche = await dialogueOuvert();
+  egal(fiche.querySelectorAll('.ligne-couleur').length, 2);
+  egal(fiche.querySelector('.ligne-couleur[data-index="0"] [data-action="retirer-couleur"]'), null, 'la principale ne se retire pas');
+  cliquer('[data-action="retirer-couleur"][data-index="1"]', fiche);
+  egal(fiche.querySelectorAll('.ligne-couleur').length, 1);
+  cliquer('[data-action="ajouter-couleur"]', fiche);
+  (await attendre(() => doc.querySelector('.menu [data-action="couleur-carte"]'), 'menu couleur')).click();
+  const selecteur = await dialogueOuvert('dialog.selecteur[open]');
+  await rechercher(selecteur, 'white');
+  const blanc = await attendre(() => [...selecteur.querySelectorAll('[data-action="choisir-couleur"]')]
+    .find((b) => b.querySelector('.nom').textContent === 'White'), 'carte White');
+  blanc.click();
+  await attendre(() => fiche.querySelectorAll('.ligne-couleur').length === 2, 'couleur ajoutée');
+  vrai(fiche.querySelector('.ligne-couleur[data-index="1"]').textContent.includes('White'));
+  await attendre(() => 'pret' in fiche.dataset, 'fiche prête');
+  cliquer('[data-valeur="ok"]', fiche);
+  await dialoguesFermes();
+  await quand(() => stocke().vetements.find((v) => v.type === 'short').couleursSecondaires?.[0].idCouleurCatalogue === blanc.dataset.couleur, 'fiche enregistrée');
+  const modifie = stocke().vetements.find((v) => v.type === 'short');
+  egal(modifie.hex, hexPrincipal, 'principale inchangée');
+  egal(modifie.couleursSecondaires.length, 1);
+});

@@ -6,6 +6,11 @@
 // (dominante, ou toutes les couleurs sans rôles) doit être portée. On minimise, dans l'ordre :
 // manques, peau non utilisée, manques affectés à une couleur plutôt qu'au joker, somme des coûts.
 //
+// Vêtements multicolores (demande de Théo, 2026-09-27) : un vêtement couvre une couleur par n'importe laquelle de
+// ses couleurs (la plus proche) ; il n'est joker que si toutes ses couleurs sont noires ou blanches. Bonus au tri :
+// une proposition passe devant (après les favoris) quand les vêtements multicolores portés ont toutes leurs couleurs
+// dans la combinaison, ou noires ou blanches.
+//
 // Algorithme : programmation dynamique exacte sur l'ensemble des couleurs obligatoires déjà portées
 // (au plus 2⁶ états), une passe par pièce puis la peau. Les quatre critères sont empaquetés dans un
 // entier exact (< 2⁵³) : ((manques × 2 + peauNonUtilisée) × 32 + manquesColorés) × 2³² + somme en micro-ΔE.
@@ -70,6 +75,14 @@ function parAnciennete(a, b) {
   return 0;
 }
 
+// Couleurs d'un vêtement (hex), la principale d'abord.
+const couleursHex = (vetement) => [vetement.hex, ...(vetement.couleursSecondaires ?? []).map((c) => c.hex)];
+
+function estNeutre(hex) {
+  const lab = labDepuisHex(hex);
+  return estNoir(lab) || estBlanc(lab);
+}
+
 // Pour chaque pièce visible : meilleur écart et vêtement retenu par couleur du catalogue, joker éventuel.
 // Pièce épinglée (« partir d'un vêtement », demande de Théo, 2026-09-26) : seul le vêtement choisi compte.
 function preparerPieces(visibles, vetements, cache, epingles) {
@@ -80,18 +93,20 @@ function preparerPieces(visibles, vetements, cache, epingles) {
     const meilleur = new Float64Array(n).fill(Infinity);
     const retenu = new Array(n).fill(null);
     for (const vetement of siens) {
-      const ligne = ligneEcarts(cache, vetement.hex);
-      for (let i = 0; i < n; i++) {
-        if (ligne[i] < meilleur[i]) {
-          meilleur[i] = ligne[i];
-          retenu[i] = vetement;
+      for (const hex of couleursHex(vetement)) {
+        const ligne = ligneEcarts(cache, hex);
+        for (let i = 0; i < n; i++) {
+          if (ligne[i] < meilleur[i]) {
+            meilleur[i] = ligne[i];
+            retenu[i] = vetement;
+          }
         }
       }
     }
-    const labs = siens.map((v) => labDepuisHex(v.hex));
-    const noir = siens.find((_, i) => estNoir(labs[i]));
-    const blanc = siens.find((_, i) => estBlanc(labs[i]));
-    return { type, meilleur, retenu, joker: noir ?? blanc ?? null, epingle: Boolean(epingle) };
+    // Joker : vêtement entièrement noir ou blanc ; noir avant blanc (couleur principale), puis le plus ancien.
+    const neutres = siens.filter((v) => couleursHex(v).every(estNeutre));
+    const joker = neutres.find((v) => estNoir(labDepuisHex(v.hex))) ?? neutres[0] ?? null;
+    return { type, meilleur, retenu, joker, epingle: Boolean(epingle) };
   });
 }
 
@@ -198,11 +213,13 @@ function evaluer(combinaison, rang, pieces, peau, tolerance, index, favoris) {
   };
 }
 
-// Tri : manques croissants, peau utilisée d'abord, favoris décroissants, ΔE00 moyen croissant, ordre du catalogue.
+// Tri : manques croissants, peau utilisée d'abord, favoris décroissants, vêtements multicolores « en harmonie »
+// décroissants, ΔE00 moyen croissant, ordre du catalogue.
 export function comparerPropositions(a, b) {
   return a.nbManques - b.nbManques
     || Number(b.peauUtilisee) - Number(a.peauUtilisee)
     || b.nbFavoris - a.nbFavoris
+    || (b.nbHarmonieux ?? 0) - (a.nbHarmonieux ?? 0)
     || (a.ecartMoyen < b.ecartMoyen ? -1 : a.ecartMoyen > b.ecartMoyen ? 1 : 0)
     || a.rang - b.rang;
 }
@@ -217,9 +234,21 @@ export function proposer({ types, vetements, catalogue, reglages, cache, epingle
   const peau = reglages.teintActif ? ligneEcarts(cacheValide, MST[reglages.mst - 1]) : null;
   const favoris = new Set(reglages.favoris ?? []);
   const retenues = [];
+  // Bonus multicolore : chaque couleur du vêtement porté est dans la combinaison (à la tolérance près) ou neutre.
+  const neutre = new Map();
+  const enHarmonie = (vetement, indices) => couleursHex(vetement).every((hex) => {
+    if (!neutre.has(hex)) neutre.set(hex, estNeutre(hex));
+    if (neutre.get(hex)) return true;
+    const ligne = ligneEcarts(cacheValide, hex);
+    return indices.some((c) => ligne[c] <= reglages.tolerance);
+  });
   catalogue.combinaisons.forEach((combinaison, rang) => {
     const proposition = evaluer(combinaison, rang, pieces, peau, reglages.tolerance, cacheValide.index, favoris);
-    if (proposition) retenues.push(proposition);
+    if (!proposition) return;
+    const indices = combinaison.couleurs.map((id) => cacheValide.index.get(id));
+    proposition.nbHarmonieux = proposition.pieces
+      .filter((p) => p.vetement?.couleursSecondaires?.length > 0 && enHarmonie(p.vetement, indices)).length;
+    retenues.push(proposition);
   });
   retenues.sort(comparerPropositions);
   return { visibles, retenues, gardeRobeVide: vetements.length === 0, cache: cacheValide };

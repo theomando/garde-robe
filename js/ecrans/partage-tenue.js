@@ -17,7 +17,7 @@ function lignes(app, tenue) {
     }
     const vetement = app.etat.vetements.find((v) => v.id === piece.vetementId);
     const nom = vetement ? nomCouleurVetement(vetement, app.catalogue) : piece.hex;
-    return { hex: piece.hex, type, manque: false, texte: vetement?.marque ? `${nom} · ${vetement.marque}` : nom };
+    return { hex: piece.hex, rayures: piece.hexSecondaires ? [piece.hex, ...piece.hexSecondaires] : null, type, manque: false, texte: vetement?.marque ? `${nom} · ${vetement.marque}` : nom };
   });
 }
 

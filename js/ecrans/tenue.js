@@ -13,6 +13,7 @@ import { dessinerAvatar, planAvatar } from '../avatar.js';
 import { estNoir, labDepuisHex } from '../couleur.js';
 import { nomCouleurVetement } from './garde-robe.js';
 import { partagerTenue } from './partage-tenue.js';
+import { pastilleCouleurs, hexDuVetement } from './fiche-vetement.js';
 
 const ecartTexte = (ecart) => ecart.toFixed(1).replace('.', ',');
 
@@ -207,7 +208,7 @@ export function rendreTenue(conteneur, app, actions) {
       ? `${nom} (joker ${estNoir(labDepuisHex(vetement.hex)) ? 'noir' : 'blanc'})`
       : `${nom} pour ${cible.nom} (écart ${ecartTexte(piece.ecart)})`;
     const epingle = ecran.epingles[piece.type] === vetement.id;
-    return el('li', { 'data-epingle': epingle ? piece.type : null }, pastille(vetement.hex),
+    return el('li', { 'data-epingle': epingle ? piece.type : null }, pastilleCouleurs(hexDuVetement(vetement)),
       el('span', {}, epingle ? icone('epingle', { classe: 'icone-epingle', titre: 'Vêtement choisi' }) : null,
         el('strong', {}, `${libelle(piece.type)} : `), texte));
   }
