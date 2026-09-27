@@ -3,7 +3,7 @@
 // Pause (demande de Théo, 2026-09-27) : un vêtement en pause (lavage, prêt…) reste dans la liste, grisé, mais
 // n'entre plus dans les propositions ; interrupteur dans la fiche, ou bouton « Pause » en balayant la ligne.
 
-import { el, pastille, ouvrirDialogue, confirmer, annoncer, nouvelIdentifiant, barreNavigation, boutonRond, ouvrirMenu, tuile, interrupteur } from '../ui.js';
+import { el, pastille, ouvrirDialogue, confirmer, annoncer, nouvelIdentifiant, barreNavigation, boutonRond, ouvrirMenu, tuile, interrupteur, ouvrirPhotoEnGrand } from '../ui.js';
 import { icone } from '../icones.js';
 import { TYPES, LIBELLES_TYPES } from '../constantes.js';
 import { ajouterVetement, modifierVetement, supprimerVetement, rappelSauvegardeDu, couleursDuVetement } from '../donnees.js';
@@ -158,7 +158,10 @@ async function modifier(app, actions, vetement) {
   function afficherPhoto() {
     // replaceChildren écrirait « null » en texte : le bouton facultatif passe par un tableau filtré.
     lignePhoto.replaceChildren(...[
-      photo ? el('img', { class: 'vignette-fiche', src: photo, alt: 'Photo du vêtement' }) : el('span', { class: 'vignette-fiche sans-photo' }, icone('camera')),
+      photo ? el('button', {
+        type: 'button', class: 'bouton-vignette', 'data-action': 'agrandir-photo', 'aria-label': 'Agrandir la photo',
+        onclick: () => ouvrirPhotoEnGrand(photo, { titre: `${LIBELLES_TYPES[choixType.value]} · ${nomCouleurVetement(vetement, app.catalogue)}` }),
+      }, el('img', { class: 'vignette-fiche', src: photo, alt: 'Photo du vêtement' })) : el('span', { class: 'vignette-fiche sans-photo' }, icone('camera')),
       el('span', { class: 'texte-ligne' }, photo ? 'Photo' : 'Aucune photo'),
       el('button', {
         type: 'button', class: 'bouton petit', 'data-action': 'photo-vetement',

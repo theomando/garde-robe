@@ -44,7 +44,8 @@ function lignePiece(app, tenue, piece) {
   }
   const vetement = app.etat.vetements.find((v) => v.id === piece.vetementId);
   return el('div', { class: 'ligne piece-tenue', 'data-type': piece.type },
-    vetement ? visuelVetement(app, vetement) : pastilleCouleurs([piece.hex, ...(piece.hexSecondaires ?? [])], { classe: 'moyenne' }),
+    vetement ? visuelVetement(app, vetement, { agrandir: `${LIBELLES_TYPES[piece.type]} · ${nomCouleurVetement(vetement, app.catalogue)}` })
+      : pastilleCouleurs([piece.hex, ...(piece.hexSecondaires ?? [])], { classe: 'moyenne' }),
     el('span', { class: 'texte-ligne' }, libelle,
       vetement ? `${nomCouleurVetement(vetement, app.catalogue)}${vetement.enPause ? ' · en pause' : ''}` : `vêtement supprimé de la garde-robe (${piece.hex})`,
       vetement?.marque ? el('small', {}, vetement.marque) : null));

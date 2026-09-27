@@ -27,7 +27,7 @@ export function conflitTypes(types) {
 }
 
 // Version affichée dans les réglages (numéro de l'étape du plan tant que l'app est en construction).
-export const VERSION_APP = '0.23.0'; // à reporter dans sw.js (VERSION), vérifié par les tests
+export const VERSION_APP = '0.24.0'; // à reporter dans sw.js (VERSION), vérifié par les tests
 
 // Couches du haut, du corps vers l'extérieur (avatar). Chemise, veste et manteau sont portés ouverts.
 export const COUCHES = ['t-shirt', 'pull', 'chemise', 'veste', 'manteau'];
@@ -50,9 +50,11 @@ export const POIDS_MANQUE_PREMIERE = 1;
 // Données version 2 (demandes de Théo, 2026-09-26) : marque et photo des vêtements, tenues gardées, sauvegarde.
 export const MARQUE_MAX = 40; // caractères
 export const NOM_TENUE_MAX = 60; // caractères
-export const PHOTO_COTE = 320; // vignette carrée, en pixels (recadrée au centre)
-export const PHOTO_QUALITE = 0.8; // JPEG : environ 20 à 35 Ko par vignette
-export const PHOTO_TAILLE_MAX = 400000; // longueur maximale d'une photo (data URL) acceptée à l'import
+// Photo d'un vêtement (demande de Théo, 2026-09-27 : zoom net) : au plus PHOTO_COTE px sur le grand côté, sans
+// recadrage (les listes l'affichent en petit carré, object-fit: cover) ; les photos prises avant restent en 320 px.
+export const PHOTO_COTE = 1080;
+export const PHOTO_QUALITE = 0.8; // JPEG : environ 150 à 250 Ko par photo
+export const PHOTO_TAILLE_MAX = 1500000; // longueur maximale d'une photo (data URL) acceptée à l'import
 export const RAPPEL_SAUVEGARDE_JOURS = 30; // rappel si la dernière sauvegarde est plus ancienne (et que des données ont changé)
 export const RAPPEL_PREMIER_JOURS = 7; // jamais sauvegardé : rappel une fois le premier vêtement vieux de 7 jours
 export const RAPPEL_REPORT_JOURS = 7; // « Plus tard » : rappel repoussé d'une semaine

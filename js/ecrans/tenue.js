@@ -3,7 +3,7 @@
 // Toucher une proposition met l'avatar à jour et affiche son détail (vêtements à porter, manques, favoris).
 // « Partir d'un vêtement » (demande de Théo, 2026-09-26) : un vêtement épinglé est porté dans toutes les propositions.
 
-import { el, pastille, pastilleJoker, barreNavigation, interrupteur, tuile, ouvrirDialogue, annoncer, nouvelIdentifiant } from '../ui.js';
+import { el, pastille, pastilleJoker, barreNavigation, interrupteur, tuile, ouvrirDialogue, annoncer, nouvelIdentifiant, ouvrirPhotoEnGrand } from '../ui.js';
 import { icone } from '../icones.js';
 import { TYPES, LIBELLES_TYPES, INCOMPATIBLES, MST, PROPOSITIONS_MAX } from '../constantes.js';
 import { enregistrerTenueType, basculerFavori, garderTenue, retirerTenueGardee, vetementsEnService } from '../donnees.js';
@@ -20,7 +20,7 @@ import { envieDuManque } from './manques.js';
 // État de l'écran, gardé en mémoire d'un onglet à l'autre (pas enregistré).
 function etatEcran(app) {
   if (!app.tenue) {
-    app.tenue = { types: [...(app.etat.tenuesTypes.at(-1) ?? [])], propose: false, selection: null, avecFavoris: false, epingles: {} };
+    app.tenue = { types: [...(app.etat.tenuesTypes.at(-1) ?? [])], propose: false, selection: null, avecFavoris: false, epingles: {}, vetementsVisibles: false };
   }
   return app.tenue;
 }
@@ -215,6 +215,24 @@ export function rendreTenue(conteneur, app, actions) {
         el('strong', {}, `${libelle(piece.type)} : `), texte));
   }
 
+  // Vêtement porté, en carte (demande de Théo, 2026-09-27 : « avoir les photos des habits ») : photo (touchée : en
+  // grand) ou pastille, type, couleur, marque.
+  function carteVetement(piece) {
+    const vetement = piece.vetement;
+    const nom = nomCouleurVetement(vetement, app.catalogue);
+    const photo = vetement.photo ? app.photos.get(vetement.id) : null;
+    return el('div', { class: 'carte-vetement-porte', 'data-type': piece.type },
+      photo
+        ? el('button', {
+          type: 'button', class: 'photo-porte', 'data-action': 'agrandir-photo', 'aria-label': `Agrandir la photo : ${libelle(piece.type)}, ${nom}`,
+          onclick: () => ouvrirPhotoEnGrand(photo, { titre: `${libelle(piece.type)} · ${nom}` }),
+        }, el('img', { src: photo, alt: '' }))
+        : el('span', { class: 'photo-porte sans-photo' }, pastilleCouleurs(hexDuVetement(vetement), { classe: 'grande' })),
+      el('strong', {}, libelle(piece.type)),
+      el('span', { class: 'discret' }, nom),
+      vetement.marque ? el('span', { class: 'discret marque-porte' }, vetement.marque) : null);
+  }
+
   function details(proposition) {
     const couleurs = proposition.combinaison.couleurs.map(couleur);
     const favoris = app.etat.reglages.favoris;
@@ -225,6 +243,12 @@ export function rendreTenue(conteneur, app, actions) {
     return el('div', { class: 'details' },
       origine ? el('p', { class: 'origine-combinaison', 'data-info': 'origine-combinaison' }, origine, combinaison.remarque ? ` Remarque : ${combinaison.remarque}.` : '') : null,
       el('ul', { class: 'pieces' }, proposition.pieces.map((piece) => detailPiece(piece, proposition))),
+      // « Voir les vêtements » : les vêtements portés, avec leurs photos (le choix reste d'une proposition à l'autre).
+      proposition.pieces.some((p) => p.vetement) ? el('button', {
+        type: 'button', class: 'bouton petit bouton-vetements', 'data-action': 'voir-vetements', 'aria-expanded': String(ecran.vetementsVisibles),
+        onclick: () => { ecran.vetementsVisibles = !ecran.vetementsVisibles; dessinerListe(); },
+      }, icone('cintre'), ecran.vetementsVisibles ? 'Masquer les vêtements' : 'Voir les vêtements') : null,
+      ecran.vetementsVisibles ? el('div', { class: 'cartes-vetements' }, proposition.pieces.filter((p) => p.vetement).map(carteVetement)) : null,
       proposition.peau
         ? el('p', {}, `Peau : ${couleur(proposition.peau.couleurId).nom}`)
         : null,

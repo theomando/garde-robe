@@ -7,6 +7,7 @@ import { ouvrirPhotos } from '../js/photos.js';
 import { labDepuisHex } from '../js/couleur.js';
 import { lireExport } from '../js/donnees.js';
 import { referenceCombinaison } from '../js/tenues.js';
+import { TYPES } from '../js/constantes.js';
 
 const ESPACE = 'garde-robe-tests-ui:';
 // Base de photos de l'espace de test (IndexedDB), lue en temps réel (le temps virtuel ne l'attend pas).
@@ -1219,4 +1220,56 @@ test('app : catégories de la garde-robe pliées et dépliées (une, puis toutes
   cliquer('[data-action="plier-tout"]');
   await attendre(() => doc.querySelectorAll('.groupe-type.plie').length === 0, 'tout déplié');
   egalProfond(JSON.parse(localStorage.getItem(`${ESPACE}preference-types-plies`)), []);
+});
+
+// Photo en grand (demande de Théo, 2026-09-27) : depuis la fiche, et depuis « Voir les vêtements » d'une proposition.
+test('app : photo d\'un vêtement en grand (fiche, « Voir les vêtements »), double toucher pour zoomer', async () => {
+  const visionneuse = () => attendre(() => [...doc.querySelectorAll('dialog.visionneuse[open]')].find((d) => 'pret' in d.dataset), 'photo en grand');
+  const doubleToucher = (zone) => {
+    const r = zone.getBoundingClientRect();
+    const point = { bubbles: true, pointerId: 31, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
+    for (let i = 0; i < 2; i++) for (const type of ['pointerdown', 'pointerup']) zone.dispatchEvent(new fenetre.PointerEvent(type, point));
+  };
+  // Fiche : la vignette s'ouvre en grand.
+  cliquer('#onglets [data-ecran="garde-robe"]');
+  cliquer('[data-type="pull"] [data-action="modifier"]');
+  const fiche = await dialogueOuvert();
+  cliquer('[data-action="agrandir-photo"]', fiche);
+  let grande = await visionneuse();
+  egal(grande.querySelector('.photo-grande').getAttribute('src'), fiche.querySelector('.vignette-fiche').getAttribute('src'), 'la photo du vêtement');
+  egal(grande.dataset.zoom, 'non');
+  doubleToucher(grande.querySelector('.zone-photo'));
+  egal(grande.dataset.zoom, 'oui', 'double toucher : zoom');
+  vrai(grande.querySelector('.photo-grande').style.transform.includes('scale(2.5)'), grande.querySelector('.photo-grande').style.transform);
+  doubleToucher(grande.querySelector('.zone-photo'));
+  egal(grande.dataset.zoom, 'non', 'second double toucher : retour');
+  cliquer('[data-action="fermer-photo"]', grande);
+  await attendre(() => !doc.querySelector('dialog.visionneuse'), 'photo refermée');
+  cliquer('[data-action="fermer-feuille"]', fiche);
+  await dialoguesFermes();
+
+  // Tenue pull + short : une proposition qui porte le pull, « Voir les vêtements », sa photo en grand.
+  cliquer('#onglets [data-ecran="tenue"]');
+  const voulus = new Set(['pull', 'short']);
+  for (const type of TYPES) {
+    const tuile = doc.querySelector(`[data-type-tenue="${type}"]`);
+    if (tuile && (tuile.getAttribute('aria-pressed') === 'true') !== voulus.has(type)) tuile.click();
+  }
+  doc.querySelector('[data-action="proposer"]')?.click();
+  await attendre(() => doc.querySelector('.proposition'), 'propositions');
+  let carte = null;
+  for (let i = 0; i < doc.querySelectorAll('.proposition').length && !carte; i++) {
+    doc.querySelectorAll('.proposition')[i].click();
+    const bouton = doc.querySelector('.details [data-action="voir-vetements"]');
+    if (bouton?.getAttribute('aria-expanded') === 'false') bouton.click();
+    carte = doc.querySelector('.cartes-vetements .carte-vetement-porte[data-type="pull"] .photo-porte img')?.closest('.carte-vetement-porte');
+  }
+  vrai(carte, 'une proposition porte le pull, avec sa photo');
+  egal(doc.querySelector('.details [data-action="voir-vetements"]').textContent, 'Masquer les vêtements');
+  vrai(carte.textContent.includes('Pull') && carte.textContent.includes('Petit Bateau'), `type, couleur et marque : ${carte.textContent}`);
+  cliquer('[data-action="agrandir-photo"]', carte);
+  grande = await visionneuse();
+  vrai(grande.querySelector('h2').textContent.startsWith('Pull · '), grande.querySelector('h2').textContent);
+  cliquer('[data-action="fermer-photo"]', grande);
+  await attendre(() => !doc.querySelector('dialog.visionneuse'), 'photo refermée');
 });

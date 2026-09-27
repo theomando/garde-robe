@@ -70,21 +70,19 @@ export function ouvrirPhotos(espace = '', idb = globalThis.indexedDB) {
   };
 }
 
-// Vignette carrée d'une photo (recadrée au centre, au plus PHOTO_COTE px de côté, jamais agrandie), en JPEG.
+// Photo d'un vêtement : réduite à PHOTO_COTE px au plus sur le grand côté, sans recadrage, jamais agrandie, en JPEG.
 // Décodage par <img> : JPEG et HEIC sur iPhone, orientation EXIF appliquée au dessin.
-export async function vignetteDepuisFichier(fichier, { cote = PHOTO_COTE, qualite = PHOTO_QUALITE } = {}) {
+export async function photoDepuisFichier(fichier, { cote = PHOTO_COTE, qualite = PHOTO_QUALITE } = {}) {
   const adresse = URL.createObjectURL(fichier);
   try {
     const image = new Image();
     image.src = adresse;
     await image.decode();
-    const petit = Math.min(image.naturalWidth, image.naturalHeight);
-    const taille = Math.max(1, Math.min(cote, petit));
+    const echelle = Math.min(1, cote / Math.max(image.naturalWidth, image.naturalHeight));
     const canvas = document.createElement('canvas');
-    canvas.width = taille;
-    canvas.height = taille;
-    const contexte = canvas.getContext('2d');
-    contexte.drawImage(image, (image.naturalWidth - petit) / 2, (image.naturalHeight - petit) / 2, petit, petit, 0, 0, taille, taille);
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * echelle));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * echelle));
+    canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
     return canvas.toDataURL('image/jpeg', qualite);
   } finally {
     URL.revokeObjectURL(adresse);

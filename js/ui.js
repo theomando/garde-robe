@@ -277,6 +277,119 @@ export function annoncer(message, genre = 'info') {
   minuterie = setTimeout(() => { zone.replaceChildren(); montrer(zone, false); }, genre === 'erreur' ? 8000 : 4000);
 }
 
+// ---------- Photo en grand ----------
+
+// Photo d'un vêtement en plein écran (demande de Théo, 2026-09-27 : « pouvoir zoomer sur la photo ») : pincer pour
+// zoomer (jusqu'à ×5), glisser pour se déplacer, double toucher pour zoomer (×2,5) ou revenir ; ✕, ou balayer vers le
+// bas sans zoom, pour fermer.
+const ZOOM_MAX = 5;
+const ZOOM_DOUBLE = 2.5;
+export function ouvrirPhotoEnGrand(src, { titre = 'Photo du vêtement' } = {}) {
+  return new Promise((resoudre) => {
+    const image = el('img', { class: 'photo-grande', src, alt: titre, draggable: 'false' });
+    const zone = el('div', { class: 'zone-photo', 'data-action': 'zone-photo' }, image);
+    const dialogue = el('dialog', { class: 'dialogue visionneuse', 'aria-label': titre },
+      zone,
+      el('div', { class: 'haut-visionneuse' },
+        boutonRond({ icone: 'fermer', libelle: 'Fermer', action: 'fermer-photo', onclick: () => terminer(null) }),
+        el('h2', {}, titre)));
+    const terminer = terminaison(dialogue, resoudre);
+
+    // Transformation : translate(dx, dy) scale(echelle), autour du centre de la zone.
+    let echelle = 1;
+    let dx = 0;
+    let dy = 0;
+    const appliquer = () => {
+      image.style.transform = `translate(${dx}px, ${dy}px) scale(${echelle})`;
+      dialogue.dataset.zoom = echelle > 1 ? 'oui' : 'non';
+    };
+    const centre = () => {
+      const r = zone.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2, largeur: r.width, hauteur: r.height };
+    };
+    // Sans zoom, l'image revient au centre ; zoomée, elle ne quitte pas l'écran.
+    const borner = () => {
+      if (echelle <= 1) { echelle = 1; dx = 0; dy = 0; return; }
+      const c = centre();
+      const maxX = (c.largeur * (echelle - 1)) / 2;
+      const maxY = (c.hauteur * (echelle - 1)) / 2;
+      dx = Math.min(maxX, Math.max(-maxX, dx));
+      dy = Math.min(maxY, Math.max(-maxY, dy));
+    };
+    // Zoom qui garde sous le doigt le point p de l'écran.
+    const zoomerVers = (nouvelle, p, depart) => {
+      const c = centre();
+      const ux = (p.depart.x - c.x - depart.dx) / depart.echelle;
+      const uy = (p.depart.y - c.y - depart.dy) / depart.echelle;
+      echelle = Math.min(ZOOM_MAX, Math.max(1, nouvelle));
+      dx = p.x - c.x - echelle * ux;
+      dy = p.y - c.y - echelle * uy;
+    };
+
+    const pointeurs = new Map();
+    let geste = null; // { echelle, dx, dy, distance?, milieu?, point? } au début du geste
+    let dernierToucher = null;
+    const milieu = () => {
+      const [a, b] = [...pointeurs.values()];
+      return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, distance: Math.hypot(a.x - b.x, a.y - b.y) };
+    };
+    const commencer = () => {
+      geste = { echelle, dx, dy };
+      if (pointeurs.size === 2) Object.assign(geste, milieu());
+      else Object.assign(geste, [...pointeurs.values()][0]);
+      image.classList.add('sans-transition');
+    };
+    zone.addEventListener('pointerdown', (e) => {
+      pointeurs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      try { zone.setPointerCapture(e.pointerId); } catch { /* pointeur déjà relâché */ }
+      commencer();
+    });
+    zone.addEventListener('pointermove', (e) => {
+      if (!pointeurs.has(e.pointerId) || !geste) return;
+      pointeurs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointeurs.size >= 2 && geste.distance) {
+        const m = milieu();
+        zoomerVers(geste.echelle * (m.distance / geste.distance), { x: m.x, y: m.y, depart: { x: geste.x, y: geste.y } }, geste);
+      } else if (pointeurs.size === 1) {
+        const p = [...pointeurs.values()][0];
+        dx = geste.dx + (p.x - geste.x);
+        dy = geste.dy + (p.y - geste.y);
+        if (echelle === 1) dx = 0; // sans zoom : seul le balayage vers le bas compte
+      }
+      appliquer();
+    });
+    const lacher = (e) => {
+      if (!pointeurs.has(e.pointerId)) return;
+      const p = pointeurs.get(e.pointerId);
+      pointeurs.delete(e.pointerId);
+      image.classList.remove('sans-transition');
+      if (pointeurs.size > 0) { commencer(); return; }
+      const deplacement = geste ? Math.hypot(p.x - geste.x, p.y - geste.y) : 0;
+      if (echelle === 1 && geste && p.y - geste.y > 110) { terminer(null); return; }
+      // Double toucher : zoom ×2,5 sur le point touché, ou retour à ×1.
+      const maintenant = Date.now();
+      if (deplacement < 10 && dernierToucher && maintenant - dernierToucher.t < 350 && Math.hypot(p.x - dernierToucher.x, p.y - dernierToucher.y) < 30) {
+        const depart = { echelle, dx, dy };
+        if (echelle > 1) echelle = 1;
+        else zoomerVers(ZOOM_DOUBLE, { x: p.x, y: p.y, depart: p }, depart);
+        dernierToucher = null;
+      } else {
+        dernierToucher = deplacement < 10 ? { t: maintenant, x: p.x, y: p.y } : null;
+      }
+      borner();
+      appliquer();
+      geste = null;
+    };
+    zone.addEventListener('pointerup', lacher);
+    zone.addEventListener('pointercancel', lacher);
+
+    document.body.append(dialogue);
+    armerDialogue(dialogue);
+    appliquer();
+    dialogue.showModal();
+  });
+}
+
 // ---------- Fichiers ----------
 
 // Photo : renvoie un File ou null ; à appeler pendant le geste de l'utilisateur. Sans capture, iOS propose

@@ -398,6 +398,45 @@ input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--accent)
   display: inline-flex; align-items: center; justify-content: center; box-shadow: inset 0 0 0 1px var(--bord-pastille);
 }
 .vignette-fiche.sans-photo { background: var(--remplissage); color: var(--discret); }
+.bouton-vignette { padding: 0; border: none; background: none; cursor: zoom-in; border-radius: 12px; flex: none; }
+.bouton-vignette .vignette-fiche { display: block; }
+.visuel-vetement.agrandissable { padding: 0; border: none; background: none; cursor: zoom-in; }
+
+/* Photo en grand (demande de Théo, 2026-09-27) : plein écran noir, pincer, glisser, double toucher. */
+.dialogue.visionneuse {
+  position: fixed; inset: 0; width: 100%; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0;
+  border-radius: 0; background: #000000; color: #ffffff; overflow: hidden; color-scheme: dark; animation: scan-entree 0.25s ease-out;
+}
+.dialogue.visionneuse.sortie { animation: scan-sortie 0.2s ease-in forwards; }
+.zone-photo { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; touch-action: none; overflow: hidden; }
+.photo-grande {
+  max-width: 100%; max-height: 100%; object-fit: contain; transform-origin: center; transition: transform 0.22s var(--ressort);
+  user-select: none; -webkit-user-drag: none; will-change: transform;
+}
+.photo-grande.sans-transition { transition: none; }
+.haut-visionneuse {
+  position: absolute; top: calc(var(--haut-sur) + 8px); left: 12px; right: 12px; display: grid; grid-template-columns: 44px 1fr 44px;
+  align-items: center; gap: 0.5rem; pointer-events: none;
+}
+.haut-visionneuse > * { pointer-events: auto; }
+.haut-visionneuse h2 { margin: 0; text-align: center; font-size: 0.95rem; font-weight: 600; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7); overflow-wrap: anywhere; }
+.visionneuse .bouton-rond { background: rgba(0, 0, 0, 0.4); color: #ffffff; border-color: rgba(255, 255, 255, 0.2); box-shadow: none; }
+
+/* « Voir les vêtements » d'une proposition : une carte par vêtement porté, à faire défiler. */
+.bouton-vetements { margin: 0 0 0.6rem; }
+.bouton-vetements .icone { width: 18px; height: 18px; }
+.cartes-vetements { display: flex; gap: 0.6rem; overflow-x: auto; margin: 0 -1rem 0.8rem; padding: 0.2rem 1rem; scrollbar-width: none; }
+.cartes-vetements::-webkit-scrollbar { display: none; }
+.carte-vetement-porte { flex: none; width: 7.5rem; display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.8rem; min-width: 0; }
+.carte-vetement-porte .discret { overflow-wrap: anywhere; }
+.photo-porte {
+  width: 7.5rem; height: 7.5rem; border-radius: 16px; overflow: hidden; padding: 0; border: none; background: var(--remplissage);
+  display: flex; align-items: center; justify-content: center; margin-bottom: 0.25rem; cursor: zoom-in;
+  box-shadow: inset 0 0 0 1px var(--bord-pastille);
+}
+.photo-porte img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-porte.sans-photo { cursor: default; padding: 0.8rem; }
+.photo-porte .pastille.grande { aspect-ratio: 1; width: 100%; border-radius: 50%; }
 .vignette-fiche .icone { width: 24px; height: 24px; }
 .titre-section .icone { width: 24px; height: 24px; color: var(--discret); }
 

@@ -2,10 +2,10 @@
 // déjà saisies en suggestion, choix d'une photo (appareil photo ou photothèque), vignette ou pastille du vêtement.
 // Utilisés par la Garde-robe, la feuille de mesure et Mes tenues.
 
-import { el, pastille, choisirImage, annoncer, ouvrirDialogue } from '../ui.js';
+import { el, pastille, choisirImage, annoncer, ouvrirDialogue, ouvrirPhotoEnGrand } from '../ui.js';
 import { MARQUE_MAX } from '../constantes.js';
 import { marquesConnues, couleursDuVetement } from '../donnees.js';
-import { vignetteDepuisFichier } from '../photos.js';
+import { photoDepuisFichier } from '../photos.js';
 
 let compteur = 0;
 
@@ -24,7 +24,7 @@ export async function choisirPhoto() {
   const fichier = await choisirImage();
   if (!fichier) return null;
   try {
-    return await vignetteDepuisFichier(fichier);
+    return await photoDepuisFichier(fichier);
   } catch {
     annoncer('Impossible de lire cette photo. Essaie une autre image.', 'erreur');
     return null;
@@ -65,9 +65,14 @@ export function pastilleCouleurs(hexes, options = {}) {
 export const hexDuVetement = (vetement) => couleursDuVetement(vetement).map((c) => c.hex);
 
 // Visuel d'un vêtement : sa photo (avec la pastille de ses couleurs dans un coin) ou, à défaut, la pastille seule.
-export function visuelVetement(app, vetement) {
+// agrandir : la photo est un bouton qui l'ouvre en grand (hors d'un autre bouton : pas dans une ligne de liste).
+export function visuelVetement(app, vetement, { agrandir = null } = {}) {
   const photo = vetement.photo ? app.photos.get(vetement.id) : null;
   if (!photo) return pastilleCouleurs(hexDuVetement(vetement), { classe: 'moyenne' });
-  return el('span', { class: 'visuel-vetement', 'aria-hidden': 'true' },
-    el('img', { class: 'vignette-vetement', src: photo, alt: '' }), pastilleCouleurs(hexDuVetement(vetement), { classe: 'coin' }));
+  const contenu = [el('img', { class: 'vignette-vetement', src: photo, alt: '' }), pastilleCouleurs(hexDuVetement(vetement), { classe: 'coin' })];
+  if (!agrandir) return el('span', { class: 'visuel-vetement', 'aria-hidden': 'true' }, contenu);
+  return el('button', {
+    type: 'button', class: 'visuel-vetement agrandissable', 'data-action': 'agrandir-photo', 'aria-label': `Agrandir la photo : ${agrandir}`,
+    onclick: () => ouvrirPhotoEnGrand(photo, { titre: agrandir }),
+  }, contenu);
 }
