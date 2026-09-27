@@ -21,7 +21,7 @@ export function champMarque(app, valeur = '', { id = `marque-${++compteur}`, cla
 
 // Photo du vêtement : iOS propose « Prendre une photo » ou « Photothèque ». Renvoie une vignette (data URL) ou null.
 export async function choisirPhoto() {
-  const fichier = await choisirImage({ capture: null });
+  const fichier = await choisirImage();
   if (!fichier) return null;
   try {
     return await vignetteDepuisFichier(fichier);

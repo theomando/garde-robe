@@ -384,7 +384,9 @@ test('app : mesure par photo, feuille tout-en-un (couleur, ajustement, type) san
   vrai(!scan.querySelector('.aide-scan').hidden, 'aide affichée d\'un toucher');
   cliquer('[data-action="photo"]', scan);
   const champ = await fournirPhoto(await photoSynthetique());
-  vrai(champ.getAttribute('capture') === 'environment' && champ.accept === 'image/*', 'appareil photo arrière');
+  // Sans attribut capture : iOS propose la photothèque ou l'appareil photo (demande de Théo, 2026-09-27).
+  egal(champ.getAttribute('capture'), null, 'photothèque ou appareil photo au choix');
+  egal(champ.accept, 'image/*');
   await attendreReel(() => scan.dataset.etape === 'resultat', 'décodage de la photo');
   const feuille = scan.querySelector('.feuille-resultat');
   cliquer('[data-type="pull"]', feuille);

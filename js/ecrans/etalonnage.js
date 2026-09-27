@@ -21,11 +21,11 @@ export function correcteur(app) {
 const DEROULEMENT = {
   torche: 'La torche reste allumée pendant les deux mesures.',
   'sans-torche': 'La torche reste éteinte : mesure à la lumière de la pièce où tu mesures d\'habitude.',
-  photo: 'Le déclencheur ouvre l\'appareil photo de l\'iPhone : prends chaque vêtement en photo, avec ou sans flash comme d\'habitude.',
+  photo: 'Le déclencheur propose l\'appareil photo ou la photothèque : une photo de chaque vêtement, prise comme tes photos habituelles (avec ou sans flash).',
 };
 const VISER = {
-  blanc: { camera: 'Vise le vêtement entièrement blanc, à 10 à 20 cm.', photo: 'Touche le déclencheur et prends en photo le vêtement entièrement blanc.' },
-  noir: { camera: 'Même chose avec le vêtement entièrement noir.', photo: 'Même chose : prends en photo le vêtement entièrement noir.' },
+  blanc: { camera: 'Vise le vêtement entièrement blanc, à 10 à 20 cm.', photo: 'Touche le déclencheur : photo du vêtement entièrement blanc, bien au centre.' },
+  noir: { camera: 'Même chose avec le vêtement entièrement noir.', photo: 'Même chose : photo du vêtement entièrement noir, bien au centre.' },
 };
 
 // mode : 'torche', 'sans-torche' ou 'photo' (ligne touchée dans les Réglages).

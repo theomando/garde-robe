@@ -43,7 +43,7 @@ const AIDE_SCAN = [
   'Place le vêtement bien à plat dans le carré, à 10 à 20 cm, puis touche le déclencheur.',
   'Un vêtement très sombre ou très clair : pose-le sur un fond neutre (drap, feuille blanche) sans remplir tout l\'écran.',
   'La torche s\'allume seule si l\'iPhone en a une ; l\'éclair en haut à droite l\'éteint.',
-  'Pas de caméra ? Le bouton photo, en bas à gauche, ouvre l\'appareil photo (avec flash).',
+  'Le bouton photo, en bas à gauche, mesure une photo de la photothèque, ou une photo prise avec l\'appareil photo (avec flash) : c\'est le centre de la photo qui est mesuré.',
 ];
 
 // Ouvre la caméra plein écran. Après une mesure { rgb (brute), source: 'camera' | 'photo', mode: 'torche' |
@@ -76,7 +76,7 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
     boutonTorche.setAttribute('aria-pressed', 'false');
     const mesurer = el('button', { type: 'button', class: 'declencheur', disabled: true, 'data-action': 'mesurer', 'aria-label': 'Mesurer' });
     const relancer = el('button', { type: 'button', class: 'bouton petit relancer', hidden: true, 'data-action': 'relancer' }, 'Relancer la caméra');
-    const photo = boutonRond({ icone: 'photo', libelle: 'Prendre une photo (avec flash)', action: 'photo' });
+    const photo = boutonRond({ icone: 'photo', libelle: 'Mesurer une photo (photothèque ou appareil photo)', action: 'photo' });
     if (mode) photo.style.visibility = 'hidden'; // façon de mesurer imposée : pas de photo en plus (garde la place)
     const panneauAide = el('div', { class: 'aide-scan', hidden: true, id: 'aide-scan' },
       el('ul', {}, AIDE_SCAN.map((ligne) => el('li', {}, ligne))), astuce ? el('p', {}, astuce) : null);
@@ -218,7 +218,7 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
       } catch (erreur) {
         if (camera !== courante || !dialogue.isConnected) return;
         const message = erreur instanceof ErreurCamera ? erreur.message : 'Caméra indisponible.';
-        etat.textContent = mode ? `${message} Tu peux étalonner « Par photo » à la place.` : `${message} Prends une photo avec le bouton en bas à gauche.`;
+        etat.textContent = mode ? `${message} Tu peux étalonner « Par photo » à la place.` : `${message} Choisis ou prends une photo avec le bouton en bas à gauche.`;
         relancer.hidden = !(erreur instanceof ErreurCamera && erreur.code === 'indisponible');
       }
     }
@@ -314,7 +314,7 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
 
     relancer.addEventListener('click', () => lancer());
 
-    // Photo : à appeler pendant le geste (iOS n'ouvre l'appareil photo qu'ainsi).
+    // Photo : à appeler pendant le geste (iOS n'ouvre la photothèque ou l'appareil photo qu'ainsi).
     async function prendrePhoto() {
       const promesse = choisirImage();
       // Une seule capture à la fois sur iOS : on libère la caméra pour l'appareil photo.

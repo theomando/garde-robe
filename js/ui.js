@@ -279,10 +279,11 @@ export function annoncer(message, genre = 'info') {
 
 // ---------- Fichiers ----------
 
-// Photo : renvoie un File ou null ; à appeler pendant le geste de l'utilisateur. capture 'environment' ouvre
-// directement l'appareil photo arrière (repli du scan) ; capture null laisse iOS proposer « Prendre une photo » ou
-// « Photothèque » (photo d'un vêtement).
-export function choisirImage({ capture = 'environment' } = {}) {
+// Photo : renvoie un File ou null ; à appeler pendant le geste de l'utilisateur. Sans capture, iOS propose
+// « Photothèque », « Prendre une photo » ou « Choisir un fichier » (demande de Théo, 2026-09-27 : capture
+// 'environment' ouvrait directement l'appareil photo, sans accès à la photothèque) ; capture 'environment' reste
+// possible pour ouvrir directement l'appareil photo arrière.
+export function choisirImage({ capture = null } = {}) {
   return new Promise((resoudre) => {
     const champ = el('input', { type: 'file', accept: 'image/*', capture, hidden: true, 'data-choix-fichier': 'image' });
     champ.addEventListener('change', () => {
