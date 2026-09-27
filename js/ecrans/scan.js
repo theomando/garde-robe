@@ -50,8 +50,10 @@ const AIDE_SCAN = [
 // 'sans-torche' | 'photo' }, resultat(mesure, feuille, { valider, recommencer }) remplit la feuille du bas ;
 // valider(valeur) ferme et renvoie valeur, recommencer() relance la caméra. Sans resultat : « Utiliser cette mesure »
 // renvoie la mesure (étalonnage). corriger(rgb, mode) sert à l'affichage en direct (étalonnage) ; consigne : une ligne.
+// mode (étalonnage, une façon de mesurer à la fois) : 'torche' (torche allumée, sans bascule), 'sans-torche' (jamais
+// allumée) ou 'photo' (pas de caméra : le déclencheur ouvre l'appareil photo) ; null : au choix de l'utilisateur.
 // Renvoie null si l'utilisateur ferme.
-export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consigne = CONSIGNE_COURTE, astuce = null, corriger = null, resultat = resultatSimple } = {}) {
+export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consigne = CONSIGNE_COURTE, astuce = null, corriger = null, resultat = resultatSimple, mode = null } = {}) {
   return new Promise((resoudre) => {
     let camera = null;
     let intervalle = null;
@@ -75,6 +77,7 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
     const mesurer = el('button', { type: 'button', class: 'declencheur', disabled: true, 'data-action': 'mesurer', 'aria-label': 'Mesurer' });
     const relancer = el('button', { type: 'button', class: 'bouton petit relancer', hidden: true, 'data-action': 'relancer' }, 'Relancer la caméra');
     const photo = boutonRond({ icone: 'photo', libelle: 'Prendre une photo (avec flash)', action: 'photo' });
+    if (mode) photo.style.visibility = 'hidden'; // façon de mesurer imposée : pas de photo en plus (garde la place)
     const panneauAide = el('div', { class: 'aide-scan', hidden: true, id: 'aide-scan' },
       el('ul', {}, AIDE_SCAN.map((ligne) => el('li', {}, ligne))), astuce ? el('p', {}, astuce) : null);
     const aide = boutonRond({
@@ -169,6 +172,11 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
       retourFeuille.hidden = !suite;
       historique = [];
       capsuleDirect.classList.remove('stable');
+      if (mode === 'photo') {
+        etat.textContent = consigne;
+        mesurer.disabled = false;
+        return;
+      }
       const courante = creerCamera({ mediaDevices, surPerte });
       camera = courante;
       try {
@@ -179,27 +187,38 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
         const image = await attendreImage(video, SCAN_DELAI_SANS_IMAGE_MS);
         if (camera !== courante || !dialogue.isConnected) return;
         if (!image) {
-          etat.textContent = 'La caméra ne renvoie pas d\'image. Relance-la ou prends une photo.';
+          etat.textContent = mode ? 'La caméra ne renvoie pas d\'image. Relance-la.' : 'La caméra ne renvoie pas d\'image. Relance-la ou prends une photo.';
           relancer.hidden = false;
+          return;
+        }
+        if (mode === 'torche' && !info.torcheDisponible) {
+          courante.arreter();
+          etat.textContent = 'Pas de torche sur cet appareil : étalonne plutôt « Sans torche » ou « Par photo ».';
           return;
         }
         placerReticule();
         capsuleDirect.hidden = false;
-        mesurer.disabled = false;
         intervalle = setInterval(apercu, SCAN_APERCU_MS);
-        if (info.torcheDisponible) {
-          boutonTorche.hidden = false;
+        if (info.torcheDisponible && mode !== 'sans-torche') {
+          boutonTorche.hidden = mode === 'torche'; // torche imposée : pas de bascule
           const allumee = await courante.reglerTorche(true);
+          if (camera !== courante || !dialogue.isConnected) return;
           afficherTorche();
+          if (mode === 'torche' && !allumee) {
+            etat.textContent = 'La torche n\'a pas pu s\'allumer (surchauffe ?). Relance la caméra un peu plus tard.';
+            relancer.hidden = false;
+            return;
+          }
           etat.textContent = allumee ? consigne
             : 'La torche n\'a pas pu s\'allumer : mesure à la lumière ambiante, ou prends une photo avec flash.';
         } else {
-          etat.textContent = `${consigne} Pas de torche : lumière ambiante, ou photo avec flash.`;
+          etat.textContent = mode ? consigne : `${consigne} Pas de torche : lumière ambiante, ou photo avec flash.`;
         }
+        mesurer.disabled = false; // après la torche : la mesure se fait dans la bonne lumière
       } catch (erreur) {
         if (camera !== courante || !dialogue.isConnected) return;
         const message = erreur instanceof ErreurCamera ? erreur.message : 'Caméra indisponible.';
-        etat.textContent = `${message} Prends une photo avec le bouton en bas à gauche.`;
+        etat.textContent = mode ? `${message} Tu peux étalonner « Par photo » à la place.` : `${message} Prends une photo avec le bouton en bas à gauche.`;
         relancer.hidden = !(erreur instanceof ErreurCamera && erreur.code === 'indisponible');
       }
     }
@@ -262,6 +281,7 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
 
     // Mesure stable : SCAN_IMAGES_PAR_MESURE images en une seconde environ, combinées par médiane (js/mesure.js).
     mesurer.addEventListener('click', async () => {
+      if (mode === 'photo') { prendrePhoto(); return; } // pendant le geste : iOS ouvre l'appareil photo
       if (mesureEnCours) return;
       mesureEnCours = true;
       const courante = camera;
@@ -283,35 +303,40 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
         etat.textContent = MESSAGES_MESURE[mesure.erreur] ?? consigneAvant;
         return;
       }
-      const mode = modeCourant();
+      const facon = modeCourant(); // torche ou sans torche, au moment de la mesure
       figee.width = video.videoWidth;
       figee.height = video.videoHeight;
       figee.getContext('2d').drawImage(video, 0, 0);
       figee.hidden = false;
       etat.textContent = consigneAvant;
-      afficherResultat({ rgb: mesure.rgb, source: 'camera', mode, images: mesure.images });
+      afficherResultat({ rgb: mesure.rgb, source: 'camera', mode: facon, images: mesure.images });
     });
 
     relancer.addEventListener('click', () => lancer());
 
-    photo.addEventListener('click', async () => {
-      const promesse = choisirImage(); // pendant le geste : iOS ouvre l'appareil photo
+    // Photo : à appeler pendant le geste (iOS n'ouvre l'appareil photo qu'ainsi).
+    async function prendrePhoto() {
+      const promesse = choisirImage();
       // Une seule capture à la fois sur iOS : on libère la caméra pour l'appareil photo.
       camera?.arreter();
       clearInterval(intervalle);
       mesurer.disabled = true;
+      // Échec : en mode photo, le déclencheur reste là pour réessayer ; sinon, on peut relancer la caméra.
+      const echec = (message) => {
+        etat.textContent = message;
+        if (mode === 'photo') mesurer.disabled = false;
+        else relancer.hidden = false;
+      };
       const fichier = await promesse;
       if (!dialogue.isConnected) return;
       if (!fichier) {
-        etat.textContent = 'Aucune photo prise.';
-        relancer.hidden = false;
+        echec(mode === 'photo' ? 'Aucune photo prise. Touche le déclencheur pour recommencer.' : 'Aucune photo prise.');
         return;
       }
       try {
         const { mesure } = await mesurerPhoto(fichier);
         if (mesure.erreur) {
-          etat.textContent = MESSAGES_MESURE[mesure.erreur];
-          relancer.hidden = false;
+          echec(MESSAGES_MESURE[mesure.erreur]);
           return;
         }
         if (photoFigee.src) URL.revokeObjectURL(photoFigee.src);
@@ -319,10 +344,10 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
         photoFigee.hidden = false;
         afficherResultat({ rgb: mesure.rgb, source: 'photo', mode: 'photo' });
       } catch {
-        etat.textContent = 'Impossible de lire cette photo. Réessaie, ou choisis la couleur dans le catalogue.';
-        relancer.hidden = false;
+        echec('Impossible de lire cette photo. Réessaie, ou choisis la couleur dans le catalogue.');
       }
-    });
+    }
+    photo.addEventListener('click', prendrePhoto);
 
     video.addEventListener('resize', placerReticule);
     window.addEventListener('resize', placerReticule);

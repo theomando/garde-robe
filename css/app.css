@@ -852,6 +852,7 @@ html:has(dialog[open]) { overflow: hidden; }
 /* ---------- Réglages ---------- */
 
 .etat-etalonnage .pastille { width: 1.1rem; height: 1.1rem; }
+.ligne-action.etat-etalonnage { color: var(--texte); } /* ligne de réglage : texte normal, chevron */
 .credits { flex: 1; padding: 0.25rem 0 0.25rem 1rem; margin: 0; font-size: 0.82rem; color: var(--discret); }
 .credits li { margin-bottom: 0.4rem; }
 

@@ -481,8 +481,11 @@ export function enregistrerEtalonnage(etat, mode, { blanc, noir }, date) {
   return { ...etat, reglages: { ...etat.reglages, etalonnage } };
 }
 
-export function supprimerEtalonnage(etat) {
-  const { etalonnage, ...reglages } = etat.reglages;
+// Retire l'étalonnage d'une façon de mesurer ; les autres restent (plus de champ quand il n'en reste aucun).
+export function supprimerEtalonnage(etat, mode) {
+  const { [mode]: retire, ...autres } = etat.reglages.etalonnage ?? {};
+  const reglages = { ...etat.reglages, etalonnage: autres };
+  if (Object.keys(autres).length === 0) delete reglages.etalonnage;
   return { ...etat, reglages };
 }
 

@@ -259,7 +259,9 @@ test('données : étalonnage enregistré par mode, exporté, réimporté, suppri
   const { erreurs, etat: relu } = lireExport(exporterEtat(etat, DATE));
   egalProfond(erreurs, []);
   egalProfond(relu, etat);
-  egal(supprimerEtalonnage(etat).reglages.etalonnage, undefined);
+  const sansTorche = supprimerEtalonnage(etat, 'torche');
+  egalProfond(Object.keys(sansTorche.reglages.etalonnage), ['photo'], 'suppression d\'une seule façon de mesurer');
+  egal('etalonnage' in supprimerEtalonnage(sansTorche, 'photo').reglages, false, 'plus aucun étalonnage : plus de champ');
   egalProfond(lireExport(exporterEtat(etatExemple(), DATE)).etat.reglages.etalonnage, undefined, 'facultatif');
   leve(() => enregistrerEtalonnage(etat, 'lune', { blanc: [220, 220, 230], noir: [70, 70, 79] }, DATE));
   leve(() => enregistrerEtalonnage(etat, 'photo', { blanc: [100, 100, 100], noir: [90, 90, 90] }, DATE));

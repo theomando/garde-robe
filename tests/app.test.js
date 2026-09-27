@@ -445,22 +445,65 @@ test('app : mesure à la caméra (simulée, sans torche), plein écran, Recommen
   egal(doc.querySelector('[data-type="pull"] .nom').textContent, nomChoisi, 'nom et hex du catalogue');
 });
 
-// Étalonnage : photo, puis « Utiliser cette mesure » dans la feuille.
+// Écran de mesure de l'étalonnage, prêt (anti double tape écoulé).
+const scanEtalonnage = (titre) => attendre(() => [...doc.querySelectorAll('dialog.scan[open]')]
+  .find((d) => d.querySelector('h2').textContent === titre && 'pret' in d.dataset), `mesure « ${titre} »`);
+
+// Étalonnage par photo : le déclencheur ouvre l'appareil photo, puis « Utiliser cette mesure » dans la feuille.
 async function etalonnerParPhoto(titre, hex) {
-  const scan = await attendre(() => [...doc.querySelectorAll('dialog.scan[open]')]
-    .find((d) => d.querySelector('h2').textContent === titre && 'pret' in d.dataset), `mesure « ${titre} »`);
-  cliquer('[data-action="photo"]', scan);
+  const scan = await scanEtalonnage(titre);
+  egal(scan.querySelector('[data-action="photo"]').style.visibility, 'hidden', 'pas de second bouton photo');
+  vrai(!scan.querySelector('[data-action="mesurer"]').disabled, 'déclencheur prêt, sans caméra');
+  cliquer('[data-action="mesurer"]', scan);
   await fournirPhoto(await photoUnie(hex));
   await attendreReel(() => resultatPret() === scan, `résultat « ${titre} »`);
   cliquer('[data-action="utiliser-mesure"]', scan);
 }
 
+// Étalonnage à la caméra : mesure (réessayée en cas de reflet), puis « Utiliser cette mesure ».
+async function etalonnerCamera(titre) {
+  const scan = await scanEtalonnage(titre);
+  await mesurerCamera(scan);
+  cliquer('[data-action="utiliser-mesure"]', scan);
+  return scan;
+}
+
+// Caméra simulée avec torche (demande de Théo, 2026-09-27 : étalonner avec et sans torche) : flux d'une toile unie
+// de la couleur voulue ; la torche demandée par l'app est notée. retirer() rend la caméra simulée d'Edge.
+function cameraAvecTorche() {
+  const toile = fenetre.document.createElement('canvas');
+  toile.width = 320;
+  toile.height = 240;
+  const camera = { couleur: '#dcdce6', torche: [] };
+  const peindre = () => {
+    const contexte = toile.getContext('2d');
+    contexte.fillStyle = camera.couleur;
+    contexte.fillRect(0, 0, toile.width, toile.height);
+  };
+  peindre();
+  const minuterie = fenetre.setInterval(peindre, 40); // une image par dessin
+  const media = fenetre.navigator.mediaDevices;
+  media.getUserMedia = async () => {
+    const flux = toile.captureStream(25);
+    const piste = flux.getVideoTracks()[0];
+    piste.getCapabilities = () => ({ torch: true });
+    piste.applyConstraints = async (contraintes) => { camera.torche.push(contraintes.advanced[0].torch); };
+    return flux;
+  };
+  camera.retirer = () => {
+    fenetre.clearInterval(minuterie);
+    delete media.getUserMedia;
+  };
+  return camera;
+}
+
 test('app : étalonnage par photos (blanc, noir), puis un vêtement noir corrigé en « Black »', async () => {
   cliquer('#onglets [data-ecran="reglages"]');
   egal(doc.querySelector('[data-mode="photo"] .valeur-ligne').textContent, 'non étalonné');
-  cliquer('[data-action="etalonner"]');
+  cliquer('[data-mode="photo"][data-action="etalonner"]');
   const depart = await dialogueOuvert();
-  egal(depart.querySelector('h2').textContent, 'Étalonner la caméra');
+  egal(depart.querySelector('h2').textContent, 'Étalonner : par photo');
+  egal(depart.querySelector('[data-action="supprimer-etalonnage"]'), null, 'rien à supprimer');
   cliquer('[data-valeur="commencer"]', depart);
   await etalonnerParPhoto('Étalonnage : vêtement blanc', '#dcdce6');
   await etalonnerParPhoto('Étalonnage : vêtement noir', '#46464f');
@@ -485,6 +528,71 @@ test('app : étalonnage par photos (blanc, noir), puis un vêtement noir corrig�
   await dialoguesFermes();
   await quand(() => stocke().vetements.length === 3, 'pantalon enregistré');
   egal(stocke().vetements[2].hex, '#111314');
+});
+
+test('app : étalonnage « avec la torche » sur un appareil sans torche, refusé avant toute mesure', async () => {
+  cliquer('#onglets [data-ecran="reglages"]');
+  cliquer('[data-mode="torche"][data-action="etalonner"]');
+  const depart = await dialogueOuvert();
+  egal(depart.querySelector('h2').textContent, 'Étalonner : avec la torche');
+  cliquer('[data-valeur="commencer"]', depart);
+  const scan = await scanEtalonnage('Étalonnage : vêtement blanc');
+  await attendreReel(() => scan.querySelector('.etat-scan').textContent.startsWith('Pas de torche'), 'message sans torche');
+  vrai(scan.querySelector('[data-action="mesurer"]').disabled, 'aucune mesure possible');
+  cliquer('[data-action="annuler-scan"]', scan);
+  await dialoguesFermes();
+  egalProfond(Object.keys(stocke().reglages.etalonnage), ['photo'], 'rien d\'enregistré');
+});
+
+test('app : étalonnages avec et sans torche, chacun gardé à côté de celui par photo', async () => {
+  const camera = cameraAvecTorche();
+  try {
+    cliquer('[data-mode="torche"][data-action="etalonner"]');
+    cliquer('[data-valeur="commencer"]', await dialogueOuvert());
+    let scan = await scanEtalonnage('Étalonnage : vêtement blanc');
+    await attendreReel(() => camera.torche.includes(true) && !scan.querySelector('[data-action="mesurer"]').disabled, 'torche allumée, déclencheur prêt');
+    vrai(scan.querySelector('[data-action="torche"]').hidden, 'torche imposée : pas de bascule');
+    egal(scan.querySelector('[data-action="photo"]').style.visibility, 'hidden', 'pas de photo pendant cet étalonnage');
+    await etalonnerCamera('Étalonnage : vêtement blanc');
+    camera.couleur = '#46464f';
+    await etalonnerCamera('Étalonnage : vêtement noir');
+    await attendreReel(() => stocke().reglages.etalonnage?.torche, 'étalonnage avec la torche enregistré');
+
+    // Sans torche : la torche n'est jamais allumée.
+    const avant = camera.torche.length;
+    camera.couleur = '#dcdce6';
+    cliquer('[data-mode="sans-torche"][data-action="etalonner"]');
+    const depart = await dialogueOuvert();
+    egal(depart.querySelector('h2').textContent, 'Étalonner : sans torche');
+    cliquer('[data-valeur="commencer"]', depart);
+    scan = await etalonnerCamera('Étalonnage : vêtement blanc');
+    vrai(scan.querySelector('[data-action="torche"]').hidden, 'pas de bouton torche');
+    camera.couleur = '#46464f';
+    await etalonnerCamera('Étalonnage : vêtement noir');
+    await attendreReel(() => stocke().reglages.etalonnage?.['sans-torche'], 'étalonnage sans torche enregistré');
+    egal(camera.torche.slice(avant).includes(true), false, 'torche jamais allumée');
+  } finally {
+    camera.retirer();
+  }
+  const { etalonnage } = stocke().reglages;
+  egalProfond(Object.keys(etalonnage).sort(), ['photo', 'sans-torche', 'torche'], 'trois étalonnages, un par façon de mesurer');
+  for (const mode of ['torche', 'sans-torche']) {
+    vrai(etalonnage[mode].blanc.every((v, i) => Math.abs(v - [220, 220, 230][i]) <= 6), `${mode} : blanc ${etalonnage[mode].blanc}`);
+    vrai(etalonnage[mode].noir.every((v, i) => Math.abs(v - [70, 70, 79][i]) <= 6), `${mode} : noir ${etalonnage[mode].noir}`);
+  }
+  await quand(() => doc.querySelector('[data-mode="sans-torche"] .valeur-ligne')?.textContent.startsWith('étalonné le'), 'état affiché');
+
+  // Supprimer un seul étalonnage : les autres restent.
+  cliquer('[data-mode="torche"][data-action="etalonner"]');
+  const fiche = await dialogueOuvert();
+  egal(fiche.querySelector('[data-valeur="commencer"]').textContent, 'Refaire');
+  cliquer('[data-action="supprimer-etalonnage"]', fiche);
+  const alerte = await attendre(() => [...doc.querySelectorAll('dialog.alerte[open]')].find((d) => 'pret' in d.dataset), 'confirmation');
+  cliquer('[data-valeur="oui"]', alerte);
+  await dialoguesFermes();
+  await quand(() => !stocke().reglages.etalonnage.torche, 'étalonnage avec la torche supprimé');
+  egalProfond(Object.keys(stocke().reglages.etalonnage).sort(), ['photo', 'sans-torche']);
+  await quand(() => doc.querySelector('[data-mode="torche"] .valeur-ligne')?.textContent === 'non étalonné', 'ligne à jour');
 });
 
 test('app : tenue du jour, propositions, avatar, sélection, favoris et filtre', async () => {

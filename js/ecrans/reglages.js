@@ -1,12 +1,12 @@
 // Écran Réglages (dans le style de l'app Réglages d'iOS) : teint, interrupteur, étalonnage de la caméra, tolérance,
 // favoris, catalogue Papier Tigre, export et import, version et crédits.
 
-import { el, pastille, confirmer, annoncer, barreNavigation, interrupteur } from '../ui.js';
+import { el, pastille, barreNavigation, interrupteur } from '../ui.js';
 import { icone } from '../icones.js';
 import {
   MST, TOLERANCE_MIN, TOLERANCE_MAX, TOLERANCE_PAS, TOLERANCE_DEFAUT, VERSION_APP, MODES_SCAN, LIBELLES_MODES_SCAN,
 } from '../constantes.js';
-import { modifierReglages, supprimerEtalonnage } from '../donnees.js';
+import { modifierReglages } from '../donnees.js';
 import { rgbVersHex } from '../couleur.js';
 import { ouvrirSelecteur } from './selecteur-catalogue.js';
 import { etalonner } from './etalonnage.js';
@@ -68,24 +68,19 @@ export function rendreReglages(conteneur, app, actions) {
         el('span', { class: 'texte-ligne' }, 'Teint dans les combinaisons'), teintActif),
     ], 'Échelle Monk, de 1 (le plus clair) à 10 (le plus foncé). Avec l\'interrupteur, la peau peut porter une couleur proche de ton teint.'),
 
-    groupe('Étalonnage de la caméra', [
-      ...MODES_SCAN.map((mode) => {
-        const mesures = reglages.etalonnage?.[mode];
-        return el('div', { class: 'ligne etat-etalonnage', 'data-mode': mode },
-          el('span', { class: 'texte-ligne' }, LIBELLES_MODES_SCAN[mode]),
-          mesures ? pastille(rgbVersHex(mesures.blanc), { titre: `blanc mesuré ${rgbVersHex(mesures.blanc)}` }) : null,
-          mesures ? pastille(rgbVersHex(mesures.noir), { titre: `noir mesuré ${rgbVersHex(mesures.noir)}` }) : null,
-          el('span', { class: 'valeur-ligne' }, mesures ? `étalonné le ${new Date(mesures.date).toLocaleDateString('fr-FR')}` : 'non étalonné'));
-      }),
-      ligneAction(reglages.etalonnage ? 'Refaire l\'étalonnage' : 'Étalonner la caméra', { action: 'etalonner', onclick: () => etalonner(app, actions) }),
-      reglages.etalonnage ? ligneAction('Supprimer l\'étalonnage', {
-        action: 'supprimer-etalonnage', danger: true,
-        onclick: async () => {
-          if (!(await confirmer('Supprimer l\'étalonnage ?', 'Les prochains scans ne seront plus corrigés. Tes vêtements déjà enregistrés ne changent pas.', 'Supprimer'))) return;
-          if (actions.mettreAJour(supprimerEtalonnage(app.etat))) annoncer('Étalonnage supprimé');
-        },
-      }) : null,
-    ], 'À faire une seule fois : scanne un vêtement entièrement blanc, puis un entièrement noir. Les scans suivants faits de la même façon sont corrigés (exposition automatique de l\'iPhone, dominante bleue de la torche).'),
+    // Une ligne par façon de mesurer : chacune s'étalonne (ou se supprime) séparément.
+    groupe('Étalonnage de la caméra', MODES_SCAN.map((mode) => {
+      const mesures = reglages.etalonnage?.[mode];
+      return el('button', {
+        type: 'button', class: 'ligne ligne-action etat-etalonnage', 'data-mode': mode, 'data-action': 'etalonner',
+        onclick: () => etalonner(app, actions, mode),
+      },
+      el('span', { class: 'texte-ligne' }, LIBELLES_MODES_SCAN[mode]),
+      mesures ? pastille(rgbVersHex(mesures.blanc), { titre: `blanc mesuré ${rgbVersHex(mesures.blanc)}` }) : null,
+      mesures ? pastille(rgbVersHex(mesures.noir), { titre: `noir mesuré ${rgbVersHex(mesures.noir)}` }) : null,
+      el('span', { class: 'valeur-ligne' }, mesures ? `étalonné le ${new Date(mesures.date).toLocaleDateString('fr-FR')}` : 'non étalonné'),
+      icone('chevron-droite', { classe: 'chevron' }));
+    }), 'Une fois pour chaque façon de mesurer que tu utilises : touche-la, puis mesure un vêtement entièrement blanc et un entièrement noir. Les mesures faites de la même façon sont ensuite corrigées (exposition automatique de l\'iPhone, dominante bleue de la torche).'),
 
     groupe('Tolérance', [
       el('label', { class: 'ligne', for: 'reglage-tolerance' }, el('span', { class: 'texte-ligne' }, 'Écart maximal (ΔE00)'), valeurTolerance),
