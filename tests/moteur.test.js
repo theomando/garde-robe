@@ -413,3 +413,18 @@ test('moteur : des couleurs sans combinaison (XKCD, pour nommer) ne changent rie
   egalProfond(resume(r2), resume(r1));
   egal(creerCacheEcarts(complet).couleurs.length, seul.couleurs.length, 'cache limité aux couleurs des combinaisons');
 });
+
+test('tri : à manques égaux, une combinaison pour s\'habiller passe avant les autres, même plus éloignée', () => {
+  const types = ['pantalon', 't-shirt'];
+  const vetements = [vet('pantalon', BLEU), vet('t-shirt', ROUGE_PROCHE)];
+  const base = catalogueDe([[ROUGE, BLEU], [ROUGE_PROCHE, BLEU], [VERT, JAUNE]]);
+  // La combinaison k1 (rouge, bleu) devient « pour s'habiller » : écart moyen plus grand que k2, mais devant.
+  const catalogue = { ...base, combinaisons: base.combinaisons.map((k) => (k.id === 'k1' ? { ...k, source: 'vetements' } : k)) };
+  const { retenues } = proposer({ types, vetements, catalogue, reglages: reglages() });
+  egalProfond(retenues.map((p) => p.combinaison.id), ['k1', 'k2', 'k3']);
+  vrai(retenues[0].ecartMoyen > retenues[1].ecartMoyen, 'k1 plus éloignée, pourtant devant');
+  egalProfond(proposer({ types, vetements, catalogue: base, reglages: reglages() }).retenues.map((p) => p.combinaison.id), ['k2', 'k1', 'k3'], 'sans elle : l\'écart décide');
+  // Plus de manques : elle reste derrière.
+  const loin = { ...base, combinaisons: base.combinaisons.map((k) => (k.id === 'k3' ? { ...k, source: 'vetements' } : k)) };
+  egal(proposer({ types, vetements, catalogue: loin, reglages: reglages() }).retenues.at(-1).combinaison.id, 'k3', '2 manques : derrière malgré tout');
+});

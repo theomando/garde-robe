@@ -9,6 +9,7 @@ import { partagerFichier } from './partage.js';
 import { creerStockage } from './stockage.js';
 import { ouvrirPhotos } from './photos.js';
 import { construireWada, construireXkcd, fusionnerCatalogues } from './catalogue.js';
+import { construireCombinaisonsVetements } from './combinaisons-vetements.js';
 import { lirePapierTigre } from './papier-tigre.js';
 import { rendrePremierLancement } from './ecrans/premier-lancement.js';
 import { rendreGardeRobe } from './ecrans/garde-robe.js';
@@ -62,8 +63,11 @@ const ECRANS = {
   reglages: rendreReglages,
 };
 
+// Wada (sans les combinaisons remplacées par celles pour s'habiller), combinaisons pour s'habiller, Papier Tigre, XKCD.
 function construireCatalogue() {
-  app.catalogue = fusionnerCatalogues(app.wada, app.papierTigre?.catalogue ?? null, app.xkcd);
+  const remplacees = new Set(app.vetements?.remplacees ?? []);
+  const wada = { ...app.wada, combinaisons: app.wada.combinaisons.filter((k) => !remplacees.has(k.id)) };
+  app.catalogue = fusionnerCatalogues(wada, app.vetements, app.papierTigre?.catalogue ?? null, app.xkcd);
 }
 
 // Sélecteur qui retrouve, après un nouveau rendu, l'élément qui avait le focus (curseur, interrupteur, teinte…) :
@@ -349,6 +353,18 @@ async function chargerXkcd() {
   }
 }
 
+// Combinaisons pour s'habiller : facultatives elles aussi (sans elles, Wada et Papier Tigre seuls).
+async function chargerCombinaisonsVetements(wada) {
+  try {
+    const reponse = await fetch('data/combinaisons-vetements.json');
+    if (!reponse.ok) throw new Error(`HTTP ${reponse.status}`);
+    return construireCombinaisonsVetements(await reponse.json(), wada);
+  } catch (erreur) {
+    console.warn('Combinaisons pour s\'habiller non chargées :', erreur);
+    return null;
+  }
+}
+
 async function demarrer() {
   preparerMisesAJour();
   const { etat, avertissement } = stockage.chargerEtat();
@@ -365,6 +381,7 @@ async function demarrer() {
     return;
   }
   app.xkcd = await xkcd;
+  app.vetements = await chargerCombinaisonsVetements(app.wada);
   chargerPapierTigre();
   construireCatalogue();
 

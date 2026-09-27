@@ -1,0 +1,826 @@
+{
+ "format": "combinaisons-vetements",
+ "version": 1,
+ "description": "Combinaisons de couleurs pour s'habiller, relevé de Théo du 27/09/2026 : combinaisons attribuées à une maison ou un créateur, ou publiées par un titre de presse ou un guide identifié (origine « mode », codes de sources du relevé), et combinaisons personnelles (origine « perso »). Couleurs : nuancier du relevé, nom français vers le hex d'une couleur du catalogue Wada (data/wada.json).",
+ "nuancier": {
+  "noir": "#111314",
+  "blanc": "#ffffff",
+  "gris": "#a1a39a",
+  "gris clair": "#b6bfc1",
+  "gris anthracite": "#34454c",
+  "beige": "#ebd3a2",
+  "beige sable": "#cab356",
+  "ivoire": "#f5ecc2",
+  "crème": "#ffefae",
+  "taupe": "#c2ae93",
+  "camel": "#c5a56e",
+  "caramel": "#bb7125",
+  "marron": "#653514",
+  "marron chocolat": "#653514",
+  "marron châtaigne": "#762c19",
+  "brun espresso": "#4b3317",
+  "bleu marine": "#051230",
+  "bleu nuit": "#1e0e3f",
+  "bleu": "#1c4286",
+  "bleu clair": "#a7d4e4",
+  "bleu ciel": "#97acc8",
+  "bleu glacier": "#bce4e5",
+  "bleu cobalt": "#12354e",
+  "turquoise": "#00b49b",
+  "turquoise vif": "#78cdd0",
+  "rose": "#f27291",
+  "rose clair": "#f9c1ce",
+  "rose poudré": "#f9c1ce",
+  "rose bonbon": "#f27291",
+  "vieux rose": "#d46d7a",
+  "rouge": "#dd4027",
+  "rouge cerise": "#e31f26",
+  "rouge tomate": "#dd4027",
+  "rouge écarlate": "#cc1236",
+  "bordeaux": "#7d133a",
+  "violet raisin": "#642d5e",
+  "lavande": "#b5b1d8",
+  "prune": "#501345",
+  "orange": "#f37420",
+  "terracotta": "#c56127",
+  "jaune": "#fff200",
+  "jaune beurre": "#f8ed43",
+  "jaune pâle": "#f8ed43",
+  "jaune moutarde": "#d6b43e",
+  "or": "#d6b43e",
+  "vert": "#87c540",
+  "vert émeraude": "#489b6e",
+  "vert olive": "#837e31",
+  "vert sauge": "#8fa071",
+  "vert mousse": "#8fa071",
+  "vert pistache": "#afd472",
+  "vert pâle": "#afd472",
+  "vert anis": "#afd472",
+  "chartreuse": "#c7d14f"
+ },
+ "combinaisons": [
+  {
+   "id": "mode-01",
+   "ref": "Mode n° 1",
+   "origine": "mode",
+   "couleurs": [
+    "marron chocolat",
+    "bleu clair"
+   ],
+   "sources": [
+    "P2",
+    "P4",
+    "C1",
+    "C2",
+    "G3"
+   ],
+   "note": "Tory Burch, Staud (P4), Patou porté par K. Holmes (C1)"
+  },
+  {
+   "id": "mode-02",
+   "ref": "Mode n° 2",
+   "origine": "mode",
+   "couleurs": [
+    "rose poudré",
+    "bordeaux"
+   ],
+   "sources": [
+    "P1",
+    "P2",
+    "P3",
+    "P4"
+   ],
+   "note": "Chanel PE 2026 (M. Blazy), Balenciaga (P4)"
+  },
+  {
+   "id": "mode-03",
+   "ref": "Mode n° 3",
+   "origine": "mode",
+   "couleurs": [
+    "rouge",
+    "bleu cobalt"
+   ],
+   "sources": [
+    "P1",
+    "P2",
+    "P5"
+   ],
+   "note": "Miu Miu, Prada (P2), Stella McCartney (P5)"
+  },
+  {
+   "id": "mode-04",
+   "ref": "Mode n° 4",
+   "origine": "mode",
+   "couleurs": [
+    "rouge cerise",
+    "violet raisin"
+   ],
+   "sources": [
+    "P1",
+    "P2",
+    "P7"
+   ],
+   "note": "rouge et violet, tendance automne 2026 (P7)"
+  },
+  {
+   "id": "mode-05",
+   "ref": "Mode n° 5",
+   "origine": "mode",
+   "couleurs": [
+    "noir",
+    "gris"
+   ],
+   "sources": [
+    "G1",
+    "G2",
+    "G3"
+   ],
+   "note": "guides homme"
+  },
+  {
+   "id": "mode-06",
+   "ref": "Mode n° 6",
+   "origine": "mode",
+   "couleurs": [
+    "bleu marine",
+    "marron"
+   ],
+   "sources": [
+    "G1",
+    "G3",
+    "G4"
+   ],
+   "note": "guides homme"
+  },
+  {
+   "id": "mode-07",
+   "ref": "Mode n° 7",
+   "origine": "mode",
+   "couleurs": [
+    "noir",
+    "blanc"
+   ],
+   "sources": [
+    "M1",
+    "G1",
+    "G2"
+   ],
+   "note": "Chanel (palette de la maison)"
+  },
+  {
+   "id": "mode-08",
+   "ref": "Mode n° 8",
+   "origine": "mode",
+   "couleurs": [
+    "bordeaux",
+    "bleu glacier"
+   ],
+   "sources": [
+    "P1",
+    "P2",
+    "R1"
+   ],
+   "note": "Prada (P2)"
+  },
+  {
+   "id": "mode-09",
+   "ref": "Mode n° 9",
+   "origine": "mode",
+   "couleurs": [
+    "chartreuse",
+    "bordeaux"
+   ],
+   "sources": [
+    "P2",
+    "P3"
+   ],
+   "note": "Prada PE 2026"
+  },
+  {
+   "id": "mode-10",
+   "ref": "Mode n° 10",
+   "origine": "mode",
+   "couleurs": [
+    "rose bonbon",
+    "marron châtaigne"
+   ],
+   "sources": [
+    "P1",
+    "P2"
+   ]
+  },
+  {
+   "id": "mode-11",
+   "ref": "Mode n° 11",
+   "origine": "mode",
+   "couleurs": [
+    "jaune beurre",
+    "bleu clair"
+   ],
+   "sources": [
+    "P2",
+    "P4"
+   ],
+   "note": "Tory Burch, Chloé (P2), Chloé, Sandy Liang (P4)"
+  },
+  {
+   "id": "mode-12",
+   "ref": "Mode n° 12",
+   "origine": "mode",
+   "couleurs": [
+    "turquoise vif",
+    "brun espresso"
+   ],
+   "sources": [
+    "P1",
+    "P2"
+   ]
+  },
+  {
+   "id": "mode-13",
+   "ref": "Mode n° 13",
+   "origine": "mode",
+   "couleurs": [
+    "bleu marine",
+    "blanc"
+   ],
+   "sources": [
+    "G1",
+    "G2"
+   ],
+   "note": "guides homme"
+  },
+  {
+   "id": "mode-14",
+   "ref": "Mode n° 14",
+   "origine": "mode",
+   "couleurs": [
+    "bleu marine",
+    "bordeaux"
+   ],
+   "sources": [
+    "G1",
+    "G2"
+   ],
+   "note": "guides homme"
+  },
+  {
+   "id": "mode-15",
+   "ref": "Mode n° 15",
+   "origine": "mode",
+   "couleurs": [
+    "bleu clair",
+    "beige"
+   ],
+   "sources": [
+    "G1",
+    "G6"
+   ],
+   "note": "guides homme",
+   "remarque": "aussi dans tes combinaisons (U16)"
+  },
+  {
+   "id": "mode-16",
+   "ref": "Mode n° 16",
+   "origine": "mode",
+   "couleurs": [
+    "vert olive",
+    "beige"
+   ],
+   "sources": [
+    "G3",
+    "G5"
+   ],
+   "note": "guides homme"
+  },
+  {
+   "id": "mode-17",
+   "ref": "Mode n° 17",
+   "origine": "mode",
+   "couleurs": [
+    "rouge cerise",
+    "vieux rose"
+   ],
+   "sources": [
+    "P5",
+    "R2"
+   ],
+   "note": "Valentino, Oscar de la Renta (R2)"
+  },
+  {
+   "id": "mode-18",
+   "ref": "Mode n° 18",
+   "origine": "mode",
+   "couleurs": [
+    "rose clair",
+    "bleu marine"
+   ],
+   "sources": [
+    "G6",
+    "G7"
+   ],
+   "note": "guides homme"
+  },
+  {
+   "id": "mode-19",
+   "ref": "Mode n° 19",
+   "origine": "mode",
+   "couleurs": [
+    "jaune beurre",
+    "vert sauge"
+   ],
+   "sources": [
+    "P1"
+   ],
+   "note": "à associer à ivoire et beige selon P1"
+  },
+  {
+   "id": "mode-20",
+   "ref": "Mode n° 20",
+   "origine": "mode",
+   "couleurs": [
+    "lavande",
+    "rouge écarlate"
+   ],
+   "sources": [
+    "P2"
+   ]
+  },
+  {
+   "id": "mode-21",
+   "ref": "Mode n° 21",
+   "origine": "mode",
+   "couleurs": [
+    "rose poudré",
+    "bleu cobalt"
+   ],
+   "sources": [
+    "P2"
+   ]
+  },
+  {
+   "id": "mode-22",
+   "ref": "Mode n° 22",
+   "origine": "mode",
+   "couleurs": [
+    "vert olive",
+    "marron chocolat"
+   ],
+   "sources": [
+    "P2"
+   ]
+  },
+  {
+   "id": "mode-23",
+   "ref": "Mode n° 23",
+   "origine": "mode",
+   "couleurs": [
+    "vert mousse",
+    "beige sable"
+   ],
+   "sources": [
+    "P2"
+   ]
+  },
+  {
+   "id": "mode-24",
+   "ref": "Mode n° 24",
+   "origine": "mode",
+   "couleurs": [
+    "bleu glacier",
+    "rouge tomate"
+   ],
+   "sources": [
+    "P2"
+   ]
+  },
+  {
+   "id": "mode-25",
+   "ref": "Mode n° 25",
+   "origine": "mode",
+   "couleurs": [
+    "vert anis",
+    "bleu cobalt"
+   ],
+   "sources": [
+    "P2"
+   ]
+  },
+  {
+   "id": "mode-26",
+   "ref": "Mode n° 26",
+   "origine": "mode",
+   "couleurs": [
+    "orange",
+    "gris"
+   ],
+   "sources": [
+    "P2"
+   ]
+  },
+  {
+   "id": "mode-27",
+   "ref": "Mode n° 27",
+   "origine": "mode",
+   "couleurs": [
+    "beige sable",
+    "marron chocolat"
+   ],
+   "sources": [
+    "P5"
+   ]
+  },
+  {
+   "id": "mode-28",
+   "ref": "Mode n° 28",
+   "origine": "mode",
+   "couleurs": [
+    "chartreuse",
+    "marron chocolat"
+   ],
+   "sources": [
+    "P5"
+   ],
+   "note": "Bally"
+  },
+  {
+   "id": "mode-29",
+   "ref": "Mode n° 29",
+   "origine": "mode",
+   "couleurs": [
+    "jaune pâle",
+    "gris"
+   ],
+   "sources": [
+    "P6"
+   ]
+  },
+  {
+   "id": "mode-30",
+   "ref": "Mode n° 30",
+   "origine": "mode",
+   "couleurs": [
+    "marron",
+    "vert pâle"
+   ],
+   "sources": [
+    "P6"
+   ],
+   "note": "Prada"
+  },
+  {
+   "id": "mode-31",
+   "ref": "Mode n° 31",
+   "origine": "mode",
+   "couleurs": [
+    "noir",
+    "vert émeraude"
+   ],
+   "sources": [
+    "M2"
+   ],
+   "note": "légende d'illustration, auteur incertain (voir M2)"
+  },
+  {
+   "id": "mode-32",
+   "ref": "Mode n° 32",
+   "origine": "mode",
+   "couleurs": [
+    "gris",
+    "beige"
+   ],
+   "sources": [
+    "M3"
+   ],
+   "note": "Armani, « greige »"
+  },
+  {
+   "id": "mode-33",
+   "ref": "Mode n° 33",
+   "origine": "mode",
+   "couleurs": [
+    "gris",
+    "beige",
+    "rose poudré"
+   ],
+   "sources": [
+    "M3"
+   ],
+   "note": "Armani AH 2018"
+  },
+  {
+   "id": "mode-34",
+   "ref": "Mode n° 34",
+   "origine": "mode",
+   "couleurs": [
+    "gris",
+    "vert anis"
+   ],
+   "sources": [
+    "M3"
+   ],
+   "note": "Armani AH 2014"
+  },
+  {
+   "id": "mode-38",
+   "ref": "Mode n° 38",
+   "origine": "mode",
+   "couleurs": [
+    "bleu marine",
+    "camel",
+    "gris"
+   ],
+   "sources": [
+    "G4"
+   ],
+   "note": "guide homme"
+  },
+  {
+   "id": "mode-39",
+   "ref": "Mode n° 39",
+   "origine": "mode",
+   "couleurs": [
+    "bleu clair",
+    "bleu marine"
+   ],
+   "sources": [
+    "G5"
+   ],
+   "note": "guide homme"
+  },
+  {
+   "id": "mode-40",
+   "ref": "Mode n° 40",
+   "origine": "mode",
+   "couleurs": [
+    "marron",
+    "vert"
+   ],
+   "sources": [
+    "G2"
+   ],
+   "note": "guide homme"
+  },
+  {
+   "id": "mode-41",
+   "ref": "Mode n° 41",
+   "origine": "mode",
+   "couleurs": [
+    "gris anthracite",
+    "gris clair"
+   ],
+   "sources": [
+    "G7"
+   ],
+   "note": "guide homme"
+  },
+  {
+   "id": "mode-42",
+   "ref": "Mode n° 42",
+   "origine": "mode",
+   "couleurs": [
+    "beige",
+    "bleu marine"
+   ],
+   "sources": [
+    "G6"
+   ],
+   "note": "guide homme"
+  },
+  {
+   "id": "mode-43",
+   "ref": "Mode n° 43",
+   "origine": "mode",
+   "couleurs": [
+    "rouge",
+    "jaune moutarde"
+   ],
+   "sources": [
+    "G6"
+   ],
+   "note": "guide homme"
+  },
+  {
+   "id": "mode-44",
+   "ref": "Mode n° 44",
+   "origine": "mode",
+   "couleurs": [
+    "bordeaux",
+    "vert émeraude"
+   ],
+   "sources": [
+    "R1"
+   ],
+   "note": "blog d'enseigne"
+  },
+  {
+   "id": "mode-45",
+   "ref": "Mode n° 45",
+   "origine": "mode",
+   "couleurs": [
+    "bleu marine",
+    "noir"
+   ],
+   "sources": [
+    "G5"
+   ],
+   "note": "guide homme"
+  },
+  {
+   "id": "perso-01",
+   "ref": "Perso U01",
+   "origine": "perso",
+   "couleurs": [
+    "terracotta",
+    "crème",
+    "bleu clair"
+   ]
+  },
+  {
+   "id": "perso-02",
+   "ref": "Perso U02",
+   "origine": "perso",
+   "couleurs": [
+    "rose",
+    "bleu clair",
+    "vert sauge"
+   ]
+  },
+  {
+   "id": "perso-03",
+   "ref": "Perso U03",
+   "origine": "perso",
+   "couleurs": [
+    "gris",
+    "bleu marine",
+    "caramel"
+   ]
+  },
+  {
+   "id": "perso-04",
+   "ref": "Perso U04",
+   "origine": "perso",
+   "couleurs": [
+    "ivoire",
+    "marron",
+    "taupe"
+   ]
+  },
+  {
+   "id": "perso-05",
+   "ref": "Perso U05",
+   "origine": "perso",
+   "couleurs": [
+    "taupe",
+    "beige",
+    "bordeaux"
+   ]
+  },
+  {
+   "id": "perso-06",
+   "ref": "Perso U06",
+   "origine": "perso",
+   "couleurs": [
+    "vert émeraude",
+    "blanc",
+    "caramel"
+   ]
+  },
+  {
+   "id": "perso-07",
+   "ref": "Perso U07",
+   "origine": "perso",
+   "couleurs": [
+    "gris",
+    "noir",
+    "vert émeraude"
+   ]
+  },
+  {
+   "id": "perso-08",
+   "ref": "Perso U08",
+   "origine": "perso",
+   "couleurs": [
+    "vert olive",
+    "crème",
+    "rose"
+   ]
+  },
+  {
+   "id": "perso-09",
+   "ref": "Perso U09",
+   "origine": "perso",
+   "couleurs": [
+    "bleu clair",
+    "blanc",
+    "rouge"
+   ]
+  },
+  {
+   "id": "perso-10",
+   "ref": "Perso U10",
+   "origine": "perso",
+   "couleurs": [
+    "jaune",
+    "beige",
+    "marron"
+   ],
+   "remarque": "hypothèse du relevé : « Jeune » = jaune, à confirmer"
+  },
+  {
+   "id": "perso-11",
+   "ref": "Perso U11",
+   "origine": "perso",
+   "couleurs": [
+    "blanc",
+    "bleu",
+    "vert olive"
+   ],
+   "remarque": "« bleu » non précisé : bleu générique retenu"
+  },
+  {
+   "id": "perso-12",
+   "ref": "Perso U12",
+   "origine": "perso",
+   "couleurs": [
+    "noir",
+    "blanc",
+    "jaune moutarde"
+   ]
+  },
+  {
+   "id": "perso-13",
+   "ref": "Perso U13",
+   "origine": "perso",
+   "couleurs": [
+    "noir",
+    "blanc",
+    "vert émeraude"
+   ]
+  },
+  {
+   "id": "perso-14",
+   "ref": "Perso U14",
+   "origine": "perso",
+   "couleurs": [
+    "prune",
+    "beige",
+    "marron"
+   ]
+  },
+  {
+   "id": "perso-15",
+   "ref": "Perso U15",
+   "origine": "perso",
+   "couleurs": [
+    "prune",
+    "jaune",
+    "turquoise"
+   ]
+  },
+  {
+   "id": "perso-17",
+   "ref": "Perso U17",
+   "origine": "perso",
+   "couleurs": [
+    "bleu clair",
+    "bleu nuit",
+    "bordeaux"
+   ]
+  },
+  {
+   "id": "perso-18",
+   "ref": "Perso U18",
+   "origine": "perso",
+   "couleurs": [
+    "bleu ciel",
+    "marron"
+   ]
+  },
+  {
+   "id": "perso-19",
+   "ref": "Perso U19",
+   "origine": "perso",
+   "couleurs": [
+    "jaune",
+    "bleu nuit"
+   ]
+  },
+  {
+   "id": "perso-20",
+   "ref": "Perso U20",
+   "origine": "perso",
+   "couleurs": [
+    "vert pistache",
+    "bleu nuit",
+    "marron"
+   ]
+  }
+ ],
+ "exclues": {
+  "Mode n° 35": "logo YSL Rive Gauche (1966) : le relevé le signale comme « pas une tenue »",
+  "Mode n° 36": "robe Mondrian (YSL, 1965) : une robe à 5 couleurs, que le relevé écarte de ses recoupements",
+  "Mode n° 37": "palette de la maison Chanel : le relevé la signale comme « pas une tenue »",
+  "Perso U16": "mêmes couleurs que Mode n° 15 (bleu clair et beige)"
+ }
+}

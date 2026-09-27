@@ -101,7 +101,7 @@ function carteTenue(app, actions, tenue) {
   const n = nbManques(tenue);
   return el('li', {},
     el('button', {
-      type: 'button', class: 'carte-tenue', 'data-tenue-gardee': tenue.id,
+      type: 'button', class: `carte-tenue${tenue.combinaison.source === 'vetements' ? ' pour-vetements' : ''}`, 'data-tenue-gardee': tenue.id,
       'aria-label': `${tenue.nom ?? referenceCombinaison(tenue.combinaison)}, gardée le ${dateCourte(tenue.date)}`,
       onclick: () => ouvrirTenue(app, actions, tenue),
     },

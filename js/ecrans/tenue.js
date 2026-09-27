@@ -220,7 +220,12 @@ export function rendreTenue(conteneur, app, actions) {
   function details(proposition) {
     const couleurs = proposition.combinaison.couleurs.map(couleur);
     const favoris = app.etat.reglages.favoris;
+    const { combinaison } = proposition;
+    const origine = combinaison.source !== 'vetements' ? null
+      : combinaison.origine === 'perso' ? 'Une de tes combinaisons pour t\'habiller.'
+        : `Combinaison pour s'habiller, citée par ${combinaison.sources.length} document${combinaison.sources.length > 1 ? 's' : ''} (${combinaison.sources.join(', ')}).`;
     return el('div', { class: 'details' },
+      origine ? el('p', { class: 'origine-combinaison', 'data-info': 'origine-combinaison' }, origine, combinaison.remarque ? ` Remarque : ${combinaison.remarque}.` : '') : null,
       el('ul', { class: 'pieces' }, proposition.pieces.map((piece) => detailPiece(piece, proposition))),
       proposition.peau
         ? el('p', {}, `Peau : porte ${couleur(proposition.peau.couleurId).nom} (écart ${ecartTexte(proposition.peau.ecart)}).`)
@@ -244,7 +249,9 @@ export function rendreTenue(conteneur, app, actions) {
       const couleurs = proposition.combinaison.couleurs.map(couleur);
       return el('li', { class: 'proposition-item' },
         el('button', {
-          type: 'button', class: 'proposition', 'aria-pressed': String(choisie), 'data-combinaison': proposition.combinaison.id,
+          // Combinaison pour s'habiller : liseré doré (demande de Théo, 2026-09-27).
+          type: 'button', class: `proposition${proposition.combinaison.source === 'vetements' ? ' pour-vetements' : ''}`,
+          'aria-pressed': String(choisie), 'data-combinaison': proposition.combinaison.id,
           onclick: () => {
             ecran.selection = proposition.combinaison.id;
             dessinerPanneau();

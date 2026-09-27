@@ -6,6 +6,7 @@ import { photoSynthetique, photoUnie, photoDeuxCouleurs, attendreReel, avecTemps
 import { ouvrirPhotos } from '../js/photos.js';
 import { labDepuisHex } from '../js/couleur.js';
 import { lireExport } from '../js/donnees.js';
+import { referenceCombinaison } from '../js/tenues.js';
 
 const ESPACE = 'garde-robe-tests-ui:';
 // Base de photos de l'espace de test (IndexedDB), lue en temps réel (le temps virtuel ne l'attend pas).
@@ -718,6 +719,16 @@ test('app : tenue du jour, propositions, avatar, sélection, favoris et filtre',
   const references = cartes.map((c) => c.querySelector('.infos strong').textContent);
   vrai(references.some((r) => r.startsWith('Combinaison n° ')) && references.every((r) => !r.includes('Wada')),
     `« Combinaison n° » au lieu de « Wada » : ${references.slice(0, 3).join(' ; ')}`);
+  // Combinaisons pour s'habiller (demande de Théo, 2026-09-27) : liseré doré, devant les autres à manques égaux.
+  const manques = (carte) => Number(/(\d+) manque/.exec(carte.querySelector('.infos .discret').textContent)?.[1] ?? 0);
+  const dorees = cartes.filter((c) => c.classList.contains('pour-vetements'));
+  vrai(dorees.length > 0, 'au moins une combinaison pour s\'habiller proposée');
+  vrai(dorees.every((c) => /^(Mode n° \d+|Perso U\d+)/.test(c.querySelector('.infos strong').textContent)), 'libellé « Mode n° » ou « Perso U »');
+  for (let i = 1; i < cartes.length; i++) {
+    const [a, b] = [cartes[i - 1], cartes[i]];
+    vrai(manques(a) < manques(b) || manques(a) > manques(b) || a.classList.contains('pour-vetements') || !b.classList.contains('pour-vetements'),
+      `à manques égaux, l'or d'abord (${i} et ${i + 1})`);
+  }
   egal(cartes[0].getAttribute('aria-pressed'), 'true', 'la première est sélectionnée');
   vrai(stocke().tenuesTypes.some((tenue) => tenue.join(',') === 'chaussures,pantalon,pull'), 'tenue type enregistrée');
   const panneau = doc.querySelector('.panneau-avatar');
@@ -728,6 +739,9 @@ test('app : tenue du jour, propositions, avatar, sélection, favoris et filtre',
   cartes[1].click();
   egal(doc.querySelector('.panneau-avatar').dataset.selection, cartes[1].dataset.combinaison, 'l\'avatar suit la proposition touchée');
   egal(doc.querySelectorAll('.proposition[aria-pressed="true"]').length, 1);
+  dorees[0].click();
+  vrai(doc.querySelector('[data-info="origine-combinaison"]').textContent.includes('pour t\'habiller')
+    || doc.querySelector('[data-info="origine-combinaison"]').textContent.includes('pour s\'habiller'), 'origine de la combinaison dans le détail');
   const favorisAvant = stocke().reglages.favoris.length;
   const etoile = doc.querySelector('[data-action="etoile-proposition"][aria-pressed="false"]');
   const idEtoile = etoile.dataset.couleur;
@@ -748,7 +762,7 @@ test('app : ♡ garder une tenue, la retrouver dans Mes tenues avec son avatar, 
   await quand(() => stocke().tenuesGardees.length === 1, 'tenue gardée');
   egal(doc.querySelector('.panneau-avatar [data-action="garder-tenue"]').getAttribute('aria-pressed'), 'true', 'cœur plein');
   const gardee = stocke().tenuesGardees[0];
-  egal(`Combinaison ${gardee.combinaison.ref}`, reference);
+  egal(referenceCombinaison(gardee.combinaison), reference);
   // Partager depuis la tenue du jour : image PNG par le partage d'iOS.
   const partages = simulerPartage();
   cliquer('.panneau-avatar [data-action="partager-tenue"]');

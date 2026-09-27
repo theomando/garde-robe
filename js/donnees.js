@@ -47,7 +47,7 @@ const CLES_PIECE_GARDEE = {
   4: ['type', 'hex', 'manque', 'joker', 'couleurId', 'vetementId', 'hexSecondaires'],
 };
 const CLES_COULEUR_SECONDAIRE = ['hex', 'idCouleurCatalogue'];
-const SOURCES = ['wada', 'papier-tigre'];
+const SOURCES = ['wada', 'papier-tigre', 'vetements'];
 const ROLES = ['dominante', 'soutien'];
 const MOTIF_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
 const MOTIF_PHOTO = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/;

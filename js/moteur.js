@@ -216,10 +216,13 @@ function evaluer(combinaison, rang, pieces, peau, tolerance, index, favoris) {
   };
 }
 
-// Tri : manques croissants, peau utilisée d'abord, favoris décroissants, vêtements multicolores « en harmonie »
-// décroissants, ΔE00 moyen croissant, ordre du catalogue.
+// Tri : manques croissants, combinaisons pour s'habiller d'abord (demande de Théo, 2026-09-27), peau utilisée
+// d'abord, favoris décroissants, vêtements multicolores « en harmonie » décroissants, ΔE00 moyen croissant, ordre du
+// catalogue.
+const pourVetements = (proposition) => Number(proposition.combinaison?.source === 'vetements');
 export function comparerPropositions(a, b) {
   return a.nbManques - b.nbManques
+    || pourVetements(b) - pourVetements(a)
     || Number(b.peauUtilisee) - Number(a.peauUtilisee)
     || b.nbFavoris - a.nbFavoris
     || (b.nbHarmonieux ?? 0) - (a.nbHarmonieux ?? 0)

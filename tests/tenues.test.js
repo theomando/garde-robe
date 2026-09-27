@@ -3,7 +3,7 @@ import { test, vrai, egal, egalProfond } from './mini-test.js';
 import { labDepuisHex } from '../js/couleur.js';
 import { fusionnerCatalogues } from '../js/catalogue.js';
 import { proposer } from '../js/moteur.js';
-import { instantaneTenue, signatureTenue, piecesAvatar } from '../js/tenues.js';
+import { instantaneTenue, signatureTenue, piecesAvatar, referenceCombinaison } from '../js/tenues.js';
 import { garderTenue, etatInitial } from '../js/donnees.js';
 
 const ROUGE = '#ff0000', BLEU = '#0000ff', NOIR = '#000000';
@@ -46,4 +46,15 @@ test('mes tenues : vêtement multicolore, couleurs secondaires figées dans l\'i
   egalProfond(piecesAvatar(tenue).find((p) => p.type === 'pantalon').rayures, [BLEU, '#ffffff']);
   const etat = garderTenue(etatInitial(), tenue, { id: 't1', date: new Date('2026-09-27T10:00:00Z') }, signatureTenue);
   egalProfond(etat.tenuesGardees[0].pieces.find((p) => p.type === 'pantalon').hexSecondaires, ['#ffffff'], 'gardé tel quel');
+});
+
+test('mes tenues : une combinaison pour s\'habiller garde sa source et son libellé une fois gardée', () => {
+  const pourVetements = { ...catalogue, combinaisons: catalogue.combinaisons.map((k) => ({ ...k, source: 'vetements', ref: 'Mode n° 3', nom: 'Miu Miu, Prada (P2)' })) };
+  const types = ['pantalon', 't-shirt'];
+  const [proposition] = proposer({ types, vetements: [vet('p', 'pantalon', BLEU), vet('t', 't-shirt', ROUGE)], catalogue: pourVetements, reglages }).retenues;
+  const tenue = instantaneTenue(proposition, pourVetements, types);
+  egalProfond([tenue.combinaison.source, tenue.combinaison.ref, tenue.combinaison.nom], ['vetements', 'Mode n° 3', 'Miu Miu, Prada (P2)']);
+  egal(referenceCombinaison(tenue.combinaison), 'Mode n° 3 · Miu Miu, Prada (P2)');
+  const etat = garderTenue(etatInitial(), tenue, { id: 't1', date: new Date('2026-09-27T10:00:00Z') }, signatureTenue);
+  egal(etat.tenuesGardees[0].combinaison.source, 'vetements', 'acceptée par la validation');
 });

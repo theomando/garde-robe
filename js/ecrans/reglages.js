@@ -136,6 +136,7 @@ export function rendreReglages(conteneur, app, actions) {
           'noms traduits en français pour l\'app : ',
           el('a', { href: 'data/LICENSE-xkcd.md', target: '_blank', rel: 'noopener' }, 'détails'), '.'),
         el('li', {}, 'Teintes : Monk, Ellis. « Monk Skin Tone Scale », 2019, skintone.google, licence CC BY 4.0.'),
+        el('li', {}, 'Combinaisons pour s\'habiller (liseré doré) : relevé de Théo du 27/09/2026 (maisons, presse, guides), et ses combinaisons personnelles.'),
         el('li', {}, 'Harmonies Papier Tigre : Color Inspiration, volumes 1 à 3, saisies par l\'utilisateur, jamais publiées.'))),
     ], null, { 'data-section': 'a-propos' }));
 }
