@@ -8,7 +8,7 @@ import {
 import { partagerFichier } from './partage.js';
 import { creerStockage } from './stockage.js';
 import { ouvrirPhotos } from './photos.js';
-import { construireWada, fusionnerCatalogues } from './catalogue.js';
+import { construireWada, construireXkcd, fusionnerCatalogues } from './catalogue.js';
 import { lirePapierTigre } from './papier-tigre.js';
 import { rendrePremierLancement } from './ecrans/premier-lancement.js';
 import { rendreGardeRobe } from './ecrans/garde-robe.js';
@@ -63,7 +63,7 @@ const ECRANS = {
 };
 
 function construireCatalogue() {
-  app.catalogue = fusionnerCatalogues(app.wada, app.papierTigre?.catalogue ?? null);
+  app.catalogue = fusionnerCatalogues(app.wada, app.papierTigre?.catalogue ?? null, app.xkcd);
 }
 
 // Sélecteur qui retrouve, après un nouveau rendu, l'élément qui avait le focus (curseur, interrupteur, teinte…) :
@@ -335,10 +335,26 @@ function preparerMisesAJour() {
   });
 }
 
+async function chargerXkcd() {
+  try {
+    const [texte, noms] = await Promise.all(['data/xkcd-rgb.txt', 'data/xkcd-noms-fr.json'].map(async (chemin) => {
+      const reponse = await fetch(chemin);
+      if (!reponse.ok) throw new Error(`${chemin} : HTTP ${reponse.status}`);
+      return chemin.endsWith('.json') ? reponse.json() : reponse.text();
+    }));
+    return construireXkcd(texte, noms);
+  } catch (erreur) {
+    console.warn('Couleurs XKCD non chargées :', erreur);
+    return null;
+  }
+}
+
 async function demarrer() {
   preparerMisesAJour();
   const { etat, avertissement } = stockage.chargerEtat();
   app.etat = etat;
+  // Couleurs nommées XKCD : facultatives (sans elles, le catalogue de Wada suffit au calcul).
+  const xkcd = chargerXkcd();
   try {
     const reponse = await fetch('data/wada.json');
     if (!reponse.ok) throw new Error(`HTTP ${reponse.status}`);
@@ -348,6 +364,7 @@ async function demarrer() {
       el('p', { class: 'vide' }, `Impossible de charger le catalogue des couleurs (${erreur.message}). Vérifie la connexion puis relance l'app.`));
     return;
   }
+  app.xkcd = await xkcd;
   chargerPapierTigre();
   construireCatalogue();
 

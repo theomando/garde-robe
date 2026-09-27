@@ -4,6 +4,8 @@
 // (★ Favoris d'abord, s'il y en a). Toucher une famille ouvre sa section : toutes ses variations, du plus clair au
 // plus foncé ; « ‹ Carte » revient. La recherche par nom porte sur tout le catalogue.
 // mode 'choisir' : toucher une couleur la renvoie ; mode 'favoris' : toucher une couleur bascule son étoile.
+// Les couleurs XKCD (sans combinaison, pour nommer) n'ont pas d'étoile et n'apparaissent pas en mode 'favoris' :
+// les favoris ne comptent que pour les combinaisons. La recherche porte aussi sur leur nom anglais d'origine.
 
 import { el, pastille, terminaison, armerDialogue, boutonRond } from '../ui.js';
 import { icone } from '../icones.js';
@@ -15,12 +17,17 @@ const PAR_PAGE = 240;
 const CASES_DAMIER = 9; // damier 3 × 3 d'une tuile de famille
 const NB_PROCHES = 12;
 
-// Rangement calculé une fois par catalogue (il change seulement à l'import ou au retrait de Papier Tigre).
+// Rangement calculé une fois par catalogue et par mode (il change seulement à l'import ou au retrait de Papier Tigre).
 const familles = new WeakMap();
-function famillesDe(catalogue) {
-  if (!familles.has(catalogue)) familles.set(catalogue, grouperParFamille(catalogue.couleurs));
-  return familles.get(catalogue);
+function famillesDe(catalogue, mode, couleurs) {
+  if (!familles.has(catalogue)) familles.set(catalogue, new Map());
+  const parMode = familles.get(catalogue);
+  if (!parMode.has(mode)) parMode.set(mode, grouperParFamille(couleurs));
+  return parMode.get(mode);
 }
+
+// Couleur citée par une combinaison (Wada, Papier Tigre) : elle seule peut être favorite.
+const deCombinaison = (catalogue, couleur) => catalogue.idsCombinaisons?.has(couleur.id) ?? true;
 
 function sansAccents(texte) {
   return texte.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
@@ -35,7 +42,8 @@ const ecartTexte = (ecart) => `ΔE ${ecart.toFixed(1).replace('.', ',')}`;
 
 export function ouvrirSelecteur({ catalogue, titre, mode = 'choisir', reference = null, estFavori, basculerFavori }) {
   return new Promise((resoudre) => {
-    const groupes = famillesDe(catalogue);
+    const couleurs = mode === 'favoris' ? catalogue.couleurs.filter((c) => deCombinaison(catalogue, c)) : catalogue.couleurs;
+    const groupes = famillesDe(catalogue, mode, couleurs);
     const ecart = (couleur) => (reference ? deltaE00(reference, couleur.lab) : null);
     let vue = 'carte'; // 'carte', id d'une famille, 'favoris' ou 'recherche'
     let texte = '';
@@ -64,12 +72,12 @@ export function ouvrirSelecteur({ catalogue, titre, mode = 'choisir', reference 
 
     function carte(couleur) {
       const e = ecart(couleur);
-      const etoile = el('button', {
+      const etoile = deCombinaison(catalogue, couleur) ? el('button', {
         type: 'button', class: 'etoile', 'data-action': 'etoile', 'data-couleur': couleur.id,
         'aria-pressed': String(estFavori(couleur.id)),
         'aria-label': `${estFavori(couleur.id) ? 'Retirer' : 'Ajouter'} ${couleur.nom} ${estFavori(couleur.id) ? 'des' : 'aux'} favoris`,
-      }, estFavori(couleur.id) ? '★' : '☆');
-      etoile.addEventListener('click', () => {
+      }, estFavori(couleur.id) ? '★' : '☆') : null;
+      etoile?.addEventListener('click', () => {
         basculerFavori(couleur.id);
         const actif = estFavori(couleur.id);
         etoile.textContent = actif ? '★' : '☆';
@@ -79,14 +87,14 @@ export function ouvrirSelecteur({ catalogue, titre, mode = 'choisir', reference 
       const principal = el('button', {
         type: 'button', class: 'choisir', 'data-action': 'choisir-couleur', 'data-couleur': couleur.id,
         onclick: () => {
-          if (mode === 'favoris') etoile.click();
+          if (mode === 'favoris') etoile?.click();
           else terminer(couleur);
         },
       },
       pastille(couleur.hex, { classe: 'grande' }),
       el('span', { class: 'nom' }, couleur.nom),
       el('span', { class: 'detail' }, e === null ? couleur.hex : ecartTexte(e)));
-      return el('div', { class: 'carte-couleur', role: 'listitem' }, principal, etoile);
+      return el('div', { class: 'carte-couleur', role: 'listitem' }, principal, etoile ?? '');
     }
 
     function grille(liste) {
@@ -116,7 +124,7 @@ export function ouvrirSelecteur({ catalogue, titre, mode = 'choisir', reference 
       let titreVue = titre;
       if (vue === 'recherche') {
         const cle = sansAccents(texte.trim());
-        let trouvees = catalogue.couleurs.filter((c) => sansAccents(c.nom).includes(cle));
+        let trouvees = couleurs.filter((c) => sansAccents(c.nom).includes(cle) || (c.nomOriginal !== undefined && sansAccents(c.nomOriginal).includes(cle)));
         if (reference) trouvees = trouvees.map((c) => ({ c, e: ecart(c) })).sort((x, y) => x.e - y.e).map((x) => x.c);
         contenu = [
           el('p', { class: 'compte discret' }, trouvees.length === 0 ? 'Aucune couleur ne correspond.'

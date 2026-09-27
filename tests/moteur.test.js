@@ -397,3 +397,19 @@ test('multicolore : joker seulement si toutes les couleurs sont noires ou blanch
   const bicolore = lancer(['pantalon', 't-shirt', 'veste'], [vet('pantalon', BLEU), vet('t-shirt', ROUGE), vetMulti('veste', NOIR, VERT)], combos);
   egal(bicolore.retenues[0].nbManques, 1, 'noir et vert : pas un joker, la veste manque');
 });
+
+test('moteur : des couleurs sans combinaison (XKCD, pour nommer) ne changent rien au calcul', () => {
+  const types = ['chaussures', 'pantalon', 't-shirt'];
+  const vetements = [vet('pantalon', BLEU), vet('t-shirt', ROUGE_PROCHE), vet('chaussures', NOIR)];
+  const combos = [[ROUGE, BLEU], [VERT, JAUNE], [JAUNE, BLEU, ROUGE]];
+  const seul = catalogueDe(combos);
+  // Une couleur XKCD exactement sur chaque vêtement : si elle comptait, les écarts tomberaient à 0.
+  const xkcd = { couleurs: [BLEU, ROUGE_PROCHE, NOIR].map((hex, i) => ({ id: `xkcd-${i + 1}`, nom: hex, hex, source: 'xkcd', lab: labDepuisHex(hex) })), combinaisons: [] };
+  const complet = fusionnerCatalogues(...[seul].map((c) => ({ couleurs: c.couleurs, combinaisons: c.combinaisons })), xkcd);
+  const resume = (r) => r.retenues.map((p) => [p.combinaison.id, p.ecartMoyen, p.pieces.map((x) => `${x.type}:${x.vetement?.id ?? '-'}:${x.couleurId ?? 'joker'}`)]);
+  const r1 = proposer({ types, vetements, catalogue: seul, reglages: reglages() });
+  const r2 = proposer({ types, vetements, catalogue: complet, reglages: reglages() });
+  vrai(r1.retenues.length > 0);
+  egalProfond(resume(r2), resume(r1));
+  egal(creerCacheEcarts(complet).couleurs.length, seul.couleurs.length, 'cache limité aux couleurs des combinaisons');
+});

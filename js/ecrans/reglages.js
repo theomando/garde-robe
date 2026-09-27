@@ -132,6 +132,9 @@ export function rendreReglages(conteneur, app, actions) {
           '(mattdesl/dictionary-of-colour-combinations) et Dain M. Blodorn Kim (dblodorn/sanzo-wada), licence MIT : ',
           // Nouvel onglet : dans l'app installée, une navigation sur place n'aurait pas de bouton retour.
           el('a', { href: 'data/LICENSE-wada.md', target: '_blank', rel: 'noopener' }, 'texte des licences'), '.'),
+        el('li', {}, 'Couleurs nommées : Randall Munroe, XKCD Color Survey, 2010, xkcd.com/color/rgb, domaine public (CC0) ; ',
+          'noms traduits en français pour l\'app : ',
+          el('a', { href: 'data/LICENSE-xkcd.md', target: '_blank', rel: 'noopener' }, 'détails'), '.'),
         el('li', {}, 'Teintes : Monk, Ellis. « Monk Skin Tone Scale », 2019, skintone.google, licence CC BY 4.0.'),
         el('li', {}, 'Harmonies Papier Tigre : Color Inspiration, volumes 1 à 3, saisies par l\'utilisateur, jamais publiées.'))),
     ], null, { 'data-section': 'a-propos' }));

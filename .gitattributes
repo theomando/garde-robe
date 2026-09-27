@@ -5,3 +5,6 @@
 *.zip binary
 # Copie à l'identique de la source (empreinte SHA-256 vérifiée par les tests) : git n'y touche pas.
 data/wada.json -text
+
+# Copie à l'identique de la liste XKCD (empreinte SHA-256 vérifiée par les tests).
+data/xkcd-rgb.txt -text

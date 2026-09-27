@@ -234,9 +234,36 @@ test('app : favori depuis les réglages', async () => {
   etoile.click();
   egal(etoile.getAttribute('aria-pressed'), 'true');
   egal(stocke().reglages.favoris.length, 1);
+  // Les couleurs XKCD (pour nommer, sans combinaison) ne peuvent pas être favorites.
+  await rechercher(selecteur, 'blanc cassé');
+  await attendre(() => selecteur.querySelector('.compte')?.textContent === 'Aucune couleur ne correspond.', 'aucun blanc cassé');
   cliquer('[data-action="fermer-selecteur"]', selecteur);
   await dialoguesFermes();
   await quand(() => doc.getElementById('contenu').textContent.includes('1 couleur favorite'), 'favori affiché');
+});
+
+test('app : couleurs nommées XKCD, cherchées en français ou en anglais, sans étoile', async () => {
+  cliquer('#onglets [data-ecran="garde-robe"]');
+  await menuAjout('ajouter-vetement');
+  cliquer('[data-choix="pull"]', await dialogueOuvert());
+  const selecteur = await dialogueOuvert('dialog.selecteur[open]');
+  for (const recherche of ['blanc casse', 'off white']) {
+    await rechercher(selecteur, recherche);
+    const cartes = await attendre(() => {
+      const trouvees = [...selecteur.querySelectorAll('.carte-couleur')];
+      return trouvees.length > 0 && trouvees.every((c) => c.querySelector('.nom').textContent !== '') ? trouvees : null;
+    }, `résultats pour « ${recherche} »`);
+    const blanc = cartes.find((c) => c.querySelector('.nom').textContent === 'Blanc cassé');
+    vrai(blanc, `« ${recherche} » trouve « Blanc cassé »`);
+    egal(blanc.querySelector('[data-action="etoile"]'), null, 'pas d\'étoile : aucune combinaison ne la cite');
+  }
+  await rechercher(selecteur, '');
+  const beiges = await attendre(() => selecteur.querySelector('[data-famille="beiges"]'), 'tuile des beiges');
+  beiges.click();
+  await attendre(() => [...selecteur.querySelectorAll('.carte-couleur .nom')].some((n) => n.textContent === 'Ivoire'), 'ivoire dans les beiges et crèmes');
+  cliquer('[data-action="fermer-selecteur"]', selecteur);
+  await dialoguesFermes();
+  cliquer('#onglets [data-ecran="reglages"]'); // les tests suivants partent des réglages
 });
 
 test('app : tolérance réglée au curseur', async () => {
@@ -422,9 +449,10 @@ test('app : mesure à la caméra (simulée, sans torche), plein écran, Recommen
   vrai(ecarts.every((e, i) => i === 0 || e >= ecarts[i - 1]), `du plus proche au plus éloigné : ${ecarts}`);
   cliquer('[data-segment="neutres"]', feuille);
   const neutres = cartesChoix(feuille).map((c) => c.querySelector('.nom').textContent);
-  egal(neutres[0], 'Black', 'neutres du plus foncé au plus clair : le noir d\'abord');
-  egal(neutres[neutres.length - 1], 'White');
-  vrai(neutres.length >= 7, `les 7 neutres des combinaisons (C* ≤ 8), plus ceux de Papier Tigre importés plus haut : ${neutres}`);
+  egal(neutres[0], 'Noir', 'neutres du plus foncé au plus clair : le noir d\'abord (#000000 de XKCD, puis Black)');
+  vrai(neutres.indexOf('Black') < neutres.indexOf('Gris clair') && neutres.indexOf('Gris clair') < neutres.indexOf('White'), `ordre : ${neutres}`);
+  egal(neutres[neutres.length - 1], 'Blanc', 'White et Blanc (#ffffff) en dernier, Wada d\'abord');
+  vrai(neutres.length >= 23, `les 7 neutres des combinaisons (C* ≤ 8), les 16 de XKCD, plus ceux de Papier Tigre importés plus haut : ${neutres}`);
   cliquer('[data-segment="proches"]', feuille);
   const choisie = cartesChoix(feuille)[1];
   const idChoisi = choisie.dataset.couleur;

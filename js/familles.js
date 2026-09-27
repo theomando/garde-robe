@@ -3,6 +3,8 @@
 // familles : teinte, clarté et chroma en OKLCh (voir couleur.js), dont la teinte ne fait pas passer les bleus saturés
 // pour des violets. Bornes et seuils calés à l'œil le 2026-09-26 sur les 159 couleurs nommées du catalogue de Wada
 // (« Burnt Sienna » dans les oranges, « Olive Buff » dans les kakis…) : choix de rangement, à ajuster à l'usage.
+// Complété le 2026-09-27 pour les couleurs XKCD : blancs cassés, ivoires et crèmes très clairs (teinte jusqu'à 115°)
+// dans les beiges et crèmes, jaunes très clairs dans les jaunes, plutôt que dans les kakis ; Wada inchangé.
 
 import { NEUTRE_C_MAX } from './constantes.js';
 import { chroma, oklchDepuisHex } from './couleur.js';
@@ -36,6 +38,7 @@ export function familleDe({ hex, lab }) {
 
   // Beiges et crèmes : clairs et peu colorés, teinte chaude (du rosé au jaune pâle).
   if ((h >= 15 && h < TEINTE.jauneVert && L >= 68 && C <= 6) || (h >= TEINTE.orange && h < TEINTE.jauneVert && L >= 72 && C <= 10)) return 'beiges';
+  if (h >= TEINTE.orange && h < 115 && L >= 90 && C <= 12) return 'beiges'; // blanc cassé, ivoire, crème
 
   if (h >= TEINTE.rouge || h < TEINTE.orange) {
     if (L >= 65 && (C <= 15 || L >= 70)) return 'roses';
@@ -54,6 +57,7 @@ export function familleDe({ hex, lab }) {
   }
   if (h < TEINTE.vert) {
     if (L >= 75 && C >= 14 && h < 115) return 'jaunes';
+    if (L >= 90 && h < 115) return 'jaunes'; // jaune très clair (manille)
     if (L >= 75 && C >= 12 && h >= 115) return 'verts';
     return 'kakis';
   }

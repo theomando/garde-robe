@@ -1,6 +1,8 @@
-// Catalogue fusionné : couleurs et combinaisons de Wada et de Papier Tigre.
+// Catalogue fusionné : couleurs et combinaisons de Wada et de Papier Tigre, plus les couleurs nommées de XKCD
+// (sans combinaison : elles servent à nommer et à choisir la couleur d'un vêtement).
 // Module pur, sans DOM : le chargement des fichiers se fait ailleurs.
-// Couleur : { id, nom, hex, source, lab } (lab calculé par l'app, jamais lu dans un fichier).
+// Couleur : { id, nom, hex, source, lab, nomOriginal? } (lab calculé par l'app, jamais lu dans un fichier ;
+// nomOriginal : nom anglais d'une couleur XKCD, cherchable lui aussi).
 // Combinaison : { id, source, ref, nom?, couleurs: [id…], roles?: ['dominante' | 'soutien'…] }.
 
 import { rgbVersHex, labDepuisHex, deltaE00 } from './couleur.js';
@@ -47,8 +49,46 @@ export function construireWada(donnees) {
   return { couleurs, combinaisons };
 }
 
-// Réunit des parties { couleurs, combinaisons } (Wada, puis Papier Tigre s'il est importé).
+// XKCD (demande de Théo, 2026-09-27 : « met plus de variances de couleur », par exemple le blanc cassé) : enquête
+// de Randall Munroe sur les noms de couleurs (2010), fichier rgb.txt copié tel quel, domaine public (CC0).
+// Le fichier va du nom le moins cité au plus cité ; les couleurs gardées sont rangées du plus cité au moins cité.
+// noms : traduction française de l'app (data/xkcd-noms-fr.json) ; exclus : noms écartés (grossiers, péjoratifs,
+// variantes d'écriture d'un nom plus cité), avec leur raison. Chaque nom du fichier est soit traduit, soit exclu.
+// Identifiant : xkcd-<rang dans le fichier>, stable. Aucune combinaison : ces couleurs servent à nommer.
+export const LICENCE_XKCD = '# License: https://creativecommons.org/publicdomain/zero/1.0/';
+
+export function construireXkcd(texte, { noms, exclus }) {
+  const lignes = texte.split('\n');
+  if (lignes[0] !== LICENCE_XKCD) throw new Error('xkcd-rgb.txt : première ligne de licence CC0 attendue');
+  if (lignes[lignes.length - 1] !== '') throw new Error('xkcd-rgb.txt : fin de ligne finale attendue');
+  const couleurs = [];
+  const vus = new Set();
+  lignes.slice(1, -1).forEach((ligne, i) => {
+    const ou = `xkcd-rgb.txt, ligne ${i + 2}`;
+    // Tabulation finale sur toutes les lignes, sauf « bright red » : le fichier est pris tel quel.
+    const champs = /^([^\t]+)\t(#[0-9a-f]{6})\t?$/.exec(ligne);
+    if (!champs) throw new Error(`${ou} : « nom, tabulation, #hex » attendu`);
+    const [, nomOriginal, hex] = champs;
+    if (vus.has(nomOriginal)) throw new Error(`${ou} : « ${nomOriginal} » en double`);
+    vus.add(nomOriginal);
+    const traduit = Object.hasOwn(noms, nomOriginal);
+    if (traduit === Object.hasOwn(exclus, nomOriginal)) {
+      throw new Error(`${ou} : « ${nomOriginal} » doit être soit traduit, soit exclu (xkcd-noms-fr.json)`);
+    }
+    if (!traduit) return;
+    const nom = noms[nomOriginal];
+    if (typeof nom !== 'string' || nom.trim() !== nom || nom === '') throw new Error(`${ou} : nom français de « ${nomOriginal} » invalide`);
+    couleurs.push({ id: `xkcd-${i + 1}`, nom, nomOriginal, hex, source: 'xkcd', lab: labDepuisHex(hex) });
+  });
+  const inconnus = [...Object.keys(noms), ...Object.keys(exclus)].filter((n) => !vus.has(n));
+  if (inconnus.length > 0) throw new Error(`xkcd-noms-fr.json : noms absents de xkcd-rgb.txt : ${inconnus.join(', ')}`);
+  return { couleurs: couleurs.reverse(), combinaisons: [] };
+}
+
+// Réunit des parties { couleurs, combinaisons } (Wada, puis Papier Tigre s'il est importé, puis XKCD).
 // L'ordre obtenu est « l'ordre du catalogue » utilisé pour les départages.
+// idsCombinaisons : couleurs citées par au moins une combinaison (les seules qui comptent pour le moteur et les
+// favoris).
 export function fusionnerCatalogues(...parties) {
   const couleurs = [];
   const combinaisons = [];
@@ -73,7 +113,8 @@ export function fusionnerCatalogues(...parties) {
       combinaisons.push(combinaison);
     }
   }
-  return { couleurs, combinaisons, couleurParId, combinaisonParId };
+  const idsCombinaisons = new Set(combinaisons.flatMap((combinaison) => combinaison.couleurs));
+  return { couleurs, combinaisons, couleurParId, combinaisonParId, idsCombinaisons };
 }
 
 // Couleurs du catalogue triées par ΔE00 croissant depuis un Lab (dépliant « Ajuster »).

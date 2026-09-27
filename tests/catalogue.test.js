@@ -1,10 +1,13 @@
 import { test, vrai, egal, egalProfond, leve } from './mini-test.js';
-import { construireWada, fusionnerCatalogues, plusProches } from '../js/catalogue.js';
+import { construireWada, construireXkcd, fusionnerCatalogues, plusProches } from '../js/catalogue.js';
 import { lirePapierTigre } from '../js/papier-tigre.js';
-import { rgbVersHex, labDepuisRgb } from '../js/couleur.js';
+import { rgbVersHex, labDepuisRgb, labDepuisHex } from '../js/couleur.js';
 
 const brut = await (await fetch(new URL('../data/wada.json', import.meta.url))).arrayBuffer();
 const donneesWada = JSON.parse(new TextDecoder().decode(brut));
+const brutXkcd = await (await fetch(new URL('../data/xkcd-rgb.txt', import.meta.url))).arrayBuffer();
+const texteXkcd = new TextDecoder().decode(brutXkcd);
+const nomsXkcd = await (await fetch(new URL('../data/xkcd-noms-fr.json', import.meta.url))).json();
 const texteExemple = await (await fetch(new URL('./donnees/papier-tigre-exemple.json', import.meta.url))).text();
 
 test('wada.json : copie intacte (SHA-256 de colors.json, commit c142bd0)', async () => {
@@ -109,4 +112,77 @@ test('plusProches : à écart égal, l\'ordre du catalogue départage', () => {
     combinaisons: [],
   });
   egalProfond(plusProches(lab, catalogue, 3).map((r) => r.couleur.id), ['b', 'a', 'c']);
+});
+
+// Couleurs nommées XKCD (demande de Théo, 2026-09-27 : « met plus de variances de couleur », blanc cassé).
+const sansAccents = (texte) => texte.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().replace(/[\s'-]+/g, ' ');
+
+test('xkcd-rgb.txt : copie intacte (SHA-256 du fichier de xkcd.com, 2026-09-27)', async () => {
+  const empreinte = [...new Uint8Array(await crypto.subtle.digest('SHA-256', brutXkcd))]
+    .map((o) => o.toString(16).padStart(2, '0')).join('');
+  egal(empreinte, '450cca88fa6fa9a1e79c969969e05e6900b41a94f0a3a5f134e3d0b79077f890');
+});
+
+test('XKCD : 835 couleurs nommées en français, de la plus citée à la moins citée, identifiant xkcd-<rang>, sans combinaison', () => {
+  const { couleurs, combinaisons } = construireXkcd(texteXkcd, nomsXkcd);
+  egal(couleurs.length, 835);
+  egal(combinaisons.length, 0);
+  egalProfond([couleurs[0].id, couleurs[0].nomOriginal, couleurs[0].nom, couleurs[0].hex], ['xkcd-949', 'purple', 'Violet franc', '#7e1e9c'], 'la plus citée d\'abord');
+  const lignes = texteXkcd.split('\n');
+  for (const c of couleurs) {
+    egal(c.source, 'xkcd');
+    vrai([`${c.nomOriginal}\t${c.hex}\t`, `${c.nomOriginal}\t${c.hex}`].includes(lignes[Number(c.id.slice(5))]), `${c.id} : ligne du fichier`);
+    egalProfond(c.lab, labDepuisHex(c.hex), `${c.id} : Lab calculé`);
+  }
+  const blanc = couleurs.find((c) => c.nomOriginal === 'off white');
+  egalProfond([blanc.nom, blanc.hex], ['Blanc cassé', '#ffffe4']);
+});
+
+test('XKCD : noms français uniques (accents, tirets et casse ignorés) et différents de ceux de Wada ; noms grossiers écartés', () => {
+  const { couleurs } = construireXkcd(texteXkcd, nomsXkcd);
+  const wada = construireWada(donneesWada).couleurs.map((c) => sansAccents(c.nom));
+  const vus = new Set(wada);
+  for (const c of couleurs) {
+    vrai(!vus.has(sansAccents(c.nom)), `« ${c.nom} » (${c.nomOriginal}) : nom déjà pris`);
+    vus.add(sansAccents(c.nom));
+  }
+  for (const nom of ['booger', 'puke', 'poop', 'shit', 'vomit', 'ugly pink', 'dried blood']) {
+    vrai(!couleurs.some((c) => c.nomOriginal === nom) && nomsXkcd.exclus[nom], `« ${nom} » écarté`);
+  }
+  for (const [nom, raison] of Object.entries(nomsXkcd.exclus)) {
+    const variante = /^variante de « (.+) »$/.exec(raison);
+    vrai(variante ? nomsXkcd.noms[variante[1]] !== undefined : ['nom grossier', 'nom péjoratif'].includes(raison) || raison.startsWith('faute de frappe'),
+      `« ${nom} » : raison « ${raison} »`);
+  }
+});
+
+test('XKCD : construireXkcd refuse un fichier altéré ou une traduction incomplète', () => {
+  leve(() => construireXkcd(texteXkcd.replace('# License', '# Licence'), nomsXkcd), 'en-tête');
+  leve(() => construireXkcd(texteXkcd.replace('#acc2d9', '#ACC2D9'), nomsXkcd), 'hex en majuscules');
+  leve(() => construireXkcd(texteXkcd.slice(0, -1), nomsXkcd), 'fin de ligne finale');
+  const { 'cloudy blue': retire, ...sansUn } = nomsXkcd.noms;
+  leve(() => construireXkcd(texteXkcd, { ...nomsXkcd, noms: sansUn }), 'nom ni traduit ni exclu');
+  leve(() => construireXkcd(texteXkcd, { ...nomsXkcd, noms: { ...nomsXkcd.noms, booger: 'Crotte' } }), 'traduit et exclu');
+  leve(() => construireXkcd(texteXkcd, { ...nomsXkcd, noms: { ...nomsXkcd.noms, licorne: 'Licorne' } }), 'nom absent du fichier');
+  leve(() => construireXkcd(texteXkcd, { ...nomsXkcd, noms: { ...nomsXkcd.noms, 'cloudy blue': ' Bleu' } }), 'nom mal formé');
+});
+
+test('fusion : XKCD après Wada ; idsCombinaisons ne compte que les couleurs citées par une combinaison', () => {
+  const wada = construireWada(donneesWada);
+  const xkcd = construireXkcd(texteXkcd, nomsXkcd);
+  const catalogue = fusionnerCatalogues(wada, null, xkcd);
+  egal(catalogue.couleurs.length, 159 + 835);
+  egal(catalogue.couleurs[159].id, 'xkcd-949');
+  egal(catalogue.idsCombinaisons.size, 159, 'les 159 couleurs de Wada sont dans des combinaisons');
+  vrai(xkcd.couleurs.every((c) => !catalogue.idsCombinaisons.has(c.id)));
+});
+
+test('plusProches : un blanc mesuré un peu sombre trouve un gris clair, un blanc cassé trouve « Blanc cassé » (et plus un vert)', () => {
+  const wada = fusionnerCatalogues(construireWada(donneesWada));
+  const complet = fusionnerCatalogues(construireWada(donneesWada), null, construireXkcd(texteXkcd, nomsXkcd));
+  const premier = (hex, catalogue) => plusProches(labDepuisHex(hex), catalogue, 1)[0].couleur.nom;
+  egal(premier('#d7ded4', wada), 'Glaucous Green', 'avant : un vert (signalé par Théo)');
+  egal(premier('#d7ded4', complet), 'Gris clair');
+  egal(premier('#f5eede', complet), 'Blanc cassé');
+  egal(premier('#d2d2d2', complet), 'Argent');
 });

@@ -79,6 +79,7 @@ test('pwa : liste du service worker complète, version = VERSION_APP, rien d\'in
   egal(new Set(fichiers).size, fichiers.length, 'sans doublon');
   const attendus = [
     './', 'index.html', 'manifest.webmanifest', 'data/wada.json', 'data/LICENSE-wada.md',
+    'data/xkcd-rgb.txt', 'data/xkcd-noms-fr.json', 'data/LICENSE-xkcd.md',
     ...(await fichiersDuDossier('css/')), ...(await fichiersDuDossier('js/')), ...(await fichiersDuDossier('js/ecrans/')),
     ...(await fichiersDuDossier('icones/')),
   ];

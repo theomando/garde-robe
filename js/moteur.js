@@ -49,10 +49,13 @@ export function piecesVisibles(types) {
   return TYPES.filter((type) => presents.has(type) && !(OCCULTATIONS[type] ?? []).some((m) => presents.has(m)));
 }
 
-// Cache des ΔE00 entre un hex (vêtement ou teint) et chaque couleur du catalogue.
-// À garder d'un appel à l'autre tant que le catalogue ne change pas.
+// Cache des ΔE00 entre un hex (vêtement ou teint) et chaque couleur citée par une combinaison (les couleurs
+// XKCD, qui ne servent qu'à nommer, n'entrent pas dans le calcul). À garder d'un appel à l'autre tant que le
+// catalogue ne change pas.
 export function creerCacheEcarts(catalogue) {
-  return { catalogue, index: new Map(catalogue.couleurs.map((c, i) => [c.id, i])), lignes: new Map() };
+  const citees = new Set(catalogue.combinaisons.flatMap((combinaison) => combinaison.couleurs));
+  const couleurs = catalogue.couleurs.filter((c) => citees.has(c.id));
+  return { catalogue, couleurs, index: new Map(couleurs.map((c, i) => [c.id, i])), lignes: new Map() };
 }
 
 function ligneEcarts(cache, hex) {
@@ -60,7 +63,7 @@ function ligneEcarts(cache, hex) {
   let ligne = cache.lignes.get(cleHex);
   if (!ligne) {
     const lab = labDepuisHex(cleHex);
-    const couleurs = cache.catalogue.couleurs;
+    const { couleurs } = cache;
     ligne = new Float64Array(couleurs.length);
     for (let i = 0; i < couleurs.length; i++) ligne[i] = deltaE00(lab, couleurs[i].lab);
     cache.lignes.set(cleHex, ligne);
@@ -86,7 +89,7 @@ function estNeutre(hex) {
 // Pour chaque pièce visible : meilleur écart et vêtement retenu par couleur du catalogue, joker éventuel.
 // Pièce épinglée (« partir d'un vêtement », demande de Théo, 2026-09-26) : seul le vêtement choisi compte.
 function preparerPieces(visibles, vetements, cache, epingles) {
-  const n = cache.catalogue.couleurs.length;
+  const n = cache.couleurs.length;
   return visibles.map((type) => {
     const epingle = epingles[type] ? vetements.find((v) => v.id === epingles[type] && v.type === type) : null;
     const siens = epingle ? [epingle] : vetements.filter((v) => v.type === type).sort(parAnciennete);

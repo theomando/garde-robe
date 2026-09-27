@@ -52,3 +52,10 @@ test('familles : chaque couleur dans une seule famille, toutes présentes, du pl
     vrai(g.couleurs.length >= 5, `${g.nom} : au moins 5 couleurs (${g.couleurs.length})`);
   }
 });
+
+test('familles : blancs cassés, ivoires et crèmes de XKCD dans les beiges et crèmes, pas dans les kakis', () => {
+  for (const hex of ['#ffffe4', '#ffffd4', '#ffffcb', '#ffffc2', '#fefcaf', '#fff39a']) egal(familleDe(couleur(hex)), 'beiges', hex);
+  egal(familleDe(couleur('#fffa86')), 'jaunes', 'manille : jaune très clair');
+  egal(familleDe(couleur('#e6f2a2')), 'kakis', 'kaki clair');
+  egal(familleDe(couleur('#d8dcd6')), 'neutres', 'gris clair');
+});
