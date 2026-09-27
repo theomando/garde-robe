@@ -19,7 +19,8 @@ test('vêtements : 61 combinaisons (42 « mode », 19 personnelles), 2 ou 3 coul
   const premiere = combinaisons[0];
   egalProfond([premiere.id, premiere.ref, premiere.origine, premiere.sources], ['vetements-mode-01', 'Mode n° 1', 'mode', ['P2', 'P4', 'C1', 'C2', 'G3']]);
   egalProfond(premiere.couleurs.map((id) => wada.couleurs.find((c) => c.id === id).nom), ['Mars Brown Tobacco', 'Pale King\'s Blue'], 'marron chocolat + bleu clair');
-  egal(referenceCombinaison(premiere), 'Mode n° 1 · Tory Burch, Staud (P4), Patou porté par K. Holmes (C1)');
+  egal(referenceCombinaison(premiere), 'Mode n° 1', 'libellé court ; les maisons citées sont dans le détail');
+  egal(premiere.nom, 'Tory Burch, Staud (P4), Patou porté par K. Holmes (C1)');
   egal(referenceCombinaison(combinaisons.find((c) => c.ref === 'Perso U01')), 'Perso U01');
 });
 

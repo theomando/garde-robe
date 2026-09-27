@@ -1,10 +1,13 @@
-// Tests des manques fréquents. Les couleurs des fixtures sont des données de test synthétiques (bornes du codage
-// sRGB, teintes MST de constantes.js), pas des couleurs de catalogue réelles ; le dernier test utilise Wada.
+// Tests des manques fréquents (demande de Théo, 2026-09-27) : manques des tenues aimées (poids 2) et de la première
+// proposition de chaque tenue demandée (poids 1). Les couleurs des fixtures sont des données de test synthétiques
+// (bornes du codage sRGB, teintes MST de constantes.js), pas des couleurs de catalogue réelles ; le dernier test
+// utilise Wada.
 import { test, vrai, egal, egalProfond } from './mini-test.js';
-import { TYPES, MST, MANQUES_FREQUENTS_MAX } from '../js/constantes.js';
+import { TYPES, MST, MANQUES_FREQUENTS_MAX, POIDS_MANQUE_AIMEE, POIDS_MANQUE_PREMIERE } from '../js/constantes.js';
 import { labDepuisHex } from '../js/couleur.js';
 import { construireWada, fusionnerCatalogues } from '../js/catalogue.js';
 import { proposer } from '../js/moteur.js';
+import { instantaneTenue } from '../js/tenues.js';
 import { manquesFrequents } from '../js/statistiques.js';
 
 const ROUGE = '#ff0000', ROUGE_PROCHE = '#f00000', BLEU = '#0000ff', VERT = '#00ff00', JAUNE = '#ffff00';
@@ -34,102 +37,119 @@ function vet(type, hex) {
 }
 
 const reglages = (x = {}) => ({ mst: 5, teintActif: false, tolerance: 10, favoris: [], ...x });
-const lignes = (resultat) => resultat.manques.map((m) => `${m.type}:${m.couleurId ?? 'joker'}:${m.nombre}`);
+// Ligne : type:couleur:score:aimées/premières.
+const lignes = (resultat) => resultat.manques.map((m) => `${m.type}:${m.couleurId ?? 'joker'}:${m.score}:${m.aimees}/${m.premieres}`);
+// Tenue aimée : instantané de la proposition du moteur pour cette combinaison.
+function aimee(types, vetements, catalogue, combinaisonId) {
+  const proposition = proposer({ types, vetements, catalogue, reglages: reglages() }).retenues.find((p) => p.combinaison.id === combinaisonId);
+  return instantaneTenue(proposition, catalogue, types);
+}
 
-test('manques fréquents : comptes sur plusieurs tenues types (calculés à la main), tri et joker en dernier', () => {
-  // Catalogue : k1 rouge-bleu, k2 rouge-vert, k3 bleu-vert-jaune. Garde-robe : pantalon bleu, t-shirt rouge.
-  // Tenue [pantalon, t-shirt] : k1 sans manque ; k2 → pantalon vert ; k3 écartée (3 couleurs, 2 pièces).
-  // Tenue [chaussures, pantalon, t-shirt] : k1 → chaussures joker ; k2 → chaussures vert et pantalon joker
-  // (le pantalon bleu n'est ni noir ni blanc) ; k3 → chaussures vert et t-shirt jaune.
-  const r = manquesFrequents({
-    tenuesTypes: [['pantalon', 't-shirt'], ['chaussures', 'pantalon', 't-shirt']],
-    vetements: [vet('pantalon', BLEU), vet('t-shirt', ROUGE)],
-    catalogue: catalogueDe([[ROUGE, BLEU], [ROUGE, VERT], [BLEU, VERT, JAUNE]]),
-    reglages: reglages(),
-  });
-  egalProfond(lignes(r), [
-    `chaussures:${id(VERT)}:2`,
-    `pantalon:${id(VERT)}:1`, `t-shirt:${id(JAUNE)}:1`, // ex æquo : ordre du catalogue (vert avant jaune)
-    'chaussures:joker:1', 'pantalon:joker:1', // joker en dernier, puis ordre des TYPES
-  ]);
-  egal(r.nbPropositions, 5, '2 + 3 propositions retenues');
-  egal(r.nbTenues, 2);
-  egal(r.nbDistincts, 5);
-  egal(r.manques[3].couleurId, null, 'joker noté null');
+// Catalogue : k1 rouge-bleu, k2 rouge-vert, k3 bleu-vert-jaune.
+const CATALOGUE = catalogueDe([[ROUGE, BLEU], [ROUGE, VERT], [BLEU, VERT, JAUNE]]);
+
+test('manques fréquents : poids 2 pour une tenue aimée, 1 pour la première proposition', () => {
+  egal(POIDS_MANQUE_AIMEE, 2);
+  egal(POIDS_MANQUE_PREMIERE, 1);
+  // Garde-robe : pantalon bleu, t-shirt rouge. [pantalon, t-shirt] : première = k1, rien ne manque.
+  // [chaussures, pantalon, t-shirt] : première = k1, les chaussures manquent (joker).
+  const vetements = [vet('pantalon', BLEU), vet('t-shirt', ROUGE)];
+  const tenuesTypes = [['pantalon', 't-shirt'], ['chaussures', 'pantalon', 't-shirt']];
+  const seules = manquesFrequents({ tenuesTypes, vetements, catalogue: CATALOGUE, reglages: reglages() });
+  egalProfond(lignes(seules), ['chaussures:joker:1:0/1'], 'seules les premières propositions, pas les autres (k2, k3)');
+  egal(seules.nbPremieres, 2);
+  egal(seules.nbAimees, 0);
+  // Tenue aimée : k2 sur [pantalon, t-shirt] (pantalon vert manquant), poids 2, devant le joker.
+  const tenue = aimee(['pantalon', 't-shirt'], vetements, CATALOGUE, 'k2');
+  const avec = manquesFrequents({ tenuesTypes, tenuesGardees: [tenue], vetements, catalogue: CATALOGUE, reglages: reglages() });
+  egalProfond(lignes(avec), [`pantalon:${id(VERT)}:2:1/0`, 'chaussures:joker:1:0/1']);
+  egal(avec.nbAimees, 1);
 });
 
-test('manques fréquents : même couleur à égalité, ordre des TYPES et non ordre des tenues', () => {
-  const r = manquesFrequents({
-    tenuesTypes: [['pantalon', 't-shirt'], ['chaussures', 't-shirt']],
-    vetements: [vet('t-shirt', ROUGE)],
-    catalogue: catalogueDe([[ROUGE, VERT]]),
-    reglages: reglages(),
-  });
-  egalProfond(lignes(r), [`chaussures:${id(VERT)}:1`, `pantalon:${id(VERT)}:1`]);
+test('manques fréquents : tenue aimée recalculée avec la garde-robe actuelle ; combinaison disparue, manques figés', () => {
+  const vetements = [vet('pantalon', BLEU), vet('t-shirt', ROUGE)];
+  const tenue = aimee(['pantalon', 't-shirt'], vetements, CATALOGUE, 'k2');
+  egal(tenue.pieces.find((p) => p.type === 'pantalon').manque, true, 'figé : pantalon vert manquant');
+  const achete = [...vetements, vet('pantalon', VERT)];
+  egalProfond(lignes(manquesFrequents({ tenuesTypes: [], tenuesGardees: [tenue], vetements: achete, catalogue: CATALOGUE, reglages: reglages() })), [],
+    'le pantalon vert est arrivé : plus rien ne manque');
+  // Combinaison absente du catalogue (Papier Tigre retiré) : manques figés, sauf une couleur qui n'y est plus.
+  const disparue = {
+    ...tenue,
+    combinaison: { ...tenue.combinaison, id: 'papier-tigre-v1-p30' },
+    pieces: [...tenue.pieces, { type: 'chaussures', hex: '#123456', manque: true, joker: false, couleurId: 'papier-tigre-v1-p30-d1' }],
+  };
+  egalProfond(lignes(manquesFrequents({ tenuesTypes: [], tenuesGardees: [disparue], vetements: achete, catalogue: CATALOGUE, reglages: reglages() })),
+    [`pantalon:${id(VERT)}:2:1/0`]);
 });
 
-test('manques fréquents : aucune tenue type, ou aucune proposition retenue', () => {
-  const catalogue = catalogueDe([[ROUGE, BLEU]]);
-  const vide = manquesFrequents({ tenuesTypes: [], vetements: [], catalogue, reglages: reglages() });
+test('manques fréquents : à score égal, les tenues aimées d\'abord, puis l\'ordre du catalogue (joker en dernier), puis des TYPES', () => {
+  // Deux premières propositions (1 + 1) contre une tenue aimée (2) : même score, l'aimée devant.
+  const vetements = [vet('t-shirt', ROUGE)];
+  const catalogue = catalogueDe([[ROUGE, VERT], [ROUGE, BLEU]]);
+  const tenue = aimee(['pantalon', 't-shirt'], vetements, catalogue, 'k2'); // pantalon bleu manquant
+  const r = manquesFrequents({ tenuesTypes: [['pantalon', 't-shirt'], ['chaussures', 'pantalon', 't-shirt']], tenuesGardees: [tenue], vetements, catalogue, reglages: reglages() });
+  const [premiere] = r.manques;
+  egalProfond([premiere.type, premiere.couleurId, premiere.aimees], ['pantalon', id(BLEU), 1], lignes(r).join(' ; '));
+  for (let i = 1; i < r.manques.length; i++) {
+    const [a, b] = [r.manques[i - 1], r.manques[i]];
+    vrai(a.score > b.score || (a.score === b.score && a.aimees >= b.aimees), `ordre ${i}`);
+  }
+});
+
+test('manques fréquents : aucune tenue, ou aucune proposition retenue', () => {
+  const vide = manquesFrequents({ tenuesTypes: [], vetements: [], catalogue: CATALOGUE, reglages: reglages() });
   egalProfond(vide.manques, []);
-  egal(vide.nbPropositions, 0);
-  egal(vide.nbTenues, 0);
-  const ecartees = manquesFrequents({ tenuesTypes: [['chaussures', 'pantalon', 't-shirt']], vetements: [], catalogue, reglages: reglages() });
+  egalProfond([vide.nbPremieres, vide.nbAimees, vide.nbTenues], [0, 0, 0]);
+  const ecartees = manquesFrequents({ tenuesTypes: [['chaussures', 'pantalon', 't-shirt']], vetements: [], catalogue: CATALOGUE, reglages: reglages() });
   egalProfond(ecartees.manques, [], 'garde-robe vide, 3 pièces : 3 manques, tout est écarté');
-  egal(ecartees.nbPropositions, 0);
-  egal(ecartees.nbTenues, 1);
+  egalProfond([ecartees.nbPremieres, ecartees.nbTenues], [0, 1]);
 });
 
 test('manques fréquents : réglages courants (tolérance, teint) ; la peau ne compte jamais comme manque', () => {
   const catalogue = catalogueDe([[ROUGE, BLEU]]);
   const tenue = { tenuesTypes: [['pantalon', 't-shirt']], vetements: [vet('pantalon', BLEU), vet('t-shirt', ROUGE_PROCHE)], catalogue };
   egalProfond(lignes(manquesFrequents({ ...tenue, reglages: reglages({ tolerance: 10 }) })), [], 'rouge proche couvert à 10');
-  egalProfond(lignes(manquesFrequents({ ...tenue, reglages: reglages({ tolerance: 1 }) })), [`t-shirt:${id(ROUGE)}:1`], 'plus couvert à 1');
+  egalProfond(lignes(manquesFrequents({ ...tenue, reglages: reglages({ tolerance: 1 }) })), [`t-shirt:${id(ROUGE)}:1:0/1`], 'plus couvert à 1');
 
   const avecTeint = { tenuesTypes: [['t-shirt']], vetements: [], catalogue: catalogueDe([[ROUGE, MST5]]) };
-  const inactif = manquesFrequents({ ...avecTeint, reglages: reglages({ teintActif: false }) });
-  egal(inactif.nbPropositions, 0, 'une pièce, deux couleurs : écartée sans la peau');
+  egal(manquesFrequents({ ...avecTeint, reglages: reglages({ teintActif: false }) }).nbPremieres, 0, 'une pièce, deux couleurs : écartée sans la peau');
   const actif = manquesFrequents({ ...avecTeint, reglages: reglages({ teintActif: true, mst: 5 }) });
-  egal(actif.nbPropositions, 1, 'la peau porte MST 5');
-  egalProfond(lignes(actif), [`t-shirt:${id(ROUGE)}:1`], 'seul le t-shirt manque');
+  egalProfond(lignes(actif), [`t-shirt:${id(ROUGE)}:1:0/1`], 'la peau porte MST 5, seul le t-shirt manque');
 });
 
 test('manques fréquents : coupe à MANQUES_FREQUENTS_MAX (10) ; accord avec le moteur sur le catalogue Wada', async () => {
   const wada = construireWada(await (await fetch(new URL('../data/wada.json', import.meta.url))).json());
   const catalogue = fusionnerCatalogues(wada);
   const hex = (nom) => catalogue.couleurs.find((c) => c.nom === nom).hex;
-  const vetements = [
-    vet('chaussures', '#000000'), vet('pantalon', hex('Peacock Blue')), vet('t-shirt', '#ffffff'),
-    vet('pull', hex('Burnt Sienna')), vet('veste', hex('Dusky Green')),
-  ];
-  const tenuesTypes = [['chaussures', 'pantalon', 't-shirt'], ['chaussures', 'pantalon', 'pull', 'veste'], ['short', 'chemise']];
-  const r = manquesFrequents({ tenuesTypes, vetements, catalogue, reglages: reglages({ teintActif: true }) });
+  const vetements = [vet('chaussures', '#000000'), vet('pantalon', hex('Peacock Blue'))];
+  const tenuesTypes = [['chaussures', 'pantalon', 't-shirt'], ['chaussures', 'pantalon', 'pull', 'veste'], ['short', 'chemise'], ['jupe', 't-shirt'], ['robe', 'chaussures']];
+  // Tenues aimées : les 8 premières propositions de la première tenue type.
+  const { retenues } = proposer({ types: tenuesTypes[0], vetements, catalogue, reglages: reglages() });
+  const tenuesGardees = retenues.slice(0, 8).map((p) => instantaneTenue(p, catalogue, tenuesTypes[0]));
+  const r = manquesFrequents({ tenuesTypes, tenuesGardees, vetements, catalogue, reglages: reglages() });
   egal(MANQUES_FREQUENTS_MAX, 10);
   egal(r.manques.length, 10, 'top 10');
   vrai(r.nbDistincts > 10, `plus de 10 couples distincts (${r.nbDistincts})`);
 
   // Recomptage direct depuis le moteur.
   const attendu = new Map();
-  let nbPropositions = 0;
+  const ajouter = (m, poids) => {
+    const cle = `${m.type}:${m.couleurId ?? 'joker'}`;
+    attendu.set(cle, (attendu.get(cle) ?? 0) + poids);
+  };
+  for (const p of retenues.slice(0, 8)) for (const m of p.manques) ajouter(m, POIDS_MANQUE_AIMEE);
   for (const types of tenuesTypes) {
-    const { retenues } = proposer({ types, vetements, catalogue, reglages: reglages({ teintActif: true }) });
-    nbPropositions += retenues.length;
-    for (const p of retenues) for (const m of p.manques) {
-      const cle = `${m.type}:${m.couleurId ?? 'joker'}`;
-      attendu.set(cle, (attendu.get(cle) ?? 0) + 1);
-    }
+    const [premiere] = proposer({ types, vetements, catalogue, reglages: reglages() }).retenues;
+    if (premiere) for (const m of premiere.manques) ajouter(m, POIDS_MANQUE_PREMIERE);
   }
-  egal(r.nbPropositions, nbPropositions);
   egal(r.nbDistincts, attendu.size);
-  for (const m of r.manques) egal(m.nombre, attendu.get(`${m.type}:${m.couleurId ?? 'joker'}`), `${m.type} ${m.couleurId}`);
-  const plusPetitRetenu = r.manques.at(-1).nombre;
-  vrai([...attendu.values()].filter((n) => n > plusPetitRetenu).length <= 9, 'aucun couple plus fréquent n\'est coupé');
-
-  // Joker : rang après toutes les couleurs du catalogue.
+  for (const m of r.manques) egal(m.score, attendu.get(`${m.type}:${m.couleurId ?? 'joker'}`), `${m.type} ${m.couleurId}`);
+  vrai([...attendu.values()].filter((n) => n > r.manques.at(-1).score).length <= 9, 'aucun couple mieux noté n\'est coupé');
   const rang = (couleurId) => (couleurId === null ? catalogue.couleurs.length : catalogue.couleurs.findIndex((c) => c.id === couleurId));
   for (let i = 1; i < r.manques.length; i++) {
-    const a = r.manques[i - 1], b = r.manques[i];
-    const ordre = b.nombre - a.nombre || rang(a.couleurId) - rang(b.couleurId) || TYPES.indexOf(a.type) - TYPES.indexOf(b.type);
+    const [a, b] = [r.manques[i - 1], r.manques[i]];
+    const ordre = b.score - a.score || b.aimees - a.aimees || rang(a.couleurId) - rang(b.couleurId) || TYPES.indexOf(a.type) - TYPES.indexOf(b.type);
     vrai(ordre < 0, `ordre des lignes ${i - 1} et ${i}`);
   }
 });

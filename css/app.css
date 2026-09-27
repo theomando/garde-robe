@@ -348,6 +348,17 @@ input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--accent)
 /* ---------- Garde-robe ---------- */
 
 .liste-vetements { --retrait-separateur: calc(1rem + 2.4rem + 0.75rem); }
+/* Catégories pliables : l'en-tête est un bouton ; pliée, pastilles des vêtements en aperçu. */
+.rangee-plier { display: flex; justify-content: flex-end; margin: -0.6rem 0 -0.8rem; }
+.entete-type {
+  font: inherit; color: inherit; background: none; border: none; padding: 0.2rem 0; width: 100%; cursor: pointer;
+  display: flex; align-items: center; gap: 0.45rem; text-align: left; min-height: 44px;
+}
+.entete-type .chevron-pli { margin-left: auto; width: 18px; height: 18px; color: var(--tertiaire); transform: rotate(90deg); transition: transform 0.2s; }
+.groupe-type.plie .chevron-pli { transform: none; }
+.apercu-type { display: flex; flex-wrap: nowrap; gap: 3px; min-width: 0; overflow: hidden; margin-left: 0.3rem; }
+.apercu-type .pastille { width: 1.05rem; height: 1.05rem; }
+.groupe-type.plie + .groupe-type .titre-section { margin-top: 0.4rem; }
 .vetement { margin: 0; position: relative; overflow: hidden; }
 .ligne-vetement {
   font: inherit; color: inherit; text-align: left; width: 100%; min-height: 64px; border: none; background: var(--carte);
@@ -785,9 +796,11 @@ html:has(dialog[open]) { overflow: hidden; }
   box-shadow: inset 0 0 0 2px transparent; transition: box-shadow 0.15s;
 }
 .proposition[aria-pressed="true"] { box-shadow: inset 0 0 0 2.5px var(--accent); }
-/* Combinaison pour s'habiller (demande de Théo, 2026-09-27) : entourée d'or ; choisie, l'or reste autour du bleu. */
-.proposition.pour-vetements, .carte-tenue.pour-vetements { box-shadow: 0 0 0 2.5px var(--dore), 0 2px 10px rgba(201, 161, 59, 0.3); }
-.proposition.pour-vetements[aria-pressed="true"] { box-shadow: 0 0 0 2.5px var(--dore), inset 0 0 0 2.5px var(--accent); }
+/* Combinaison pour s'habiller (demande de Théo, 2026-09-27) : l'or entoure toute la proposition, détail compris (sur
+   le bouton seul, le détail déplié le rognait) ; choisie, le bleu reste à l'intérieur. */
+.proposition-item.pour-vetements, .carte-tenue.pour-vetements {
+  border-radius: var(--rayon); box-shadow: 0 0 0 2.5px var(--dore), 0 2px 10px rgba(201, 161, 59, 0.3);
+}
 .origine-combinaison { margin: 0 0 0.5rem; font-size: 0.82rem; color: var(--discret); }
 
 /* ---------- Wishlist (demande de Théo, 2026-09-27) ---------- */

@@ -8,11 +8,12 @@ import { icone } from '../icones.js';
 import { TYPES, LIBELLES_TYPES } from '../constantes.js';
 import { ajouterVetement, modifierVetement, supprimerVetement, rappelSauvegardeDu, couleursDuVetement } from '../donnees.js';
 import { labDepuisHex, rgbVersHex } from '../couleur.js';
+import { plusProches } from '../catalogue.js';
 import { ouvrirSelecteur } from './selecteur-catalogue.js';
 import { ouvrirScan, remplirResultatVetement } from './scan.js';
 import { correcteur } from './etalonnage.js';
 import { epinglerVetement } from './tenue.js';
-import { champMarque, choisirPhoto, proposerPhoto, visuelVetement } from './fiche-vetement.js';
+import { champMarque, choisirPhoto, proposerPhoto, visuelVetement, pastilleCouleurs, hexDuVetement } from './fiche-vetement.js';
 import { boutonWishlist } from './wishlist.js';
 
 // Mesure tout-en-un : caméra plein écran, puis feuille du résultat (ajustement, type, Enregistrer). La couleur
@@ -51,17 +52,21 @@ async function scanner(app, actions) {
   else if (choix.photo) actions.supprimerPhoto(id);
 }
 
-// Nom d'une couleur : celui du catalogue si le vêtement en porte encore le hex, sinon le hex (« Couleur mesurée »
-// pour la couleur principale d'un vêtement mesuré).
-function nomCouleur({ hex, idCouleurCatalogue }, catalogue, mesuree = false) {
+// Nom d'une couleur (demande de Théo, 2026-09-27 : rien que le nom, ni code #, ni « mesurée ») : celui du catalogue si
+// le vêtement en porte encore le hex, sinon celui de la couleur du catalogue la plus proche (ΔE00), gardé en mémoire.
+const nomsProches = new WeakMap(); // catalogue → Map(hex → nom)
+export function nomCouleur({ hex, idCouleurCatalogue }, catalogue) {
   const couleur = idCouleurCatalogue ? catalogue.couleurParId.get(idCouleurCatalogue) : null;
   if (couleur && couleur.hex === hex) return couleur.nom;
-  return mesuree ? `Couleur mesurée ${hex}` : hex;
+  if (!nomsProches.has(catalogue)) nomsProches.set(catalogue, new Map());
+  const memoire = nomsProches.get(catalogue);
+  if (!memoire.has(hex)) memoire.set(hex, plusProches(labDepuisHex(hex), catalogue, 1)[0]?.couleur.nom ?? hex);
+  return memoire.get(hex);
 }
 
 // Nom affiché d'un vêtement : ses couleurs, la principale d'abord (« Peacock Blue / White »).
 export function nomCouleurVetement(vetement, catalogue) {
-  return couleursDuVetement(vetement).map((c, i) => nomCouleur(c, catalogue, i === 0 && vetement.origine === 'scan')).join(' / ');
+  return couleursDuVetement(vetement).map((c) => nomCouleur(c, catalogue)).join(' / ');
 }
 
 async function ajouter(app, actions) {
@@ -121,15 +126,11 @@ async function modifier(app, actions, vetement) {
   const couleurs = couleursDuVetement(vetement).map((c) => ({ ...c }));
   let couleursModifiees = false;
   const blocCouleurs = el('div', { class: 'groupe groupe-couleurs' });
-  const nomDe = (c, i) => {
-    const catalogue = c.idCouleurCatalogue ? app.catalogue.couleurParId.get(c.idCouleurCatalogue) : null;
-    if (catalogue && catalogue.hex === c.hex) return catalogue.nom;
-    return i === 0 && vetement.origine === 'scan' ? `Couleur mesurée ${c.hex}` : c.hex;
-  };
+  const nomDe = (c) => nomCouleur(c, app.catalogue);
   function afficherCouleurs() {
     blocCouleurs.replaceChildren(...couleurs.map((c, i) => el('div', { class: 'ligne ligne-couleur', 'data-index': i },
       pastille(c.hex, { classe: 'moyenne' }),
-      el('span', { class: 'texte-ligne' }, nomDe(c, i), el('small', {}, i === 0 ? 'Couleur principale' : `Couleur ${i + 1}`)),
+      el('span', { class: 'texte-ligne' }, nomDe(c), el('small', {}, i === 0 ? 'Couleur principale' : `Couleur ${i + 1}`)),
       el('button', {
         type: 'button', class: 'bouton petit', 'data-action': 'changer-couleur', 'data-index': i,
         onclick: async (e) => {
@@ -317,10 +318,11 @@ function ligne(app, actions, vetement) {
   visuelVetement(app, vetement),
   el('span', { class: 'infos' },
     el('span', { class: 'nom' }, nom),
-    el('span', { class: 'detail discret' },
-      vetement.enPause ? el('span', { class: 'mention-pause', 'data-info': 'en-pause' }, 'En pause · ') : null,
-      vetement.marque ? el('span', { class: 'marque' }, `${vetement.marque} · `) : null,
-      vetement.origine === 'scan' ? 'Mesurée à la caméra' : 'Choisie dans le catalogue')),
+    // Rien que la couleur ; en dessous, seulement la pause et la marque s'il y en a (demande de Théo, 2026-09-27).
+    vetement.enPause || vetement.marque ? el('span', { class: 'detail discret' },
+      vetement.enPause ? el('span', { class: 'mention-pause', 'data-info': 'en-pause' }, 'En pause') : null,
+      vetement.enPause && vetement.marque ? ' · ' : null,
+      vetement.marque ? el('span', { class: 'marque' }, vetement.marque) : null) : null),
   icone('chevron-droite', { classe: 'chevron' }));
   const action = el('button', {
     type: 'button', class: 'action-supprimer', 'data-action': 'supprimer-balayage', tabindex: '-1', 'aria-hidden': 'true',
@@ -384,12 +386,28 @@ export function rendreGardeRobe(conteneur, app, actions) {
         carteAction({ icone: 'camera', titre: 'Mesurer un vêtement', detail: 'avec la caméra', action: 'scanner', onclick: () => scanner(app, actions) }),
         carteAction({ icone: 'mosaique', titre: 'Choisir une couleur', detail: 'dans le catalogue', action: 'ajouter-vetement', onclick: () => ajouter(app, actions) })));
   }
-  for (const type of TYPES) {
+  // Catégories pliables (demande de Théo, 2026-09-27) : toucher l'en-tête plie ou déplie ; pliée, elle montre les
+  // pastilles de ses vêtements, pour une vue d'ensemble. « Tout plier » / « Tout déplier » au-dessus.
+  const presents = TYPES.filter((type) => vetements.some((v) => v.type === type));
+  if (presents.length > 1) {
+    const tousPlies = presents.every((type) => app.typesPlies.has(type));
+    contenu.push(el('div', { class: 'rangee-plier' }, el('button', {
+      type: 'button', class: 'bouton lien', 'data-action': 'plier-tout', onclick: () => actions.plierTypes(presents, !tousPlies),
+    }, tousPlies ? 'Tout déplier' : 'Tout plier')));
+  }
+  for (const type of presents) {
     const siens = vetements.filter((v) => v.type === type);
-    if (siens.length === 0) continue;
-    contenu.push(el('section', { class: 'groupe-type', 'data-type': type },
-      el('h2', { class: 'titre-section' }, icone(type), LIBELLES_TYPES[type], el('span', { class: 'compte-section' }, String(siens.length))),
-      el('ul', { class: 'groupe liste-vetements' }, siens.map((v) => ligne(app, actions, v)))));
+    const plie = app.typesPlies.has(type);
+    contenu.push(el('section', { class: `groupe-type${plie ? ' plie' : ''}`, 'data-type': type },
+      el('h2', { class: 'titre-section' },
+        el('button', {
+          type: 'button', class: 'entete-type', 'data-action': 'plier-type', 'aria-expanded': String(!plie),
+          onclick: () => actions.plierTypes([type], !plie),
+        },
+        icone(type), el('span', { class: 'libelle-type' }, LIBELLES_TYPES[type]), el('span', { class: 'compte-section' }, String(siens.length)),
+        plie ? el('span', { class: 'apercu-type', 'aria-hidden': 'true' }, siens.slice(0, 14).map((v) => pastilleCouleurs(hexDuVetement(v)))) : null,
+        icone('chevron-droite', { classe: 'chevron-pli' }))),
+      plie ? null : el('ul', { class: 'groupe liste-vetements' }, siens.map((v) => ligne(app, actions, v)))));
   }
   conteneur.replaceChildren(...contenu);
 }

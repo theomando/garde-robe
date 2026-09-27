@@ -27,7 +27,7 @@ export function conflitTypes(types) {
 }
 
 // Version affichée dans les réglages (numéro de l'étape du plan tant que l'app est en construction).
-export const VERSION_APP = '0.22.0'; // à reporter dans sw.js (VERSION), vérifié par les tests
+export const VERSION_APP = '0.23.0'; // à reporter dans sw.js (VERSION), vérifié par les tests
 
 // Couches du haut, du corps vers l'extérieur (avatar). Chemise, veste et manteau sont portés ouverts.
 export const COUCHES = ['t-shirt', 'pull', 'chemise', 'veste', 'manteau'];
@@ -42,6 +42,10 @@ export const PROPOSITIONS_MAX = 20;
 export const COUT_JOKER_EN_TOLERANCES = 1;
 // Manques fréquents (CLAUDE.md, section Favoris et statistiques) : nombre de lignes affichées.
 export const MANQUES_FREQUENTS_MAX = 10;
+// Poids des manques fréquents (demande de Théo, 2026-09-27) : tenues aimées « grand impact », première proposition de
+// chaque tenue demandée « impact moyen » ; rapport 2 pour 1, choix à ajuster à l'usage.
+export const POIDS_MANQUE_AIMEE = 2;
+export const POIDS_MANQUE_PREMIERE = 1;
 
 // Données version 2 (demandes de Théo, 2026-09-26) : marque et photo des vêtements, tenues gardées, sauvegarde.
 export const MARQUE_MAX = 40; // caractères

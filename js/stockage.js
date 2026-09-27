@@ -31,6 +31,21 @@ export function creerStockage(support, espace = '') {
       support.setItem(cle('etat'), exporterEtat(etat, date));
     },
 
+    // Préférences d'affichage de cet appareil (catégories pliées…) : hors des données exportées ; en cas d'échec,
+    // la valeur par défaut, ou une préférence qui ne dure que la session.
+    chargerPreference(nom, defaut) {
+      try {
+        const brut = support.getItem(cle(`preference-${nom}`));
+        return brut === null ? defaut : JSON.parse(brut);
+      } catch {
+        return defaut;
+      }
+    },
+
+    enregistrerPreference(nom, valeur) {
+      try { support.setItem(cle(`preference-${nom}`), JSON.stringify(valeur)); } catch { /* préférence de la session seulement */ }
+    },
+
     chargerPapierTigre() {
       try {
         return support.getItem(cle('papier-tigre'));

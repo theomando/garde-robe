@@ -36,10 +36,10 @@ export function signatureTenue(tenue) {
 }
 
 // Libellé d'une combinaison (du catalogue ou figée) : « Combinaison n° 12 » ; « Wada » reste dans les crédits.
-// Combinaison pour s'habiller : « Mode n° 1 · Tory Burch, Staud… » ou « Perso U01 ».
+// Combinaison pour s'habiller : « Mode n° 1 » ou « Perso U01 » (les maisons citées sont dans le détail).
 export function referenceCombinaison(combinaison) {
   if (combinaison.source === 'wada') return `Combinaison ${combinaison.ref}`;
-  if (combinaison.source === 'vetements') return `${combinaison.ref}${combinaison.nom ? ` · ${combinaison.nom}` : ''}`;
+  if (combinaison.source === 'vetements') return combinaison.ref;
   return `Papier Tigre ${combinaison.ref}${combinaison.nom ? ` · ${combinaison.nom}` : ''}`;
 }
 

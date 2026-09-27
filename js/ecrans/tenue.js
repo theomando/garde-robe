@@ -10,14 +10,12 @@ import { enregistrerTenueType, basculerFavori, garderTenue, retirerTenueGardee, 
 import { instantaneTenue, signatureTenue, referenceCombinaison } from '../tenues.js';
 import { proposer, selectionner, piecesVisibles } from '../moteur.js';
 import { dessinerAvatar, planAvatar } from '../avatar.js';
-import { estNoir, labDepuisHex } from '../couleur.js';
 import { nomCouleurVetement } from './garde-robe.js';
 import { partagerTenue } from './partage-tenue.js';
 import { pastilleCouleurs, hexDuVetement } from './fiche-vetement.js';
 import { boutonEnvie } from './wishlist.js';
 import { envieDuManque } from './manques.js';
 
-const ecartTexte = (ecart) => ecart.toFixed(1).replace('.', ',');
 
 // État de l'écran, gardé en mémoire d'un onglet à l'autre (pas enregistré).
 function etatEcran(app) {
@@ -48,12 +46,12 @@ export function epinglerVetement(app, vetement) {
 
 const reference = referenceCombinaison; // « Combinaison n° 12 » ; « Wada » : crédits seulement (demande de Théo)
 
+// Résumé d'une proposition, sans chiffres techniques (demande de Théo, 2026-09-27 : pas d'écart affiché).
 function resume(proposition) {
   const n = proposition.nbManques;
   return [
     n === 0 ? 'rien ne manque' : `⚠ ${n} manque${n > 1 ? 's' : ''}`,
     proposition.peauUtilisee ? 'avec la peau' : null,
-    `écart moyen ${proposition.ecartMoyen === Infinity ? '—' : ecartTexte(proposition.ecartMoyen)}`,
     proposition.nbFavoris > 0 ? `★ ${proposition.nbFavoris}` : null,
   ].filter(Boolean).join(' · ');
 }
@@ -203,17 +201,14 @@ export function rendreTenue(conteneur, app, actions) {
 
   function detailPiece(piece, proposition) {
     const cible = piece.couleurId ? couleur(piece.couleurId) : null;
+    // Rien que les noms des couleurs (demande de Théo, 2026-09-27) ; ⚠ et le rouge marquent la pièce qui manque.
     if (piece.manque) {
-      const texte = cible ? `il te manque ${cible.nom}` : 'il te manque un noir ou un blanc';
       return el('li', { class: 'manque' }, cible ? pastille(cible.hex) : pastilleJoker(),
-        el('span', {}, el('span', { class: 'avertissement', 'aria-label': 'Manque' }, '⚠'), el('strong', {}, ` ${libelle(piece.type)} : `), texte),
+        el('span', {}, el('span', { class: 'avertissement', 'aria-label': 'Manque' }, '⚠'), el('strong', {}, ` ${libelle(piece.type)} : `), cible ? cible.nom : 'noir ou blanc'),
         boutonEnvie(app, actions, envieDuManque(app, piece), `${libelle(piece.type)}, ${cible ? cible.nom : 'noir ou blanc'}`));
     }
     const vetement = piece.vetement;
-    const nom = nomCouleurVetement(vetement, app.catalogue);
-    const texte = piece.joker
-      ? `${nom} (joker ${estNoir(labDepuisHex(vetement.hex)) ? 'noir' : 'blanc'})`
-      : `${nom} pour ${cible.nom} (écart ${ecartTexte(piece.ecart)})`;
+    const texte = nomCouleurVetement(vetement, app.catalogue);
     const epingle = ecran.epingles[piece.type] === vetement.id;
     return el('li', { 'data-epingle': epingle ? piece.type : null }, pastilleCouleurs(hexDuVetement(vetement)),
       el('span', {}, epingle ? icone('epingle', { classe: 'icone-epingle', titre: 'Vêtement choisi' }) : null,
@@ -226,12 +221,12 @@ export function rendreTenue(conteneur, app, actions) {
     const { combinaison } = proposition;
     const origine = combinaison.source !== 'vetements' ? null
       : combinaison.origine === 'perso' ? 'Une de tes combinaisons pour t\'habiller.'
-        : `Combinaison pour s'habiller, citée par ${combinaison.sources.length} document${combinaison.sources.length > 1 ? 's' : ''} (${combinaison.sources.join(', ')}).`;
+        : `Combinaison pour s'habiller${combinaison.nom ? ` (${combinaison.nom})` : ''}, citée par ${combinaison.sources.length} document${combinaison.sources.length > 1 ? 's' : ''} (${combinaison.sources.join(', ')}).`;
     return el('div', { class: 'details' },
       origine ? el('p', { class: 'origine-combinaison', 'data-info': 'origine-combinaison' }, origine, combinaison.remarque ? ` Remarque : ${combinaison.remarque}.` : '') : null,
       el('ul', { class: 'pieces' }, proposition.pieces.map((piece) => detailPiece(piece, proposition))),
       proposition.peau
-        ? el('p', {}, `Peau : porte ${couleur(proposition.peau.couleurId).nom} (écart ${ecartTexte(proposition.peau.ecart)}).`)
+        ? el('p', {}, `Peau : ${couleur(proposition.peau.couleurId).nom}`)
         : null,
       el('p', { class: 'sous-titre' }, 'Couleurs de la combinaison'),
       el('div', { class: 'couleurs-combinaison' }, couleurs.map((c, j) => el('button', {
@@ -250,7 +245,8 @@ export function rendreTenue(conteneur, app, actions) {
     liste.replaceChildren(...affichees.map((proposition, index) => {
       const choisie = proposition.combinaison.id === ecran.selection;
       const couleurs = proposition.combinaison.couleurs.map(couleur);
-      return el('li', { class: 'proposition-item' },
+      // Combinaison pour s'habiller : l'or entoure toute la proposition, détail compris.
+      return el('li', { class: `proposition-item${proposition.combinaison.source === 'vetements' ? ' pour-vetements' : ''}` },
         el('button', {
           // Combinaison pour s'habiller : liseré doré (demande de Théo, 2026-09-27).
           type: 'button', class: `proposition${proposition.combinaison.source === 'vetements' ? ' pour-vetements' : ''}`,

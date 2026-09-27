@@ -166,7 +166,7 @@ test('app : tenue du jour avec une garde-robe vide, message d\'invitation et auc
   egalProfond(stocke().tenuesTypes, [['chaussures', 'pantalon', 't-shirt']], 'tenue type enregistrée');
   cliquer('#onglets [data-ecran="mes-tenues"]');
   await quand(() => doc.querySelector('[data-info="sans-proposition"]'), 'manques : aucune proposition retenue');
-  vrai(doc.querySelector('[data-info="bilan"]').textContent.includes('sur 0 proposition pour ta tenue type'));
+  vrai(doc.querySelector('[data-info="bilan"]').textContent.includes('la première proposition de ta tenue demandée'));
   cliquer('#onglets [data-ecran="garde-robe"]');
 });
 
@@ -432,7 +432,10 @@ test('app : mesure par photo, feuille tout-en-un (couleur, ajustement, type) san
   const { id, dateAjout, ...vetement } = stocke().vetements[0];
   egalProfond(vetement, { type: 'chaussures', hex: '#a07e56', origine: 'scan', marque: 'Lacoste', photo: true });
   vrai(doc.querySelector('[data-type="chaussures"] .visuel-vetement img'), 'photo dans la liste');
-  vrai(doc.querySelector('[data-type="chaussures"] .nom').textContent.includes('#a07e56'));
+  // Rien que le nom de la couleur (demande de Théo, 2026-09-27) : la plus proche du catalogue, ni code #, ni « mesurée ».
+  const nomChaussures = doc.querySelector('[data-type="chaussures"] .nom').textContent;
+  vrai(nomChaussures.length > 0 && !nomChaussures.includes('#') && !/mesur/i.test(nomChaussures), nomChaussures);
+  egal(doc.querySelector('[data-type="chaussures"] .detail').textContent, 'Lacoste', 'en dessous : la marque seule');
 });
 
 // Pointeurs sur une photo (demande de Théo, 2026-09-27) : sur une photo de la photothèque, le centre tombe souvent
@@ -809,12 +812,13 @@ test('app : ♡ garder une tenue, la retrouver dans Mes tenues avec son avatar, 
 test('app : partir d\'un vêtement (depuis la garde-robe), porté dans chaque proposition ; retrait puis épingle depuis la tenue', async () => {
   cliquer('#onglets [data-ecran="garde-robe"]');
   const pantalon = stocke().vetements.find((v) => v.type === 'pantalon');
+  const nomPantalon = doc.querySelector(`[data-vetement="${pantalon.id}"] .nom`).textContent;
   cliquer(`[data-vetement="${pantalon.id}"]`);
   cliquer('[data-action="composer-tenue"]', await dialogueOuvert());
   await dialoguesFermes();
   await quand(() => doc.querySelector('#onglets [aria-current="page"]')?.dataset.ecran === 'tenue', 'onglet Tenue');
   vrai(doc.querySelector('.puce-epingle[data-epingle="pantalon"]'), 'pantalon épinglé');
-  vrai(doc.querySelector('.choix-tenue summary').textContent.includes(`avec Couleur mesurée ${pantalon.hex}`), 'rappel dans le résumé');
+  vrai(/avec [^#]+$/.test(doc.querySelector('.choix-tenue summary').textContent), 'rappel dans le résumé, avec le nom de la couleur');
   cliquer('[data-action="proposer"]');
   await quand(() => doc.getElementById('filtre-favoris'), 'propositions');
   if (doc.getElementById('filtre-favoris').checked) doc.getElementById('filtre-favoris').click(); // filtre du test précédent
@@ -823,7 +827,7 @@ test('app : partir d\'un vêtement (depuis la garde-robe), porté dans chaque pr
   for (let i = 0; i < nb; i++) {
     doc.querySelectorAll('.proposition')[i].click();
     const ligne = await attendre(() => doc.querySelector('.details [data-epingle="pantalon"]'), `pantalon épinglé dans le détail ${i + 1}`);
-    vrai(ligne.textContent.includes(pantalon.hex), `proposition ${i + 1} : le pantalon choisi est porté`);
+    vrai(ligne.textContent.includes(nomPantalon), `proposition ${i + 1} : le pantalon choisi est porté`);
   }
   doc.querySelector('.choix-tenue').open = true;
   cliquer('.puce-epingle [data-action="retirer-epingle"]');
@@ -841,8 +845,9 @@ test('app : manques fréquents, top 10 trié, résultat gardé en mémoire puis 
   await quand(() => doc.querySelector('.manque-frequent'), 'lignes des manques');
   const lignes = [...doc.querySelectorAll('.manque-frequent')];
   vrai(lignes.length >= 1 && lignes.length <= 10, `entre 1 et 10 lignes (${lignes.length})`);
-  const nombres = lignes.map((l) => Number(l.dataset.nombre));
-  vrai(nombres.every((n, i) => n >= 1 && (i === 0 || n <= nombres[i - 1])), `nombres décroissants (${nombres.join(', ')})`);
+  const scores = lignes.map((l) => Number(l.dataset.score));
+  vrai(scores.every((n, i) => n >= 1 && (i === 0 || n <= scores[i - 1])), `scores décroissants (${scores.join(', ')})`);
+  vrai(lignes.every((l) => /♡ \d|1ʳᵉ \d/.test(l.querySelector('.nombre').textContent)), 'origine du manque : ♡ ou 1ʳᵉ');
   for (const ligne of lignes) {
     vrai(ligne.querySelector('.pastille') && ligne.querySelector('.nom').textContent.length > 0, 'pastille et nom');
     vrai(ligne.querySelector('.detail').textContent.length > 0, 'type');
@@ -851,7 +856,7 @@ test('app : manques fréquents, top 10 trié, résultat gardé en mémoire puis 
       vrai(ligne.querySelector('.pastille').classList.contains('joker'), 'pastille noire et blanche');
     }
   }
-  vrai(doc.querySelector('[data-info="bilan"]').textContent.includes('pour tes 2 tenues types'));
+  vrai(doc.querySelector('[data-info="bilan"]').textContent.includes('tes 2 tenues demandées'), doc.querySelector('[data-info="bilan"]').textContent);
   egal(doc.querySelectorAll('.tenues-comptees li').length, 2);
 
   cliquer('#onglets [data-ecran="garde-robe"]');
@@ -878,7 +883,7 @@ test('app : manques fréquents, retrait d\'une tenue type après confirmation, d
   await dialoguesFermes();
   await quand(() => stocke().tenuesTypes.length === 1, 'tenue retirée');
   egalProfond(stocke().tenuesTypes, [['chaussures', 'pantalon', 'pull']]);
-  await quand(() => doc.querySelector('[data-info="bilan"]')?.textContent.includes('pour ta tenue type'), 'bilan recalculé');
+  await quand(() => doc.querySelector('[data-info="bilan"]')?.textContent.includes('ta tenue demandée'), 'bilan recalculé');
   vrai(doc.querySelector('.tenues-comptees').open, 'le dépliant reste ouvert');
   egal(doc.querySelectorAll('.tenues-comptees li').length, 1);
 });
@@ -1036,7 +1041,7 @@ test('app : vêtement bicolore mesuré, « Autre couleur » relance la caméra
   egalProfond(short.couleursSecondaires, [{ hex: hexJaune }]);
   const ligne = doc.querySelector('[data-type="short"] .vetement');
   vrai(ligne.querySelector('.pastille.rayee'), 'pastille rayée dans la liste');
-  vrai(ligne.querySelector('.nom').textContent.endsWith(` / ${hexJaune}`), ligne.querySelector('.nom').textContent);
+  vrai(/^[^#/]+ \/ [^#/]+$/.test(ligne.querySelector('.nom').textContent), `deux noms de couleurs : ${ligne.querySelector('.nom').textContent}`);
 
   // Fiche : ✕ retire la couleur, « Ajouter une couleur » la choisit sur la carte.
   cliquer('[data-type="short"] [data-action="modifier"]');
@@ -1075,7 +1080,7 @@ test('app : vêtement en pause (fiche et balayage), grisé, absent des propositi
   await dialoguesFermes();
   await quand(() => stocke().vetements.find((v) => v.type === 'short').enPause === true, 'short en pause');
   const li = await attendre(() => doc.querySelector('[data-type="short"] .vetement.en-pause'), 'ligne grisée');
-  egal(li.querySelector('[data-info="en-pause"]').textContent.trim(), 'En pause ·');
+  egal(li.querySelector('[data-info="en-pause"]').textContent, 'En pause');
   vrai(doc.querySelector('.sous-titre-ecran').textContent.endsWith(', dont 1 en pause'), doc.querySelector('.sous-titre-ecran').textContent);
 
   // Onglet Tenue : ni dans les propositions (un short manque), ni dans « Partir d'un vêtement ».
@@ -1154,18 +1159,32 @@ test('app : wishlist, envie ajoutée avec sa couleur et une note, ajout rapide, 
   cliquer('#onglets [data-ecran="tenue"]');
   const proposer = doc.querySelector('[data-action="proposer"]');
   if (proposer) proposer.click();
-  const manque = await attendre(() => [...doc.querySelectorAll('.proposition')].find((p) => /\d+ manque/.test(p.textContent)), 'proposition avec un manque');
-  manque.click();
-  const boutonManque = await attendre(() => doc.querySelector('.details li.manque [data-action="ajouter-a-la-wishlist"]'), '🎁 sur la pièce ⚠');
+  await attendre(() => doc.querySelector('.proposition'), 'propositions');
+  // Une proposition dont une pièce ⚠ n'est pas encore dans la wishlist (la liste est redessinée à chaque toucher).
+  let boutonManque = null;
+  for (let i = 0; i < doc.querySelectorAll('.proposition').length && !boutonManque; i++) {
+    const proposition = doc.querySelectorAll('.proposition')[i];
+    if (!/\d+ manque/.test(proposition.textContent)) continue;
+    proposition.click();
+    boutonManque = doc.querySelector('.details li.manque [data-action="ajouter-a-la-wishlist"]:not(:disabled)');
+  }
+  vrai(boutonManque, '🎁 sur une pièce ⚠');
   boutonManque.click();
   await quand(() => stocke().wishlist.length === 2, 'manque ajouté à la wishlist');
   await attendre(() => doc.querySelector('.details li.manque [data-action="ajouter-a-la-wishlist"]:disabled'), '✓ une fois dedans');
 
-  // Ajout rapide depuis « Ce qui te manque ».
+  // Ajout rapide depuis « Ce qui te manque » : 🎁 si le manque n'y est pas encore, sinon ✓.
   cliquer('#onglets [data-ecran="mes-tenues"]');
-  const rapide = await attendre(() => doc.querySelector('.manque-frequent [data-action="ajouter-a-la-wishlist"]:not(:disabled)'), '🎁 dans Ce qui te manque');
-  rapide.click();
-  await quand(() => stocke().wishlist.length === 3, 'manque fréquent ajouté');
+  await quand(() => doc.querySelector('.manque-frequent, [data-info="rien-ne-manque"], [data-info="sans-proposition"]'), 'manques calculés');
+  const rapide = doc.querySelector('.manque-frequent [data-action="ajouter-a-la-wishlist"]:not(:disabled)');
+  if (rapide) {
+    rapide.click();
+    await quand(() => stocke().wishlist.length === 3, 'manque fréquent ajouté');
+    await quand(() => doc.querySelector('.manque-frequent [data-action="ajouter-a-la-wishlist"]:disabled'), '✓ une fois dedans');
+  } else {
+    vrai(doc.querySelector('.manque-frequent [data-action="ajouter-a-la-wishlist"]:disabled'), '✓ : ce manque est déjà dans la wishlist');
+  }
+  const nbEnvies = stocke().wishlist.length;
 
   // « Je l'ai » : l'envie rejoint la garde-robe ; ✕ en retire une autre.
   cliquer('#onglets [data-ecran="garde-robe"]');
@@ -1174,12 +1193,30 @@ test('app : wishlist, envie ajoutée avec sa couleur et une note, ajout rapide, 
   const liste = await dialogueOuvert('dialog.feuille-wishlist[open]');
   cliquer(`[data-envie="${envie.id}"] [data-action="envie-obtenue"]`, liste);
   await sansPhoto();
-  await quand(() => stocke().vetements.length === avant + 1 && stocke().wishlist.length === 2, 'rangée dans la garde-robe');
+  await quand(() => stocke().vetements.length === avant + 1 && stocke().wishlist.length === nbEnvies - 1, 'rangée dans la garde-robe');
   egalProfond([stocke().vetements.at(-1).type, stocke().vetements.at(-1).hex], ['manteau', envie.hex]);
   await attendre(() => !liste.querySelector(`[data-envie="${envie.id}"]`), 'plus dans la liste');
   cliquer('[data-action="retirer-envie"]', liste);
-  await quand(() => stocke().wishlist.length === 1, 'envie retirée');
+  await quand(() => stocke().wishlist.length === nbEnvies - 2, 'envie retirée');
   cliquer('[data-action="fermer-feuille"]', liste);
   await dialoguesFermes();
   await attendre(() => doc.querySelector('[data-type="manteau"] .vetement'), 'manteau dans la garde-robe');
+});
+
+// Catégories pliables (demande de Théo, 2026-09-27) : vue d'ensemble, préférence gardée sur l'appareil.
+test('app : catégories de la garde-robe pliées et dépliées (une, puis toutes), pastilles en aperçu', async () => {
+  cliquer('#onglets [data-ecran="garde-robe"]');
+  const entete = await attendre(() => doc.querySelector('[data-type="manteau"] [data-action="plier-type"]'), 'en-tête Manteau');
+  egal(entete.getAttribute('aria-expanded'), 'true');
+  entete.click();
+  const section = await attendre(() => doc.querySelector('[data-type="manteau"].plie'), 'manteau plié');
+  egal(section.querySelector('.liste-vetements'), null, 'liste cachée');
+  vrai(section.querySelector('.apercu-type .pastille'), 'pastilles en aperçu');
+  egalProfond(JSON.parse(localStorage.getItem(`${ESPACE}preference-types-plies`)), ['manteau'], 'retenu sur l\'appareil');
+  cliquer('[data-action="plier-tout"]');
+  await attendre(() => [...doc.querySelectorAll('.groupe-type')].every((s) => s.classList.contains('plie')), 'tout plié');
+  egal(doc.querySelector('[data-action="plier-tout"]').textContent, 'Tout déplier');
+  cliquer('[data-action="plier-tout"]');
+  await attendre(() => doc.querySelectorAll('.groupe-type.plie').length === 0, 'tout déplié');
+  egalProfond(JSON.parse(localStorage.getItem(`${ESPACE}preference-types-plies`)), []);
 });

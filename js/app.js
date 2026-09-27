@@ -54,6 +54,7 @@ const app = {
   tenue: null, // état de l'écran Tenue du jour (types cochés, sélection, filtre)
   manques: null, // dernier calcul des manques fréquents, avec l'état et le catalogue qui l'ont produit
   photos: new Map(), // photos des vêtements (id → data URL), chargées depuis IndexedDB au démarrage
+  typesPlies: new Set(), // catégories pliées de la garde-robe (préférence de l'appareil)
 };
 
 const ECRANS = {
@@ -143,6 +144,16 @@ const actions = {
   },
 
   rafraichir() {
+    rendre();
+  },
+
+  // Catégories de la garde-robe pliées ou dépliées (demande de Théo, 2026-09-27), retenues sur cet appareil.
+  plierTypes(types, plie) {
+    for (const type of types) {
+      if (plie) app.typesPlies.add(type);
+      else app.typesPlies.delete(type);
+    }
+    stockage.enregistrerPreference('types-plies', [...app.typesPlies]);
     rendre();
   },
 
@@ -369,6 +380,8 @@ async function demarrer() {
   preparerMisesAJour();
   const { etat, avertissement } = stockage.chargerEtat();
   app.etat = etat;
+  const plies = stockage.chargerPreference('types-plies', []);
+  app.typesPlies = new Set(Array.isArray(plies) ? plies.filter((t) => typeof t === 'string') : []);
   // Couleurs nommées XKCD : facultatives (sans elles, le catalogue de Wada suffit au calcul).
   const xkcd = chargerXkcd();
   try {

@@ -54,7 +54,7 @@ test('mes tenues : une combinaison pour s\'habiller garde sa source et son libel
   const [proposition] = proposer({ types, vetements: [vet('p', 'pantalon', BLEU), vet('t', 't-shirt', ROUGE)], catalogue: pourVetements, reglages }).retenues;
   const tenue = instantaneTenue(proposition, pourVetements, types);
   egalProfond([tenue.combinaison.source, tenue.combinaison.ref, tenue.combinaison.nom], ['vetements', 'Mode n° 3', 'Miu Miu, Prada (P2)']);
-  egal(referenceCombinaison(tenue.combinaison), 'Mode n° 3 · Miu Miu, Prada (P2)');
+  egal(referenceCombinaison(tenue.combinaison), 'Mode n° 3');
   const etat = garderTenue(etatInitial(), tenue, { id: 't1', date: new Date('2026-09-27T10:00:00Z') }, signatureTenue);
   egal(etat.tenuesGardees[0].combinaison.source, 'vetements', 'acceptée par la validation');
 });
