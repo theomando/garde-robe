@@ -1,7 +1,7 @@
 // Pilote de la caméra testé avec des doublures (aucune caméra réelle), et mesure d'une photo synthétique.
 import { test, vrai, egal, egalProfond } from './mini-test.js';
-import { creerCamera, ErreurCamera, mesurerPhoto } from '../js/scan.js';
-import { photoSynthetique, avecTempsReel } from './aides.js';
+import { creerCamera, ErreurCamera, mesurerPhoto, preparerPhoto, mesurerPoint } from '../js/scan.js';
+import { photoSynthetique, photoDeuxCouleurs, avecTempsReel } from './aides.js';
 
 function pisteFactice({ capacites = {}, rejet = false, sansCapacites = false } = {}) {
   const piste = {
@@ -166,4 +166,19 @@ test('scan : photo mesurée sur son carré central, vignette avec le carré trac
   egal(apercu.height, 100);
   const grande = await avecTempsReel(mesurerPhoto(await photoSynthetique(600, 400), { tailleApercu: 240 }), 'décodage');
   egal(grande.apercu.width, 240, 'vignette réduite');
+});
+
+test('scan : photo préparée pour les pointeurs, une mesure sous chaque pointeur', async () => {
+  const photo = await avecTempsReel(preparerPhoto(await photoDeuxCouleurs('#c0392b', '#2e5fa3')), 'décodage de la photo');
+  try {
+    egalProfond([photo.largeur, photo.hauteur], [400, 200]);
+    egalProfond(mesurerPoint(photo, 0.25, 0.5), { rgb: [192, 57, 43], valides: 100, total: 100 });
+    egalProfond(mesurerPoint(photo, 0.75, 0.2).rgb, [46, 95, 163]);
+    egalProfond(mesurerPoint(photo, 1, 1).rgb, [46, 95, 163], 'pointeur au bord : carré gardé dans la photo');
+  } finally {
+    URL.revokeObjectURL(photo.adresse);
+  }
+  const grande = await avecTempsReel(preparerPhoto(await photoDeuxCouleurs('#000000', '#ffffff', 3200, 1200)), 'décodage');
+  egalProfond([grande.largeur, grande.hauteur], [1600, 600], 'réduite à 1600 px sur le grand côté');
+  URL.revokeObjectURL(grande.adresse);
 });

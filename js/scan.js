@@ -6,8 +6,8 @@
 // renvoie l'ensemble des contraintes voulues (un appel remplace les contraintes précédentes) ; la piste
 // est arrêtée à la sortie et quand l'app passe en arrière-plan (la caméra y est interdite par iOS).
 
-import { SCAN_DELAI_BALANCE_MS } from './constantes.js';
-import { carreCentral, medianeSansReflets } from './mesure.js';
+import { SCAN_DELAI_BALANCE_MS, PHOTO_MESURE_COTE_MAX } from './constantes.js';
+import { carreCentral, carreAutour, pixelsDuCarre, medianeSansReflets } from './mesure.js';
 
 export class ErreurCamera extends Error {
   constructor(code, message) {
@@ -138,6 +138,36 @@ export function lireCarreCentral(source, largeur, hauteur, canvas = document.cre
 export function mesurerSource(source, largeur, hauteur, canvas) {
   if (!largeur || !hauteur) return { erreur: 'vide', valides: 0, total: 0 };
   return medianeSansReflets(lireCarreCentral(source, largeur, hauteur, canvas));
+}
+
+// Photo à mesurer par pointeurs (demande de Théo, 2026-09-27 : sur une photo de la photothèque, le centre tombe
+// souvent sur le fond). Décodée une fois par <img> (voir mesurerPhoto), réduite à PHOTO_MESURE_COTE_MAX px au plus sur
+// le grand côté, pixels lus une fois. Renvoie { adresse (object URL, à libérer), largeur, hauteur, pixels (ImageData) }.
+export async function preparerPhoto(fichier) {
+  const adresse = URL.createObjectURL(fichier);
+  try {
+    const image = new Image();
+    image.src = adresse;
+    await image.decode();
+    const echelle = Math.min(1, PHOTO_MESURE_COTE_MAX / Math.max(image.naturalWidth, image.naturalHeight));
+    const largeur = Math.max(1, Math.round(image.naturalWidth * echelle));
+    const hauteur = Math.max(1, Math.round(image.naturalHeight * echelle));
+    const canvas = document.createElement('canvas');
+    canvas.width = largeur;
+    canvas.height = hauteur;
+    const contexte = canvas.getContext('2d', { colorSpace: 'srgb', willReadFrequently: true });
+    contexte.drawImage(image, 0, 0, largeur, hauteur);
+    return { adresse, largeur, hauteur, pixels: contexte.getImageData(0, 0, largeur, hauteur, { colorSpace: 'srgb' }) };
+  } catch (erreur) {
+    URL.revokeObjectURL(adresse);
+    throw erreur;
+  }
+}
+
+// Mesure autour d'un point de la photo (x, y de 0 à 1) : même règle que le carré central (médiane, reflets exclus).
+export function mesurerPoint(photo, x, y) {
+  const carre = carreAutour(x * photo.largeur, y * photo.hauteur, photo.largeur, photo.hauteur);
+  return medianeSansReflets(pixelsDuCarre(photo.pixels, carre));
 }
 
 // Mesure une photo (repli sans caméra en direct). Renvoie { mesure, apercu } : apercu est une vignette

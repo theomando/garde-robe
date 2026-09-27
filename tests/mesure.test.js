@@ -1,5 +1,5 @@
 import { test, vrai, egal, egalProfond } from './mini-test.js';
-import { carreCentral, medianeSansReflets, combinerMesures, viseeStable } from '../js/mesure.js';
+import { carreCentral, carreAutour, pixelsDuCarre, medianeSansReflets, combinerMesures, viseeStable } from '../js/mesure.js';
 import { labDepuisHex } from '../js/couleur.js';
 
 test('mesure stable : médiane par canal des images, une image aberrante écartée', () => {
@@ -65,4 +65,18 @@ test('mesure : moins de la moitié de pixels valides, reflet signalé', () => {
   egalProfond(medianeSansReflets(pixels([[255, 255, 255], 70], [[40, 50, 60], 30])), { erreur: 'reflet', valides: 30, total: 100 });
   egalProfond(medianeSansReflets(pixels([[255, 255, 255], 50], [[40, 50, 60], 50])).rgb, [40, 50, 60], 'exactement la moitié : accepté');
   egal(medianeSansReflets(new Uint8ClampedArray(0)).erreur, 'vide');
+});
+
+test('mesure : carré autour d\'un pointeur (5 % du plus petit côté), gardé entier dans l\'image', () => {
+  egalProfond(carreAutour(200, 100, 400, 200), { x: 195, y: 95, cote: 10 });
+  egalProfond(carreAutour(0, 0, 400, 200), { x: 0, y: 0, cote: 10 }, 'coin haut gauche');
+  egalProfond(carreAutour(400, 200, 400, 200), { x: 390, y: 190, cote: 10 }, 'coin bas droit');
+  egalProfond(carreAutour(5, 5, 10, 10), { x: 5, y: 5, cote: 1 }, 'petite image : 1 px au moins');
+});
+
+test('mesure : pixels d\'un carré lus ligne par ligne dans une image RGBA', () => {
+  const largeur = 4;
+  const data = new Uint8ClampedArray(largeur * 3 * 4).map((_, i) => i);
+  const pixels = pixelsDuCarre({ data, width: largeur }, { x: 1, y: 1, cote: 2 });
+  egalProfond([...pixels], [20, 21, 22, 23, 24, 25, 26, 27, 36, 37, 38, 39, 40, 41, 42, 43]);
 });

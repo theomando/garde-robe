@@ -635,6 +635,39 @@ html:has(dialog[open]) { overflow: hidden; }
 @keyframes mesure-en-cours { to { transform: scale(0.55); } }
 .scan[data-etape="resultat"] .scan-bas, .scan[data-etape="resultat"] .astuce-scan { display: none; }
 
+/* Photo et pointeurs (demande de Théo, 2026-09-27) : la photo entière entre l'en-tête et les commandes ; chaque
+   pointeur montre la zone mesurée, l'actif en jaune ; une puce par pointeur (couleur visée en direct). */
+.placement { position: absolute; left: 0; right: 0; top: 0; bottom: 0; z-index: 1; background: #000000; touch-action: none; }
+.photo-placement {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none;
+  -webkit-user-drag: none; user-select: none;
+}
+.calque-pointeurs { position: absolute; inset: 0; pointer-events: none; }
+.pointeur {
+  position: absolute; transform: translate(-50%, -50%); border: 2px solid #ffffff; border-radius: 5px; pointer-events: auto;
+  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.55), inset 0 0 0 1.5px rgba(0, 0, 0, 0.55);
+}
+.pointeur::before { content: ""; position: absolute; inset: -12px; } /* zone de toucher plus large */
+.pointeur[data-actif="true"] { border-color: #ffd60a; }
+.numero-pointeur {
+  position: absolute; left: 50%; bottom: calc(100% + 5px); transform: translateX(-50%); min-width: 20px; height: 20px;
+  border-radius: 10px; background: rgba(0, 0, 0, 0.7); color: #ffffff; font-size: 12px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.pointeur[data-actif="true"] .numero-pointeur { background: #ffd60a; color: #000000; }
+.scan[data-etape="placement"] .astuce-scan, .scan[data-etape="resultat"] .placement .pointeur::before { display: none; }
+.scan[data-etape="resultat"] .placement { pointer-events: none; }
+.barre-pointeurs { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.7rem; }
+.puce-pointeur {
+  font: inherit; font-size: 0.85rem; font-weight: 600; min-height: 36px; padding: 0 0.8rem 0 0.35rem; border: none;
+  border-radius: 999px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; color: #ffffff;
+  background: rgba(255, 255, 255, 0.18); -webkit-backdrop-filter: var(--flou); backdrop-filter: var(--flou);
+}
+.puce-pointeur .pastille { width: 26px; height: 26px; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.6); }
+.puce-pointeur[aria-pressed="true"] { outline: 2px solid #ffd60a; outline-offset: 1px; }
+.barre-pointeurs .ajouter-puce { background: rgba(255, 255, 255, 0.9); color: #000000; }
+.barre-pointeurs .retirer-puce { background: rgba(255, 255, 255, 0.9); color: #000000; }
+
 /* Feuille du résultat, par-dessus l'image figée : tout tient sur un écran d'iPhone. */
 .feuille-resultat {
   position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 4; max-width: 40rem; margin: 0 auto;

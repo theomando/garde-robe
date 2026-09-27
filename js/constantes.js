@@ -27,7 +27,7 @@ export function conflitTypes(types) {
 }
 
 // Version affichée dans les réglages (numéro de l'étape du plan tant que l'app est en construction).
-export const VERSION_APP = '0.19.0'; // à reporter dans sw.js (VERSION), vérifié par les tests
+export const VERSION_APP = '0.20.0'; // à reporter dans sw.js (VERSION), vérifié par les tests
 
 // Couches du haut, du corps vers l'extérieur (avatar). Chemise, veste et manteau sont portés ouverts.
 export const COUCHES = ['t-shirt', 'pull', 'chemise', 'veste', 'manteau'];
@@ -69,6 +69,11 @@ export const TOLERANCE_PAS = 0.5;
 
 // Scan (CLAUDE.md, section Scan de couleur). Valeurs de départ, à calibrer sur l'iPhone.
 export const SCAN_FRACTION_CARRE = 0.1; // côté du carré mesuré, en fraction du plus petit côté de l'image
+// Pointeurs sur une photo (demande de Théo, 2026-09-27) : zone mesurée autour de chaque pointeur, plus petite que le
+// carré central de la caméra (on vise un endroit précis du vêtement) ; un pointeur par couleur du vêtement.
+export const SCAN_FRACTION_POINTEUR = 0.05;
+export const POINTEURS_MAX = 3;
+export const PHOTO_MESURE_COTE_MAX = 1600; // px, grand côté de la photo gardée pour les pointeurs (mémoire de l'iPhone)
 export const SCAN_SEUIL_SATURE = 250; // pixel exclu (reflet) si l'un de ses canaux atteint ce seuil
 export const SCAN_PART_VALIDE_MIN = 0.5; // sous cette part de pixels valides : « reflet trop fort »
 export const SCAN_DELAI_BALANCE_MS = 1500; // attente sous la torche avant de verrouiller la balance des blancs

@@ -1,5 +1,7 @@
 // Mesure tout-en-un, façon appareil photo de l'iPhone (demande de Théo, 2026-09-26) : caméra plein écran, réticule,
 // couleur visée en direct, torche et fermeture en haut, déclencheur rond en bas (photo à gauche, aide à droite).
+// Photo (photothèque ou appareil photo) : elle s'affiche en entier avec un pointeur par couleur du vêtement, à poser
+// sur le vêtement (demande de Théo, 2026-09-27) ; le déclencheur mesure alors sous chaque pointeur.
 // Après la mesure, l'image se fige et une feuille monte du bas avec tout le reste, sans défilement : couleur mesurée,
 // ajustement d'un toucher (proches ou noir, gris, blanc, ou tout le catalogue), type de vêtement, Enregistrer.
 
@@ -7,12 +9,12 @@ import { el, pastille, terminaison, armerDialogue, rearmerDialogue, choisirImage
 import { icone } from '../icones.js';
 import {
   TYPES, LIBELLES_TYPES, SCAN_DELAI_SANS_IMAGE_MS, SCAN_APERCU_MS, NEUTRE_C_MAX,
-  SCAN_IMAGES_PAR_MESURE, SCAN_INTERVALLE_IMAGES_MS, SCAN_STABLE_FENETRE,
+  SCAN_IMAGES_PAR_MESURE, SCAN_INTERVALLE_IMAGES_MS, SCAN_STABLE_FENETRE, SCAN_FRACTION_POINTEUR, POINTEURS_MAX,
 } from '../constantes.js';
 import { rgbVersHex, labDepuisHex, deltaE00, chroma } from '../couleur.js';
 import { carreCentral, combinerMesures, viseeStable } from '../mesure.js';
 import { plusProches } from '../catalogue.js';
-import { creerCamera, ErreurCamera, mesurerSource, mesurerPhoto } from '../scan.js';
+import { creerCamera, ErreurCamera, mesurerSource, preparerPhoto, mesurerPoint } from '../scan.js';
 import { ouvrirSelecteur } from './selecteur-catalogue.js';
 import { champMarque, choisirPhoto, proposerPhoto } from './fiche-vetement.js';
 
@@ -43,15 +45,22 @@ const AIDE_SCAN = [
   'Place le vêtement bien à plat dans le carré, à 10 à 20 cm, puis touche le déclencheur.',
   'Un vêtement très sombre ou très clair : pose-le sur un fond neutre (drap, feuille blanche) sans remplir tout l\'écran.',
   'La torche s\'allume seule si l\'iPhone en a une ; l\'éclair en haut à droite l\'éteint.',
-  'Le bouton photo, en bas à gauche, mesure une photo de la photothèque, ou une photo prise avec l\'appareil photo (avec flash) : c\'est le centre de la photo qui est mesuré.',
+  'Le bouton photo, en bas à gauche, mesure une photo de la photothèque, ou une photo prise avec l\'appareil photo (avec flash).',
+  'Sur une photo, pose un pointeur sur chaque couleur du vêtement (un toucher, ou fais-le glisser), puis touche le déclencheur.',
 ];
 
+// Places des pointeurs ajoutés sur une photo (de 0 à 1), avant que l'utilisateur les déplace.
+const PLACES_POINTEURS = [{ x: 0.5, y: 0.5 }, { x: 0.35, y: 0.5 }, { x: 0.65, y: 0.5 }];
+
 // Ouvre la caméra plein écran. Après une mesure { rgb (brute), source: 'camera' | 'photo', mode: 'torche' |
-// 'sans-torche' | 'photo' }, resultat(mesure, feuille, { valider, recommencer }) remplit la feuille du bas ;
-// valider(valeur) ferme et renvoie valeur, recommencer() relance la caméra. Sans resultat : « Utiliser cette mesure »
+// 'sans-torche' | 'photo', autres? (couleurs des pointeurs suivants, même forme) }, resultat(mesure, feuille,
+// { valider, recommencer, mesurerAutre }) remplit la feuille du bas ; valider(valeur) ferme et renvoie valeur,
+// recommencer() revient à la caméra (ou aux pointeurs de la photo) ; mesurerAutre(rappel, restantes) mesure une
+// couleur de plus (restantes pointeurs au plus sur une photo) et la passe à rappel. Sans resultat : « Utiliser cette mesure »
 // renvoie la mesure (étalonnage). corriger(rgb, mode) sert à l'affichage en direct (étalonnage) ; consigne : une ligne.
 // mode (étalonnage, une façon de mesurer à la fois) : 'torche' (torche allumée, sans bascule), 'sans-torche' (jamais
-// allumée) ou 'photo' (pas de caméra : le déclencheur ouvre l'appareil photo) ; null : au choix de l'utilisateur.
+// allumée) ou 'photo' (pas de caméra : le déclencheur ouvre l'appareil photo, puis un seul pointeur) ; null : au choix
+// de l'utilisateur.
 // Renvoie null si l'utilisateur ferme.
 export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consigne = CONSIGNE_COURTE, astuce = null, corriger = null, resultat = resultatSimple, mode = null } = {}) {
   return new Promise((resoudre) => {
@@ -62,7 +71,17 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
     const video = el('video', { class: 'scan-video', playsinline: true, muted: true, autoplay: true, 'aria-label': 'Image de la caméra' });
     video.muted = true; // propriété et attribut : lecture automatique inline sur iOS
     const figee = el('canvas', { class: 'image-figee', hidden: true, 'aria-hidden': 'true' });
-    const photoFigee = el('img', { class: 'image-figee', hidden: true, alt: '' });
+    // Photo et pointeurs : la photo entière entre l'en-tête et les commandes ; un pointeur par couleur (POINTEURS_MAX
+    // au plus, un seul pour l'étalonnage), déplacé d'un toucher ou en le faisant glisser.
+    const imagePlacement = el('img', { class: 'photo-placement', alt: 'Photo à mesurer' });
+    const calque = el('div', { class: 'calque-pointeurs' });
+    const placement = el('div', { class: 'placement', hidden: true, 'data-action': 'placer-pointeur' }, imagePlacement, calque);
+    const barrePointeurs = el('div', { class: 'barre-pointeurs', hidden: true, role: 'group', 'aria-label': 'Pointeurs' });
+    let photoCourante = null; // { adresse, largeur, hauteur, pixels } (js/scan.js, preparerPhoto)
+    let pointeurs = []; // [{ x, y }] de 0 à 1 dans la photo
+    let actif = 0;
+    let pointeursMax = 1;
+    let restantesSuite = 1; // pointeurs permis pour « Autre couleur » (couleurs restantes du vêtement)
     const reticule = el('div', { class: 'reticule', 'aria-hidden': 'true', hidden: true });
     const direct = el('span', { class: 'pastille', 'aria-hidden': 'true' });
     const texteDirect = el('span', { class: 'texte-direct' }, '—');
@@ -77,7 +96,10 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
     const mesurer = el('button', { type: 'button', class: 'declencheur', disabled: true, 'data-action': 'mesurer', 'aria-label': 'Mesurer' });
     const relancer = el('button', { type: 'button', class: 'bouton petit relancer', hidden: true, 'data-action': 'relancer' }, 'Relancer la caméra');
     const photo = boutonRond({ icone: 'photo', libelle: 'Mesurer une photo (photothèque ou appareil photo)', action: 'photo' });
-    if (mode) photo.style.visibility = 'hidden'; // façon de mesurer imposée : pas de photo en plus (garde la place)
+    // Façon de mesurer imposée : pas de photo en plus pendant la caméra (garde la place) ; « Par photo » : le déclencheur
+    // l'ouvre, puis ce bouton change de photo.
+    const cacherPhoto = (cacher) => { photo.style.visibility = cacher ? 'hidden' : ''; };
+    cacherPhoto(Boolean(mode));
     const panneauAide = el('div', { class: 'aide-scan', hidden: true, id: 'aide-scan' },
       el('ul', {}, AIDE_SCAN.map((ligne) => el('li', {}, ligne))), astuce ? el('p', {}, astuce) : null);
     const aide = boutonRond({
@@ -91,7 +113,7 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
     const retourFeuille = el('button', { type: 'button', class: 'bouton petit relancer', hidden: true, 'data-action': 'retour-feuille' }, 'Retour à la fiche');
 
     const dialogue = el('dialog', { class: 'dialogue scan', 'aria-labelledby': 'titre-scan' },
-      video, figee, photoFigee, reticule, capsuleDirect,
+      video, figee, placement, reticule, capsuleDirect,
       el('header', { class: 'scan-haut' },
         boutonRond({ icone: 'fermer', libelle: 'Fermer', action: 'annuler-scan', onclick: () => terminer(null) }),
         el('h2', { id: 'titre-scan', tabindex: '-1', autofocus: true }, titre),
@@ -99,7 +121,7 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
       astuce ? el('p', { class: 'astuce-scan' }, astuce) : null,
       panneauAide,
       el('div', { class: 'scan-bas' },
-        etat, relancer, retourFeuille,
+        barrePointeurs, etat, relancer, retourFeuille,
         el('div', { class: 'commandes-scan' }, photo, mesurer, aide)),
       feuille);
 
@@ -110,8 +132,153 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
       intervalle = null;
       camera?.arreter();
       video.srcObject = null;
-      if (photoFigee.src) URL.revokeObjectURL(photoFigee.src);
+      libererPhoto();
       window.removeEventListener('resize', placerReticule);
+      window.removeEventListener('resize', placerPhoto);
+    }
+
+    function libererPhoto() {
+      if (photoCourante) URL.revokeObjectURL(photoCourante.adresse);
+      photoCourante = null;
+      imagePlacement.removeAttribute('src');
+    }
+
+    // ---- Pointeurs sur une photo ----
+    // Rectangle de la photo à l'écran (object-fit: contain dans la zone de placement).
+    function cadrePhoto() {
+      const zone = placement.getBoundingClientRect();
+      const echelle = Math.min(zone.width / photoCourante.largeur, zone.height / photoCourante.hauteur);
+      const largeur = photoCourante.largeur * echelle;
+      const hauteur = photoCourante.hauteur * echelle;
+      return { zone, echelle, largeur, hauteur, gauche: zone.left + (zone.width - largeur) / 2, haut: zone.top + (zone.height - hauteur) / 2 };
+    }
+
+    // Chaque pointeur montre exactement la zone mesurée (au moins 18 px pour rester visible et touchable).
+    function dessinerPointeurs() {
+      if (!photoCourante) return;
+      const cadre = cadrePhoto();
+      const cote = Math.max(18, SCAN_FRACTION_POINTEUR * Math.min(photoCourante.largeur, photoCourante.hauteur) * cadre.echelle);
+      calque.replaceChildren(...pointeurs.map((p, i) => el('span', {
+        class: 'pointeur', 'data-pointeur': i, 'data-actif': String(i === actif), 'aria-hidden': 'true',
+        style: {
+          left: `${cadre.gauche - cadre.zone.left + p.x * cadre.largeur}px`, top: `${cadre.haut - cadre.zone.top + p.y * cadre.hauteur}px`,
+          width: `${cote}px`, height: `${cote}px`,
+        },
+      }, el('span', { class: 'numero-pointeur' }, String(i + 1)))));
+    }
+
+    // La photo occupe la place entre l'en-tête et les commandes (qui changent de hauteur avec les pointeurs).
+    function placerPhoto() {
+      if (placement.hidden || dialogue.dataset.etape !== 'placement') { dessinerPointeurs(); return; }
+      const haut = dialogue.querySelector('.scan-haut').getBoundingClientRect().bottom + 8;
+      const bas = dialogue.querySelector('.scan-bas').getBoundingClientRect().top;
+      placement.style.top = `${haut}px`;
+      placement.style.bottom = `${Math.max(0, window.innerHeight - bas)}px`;
+      dessinerPointeurs();
+    }
+
+    // Puces des pointeurs : couleur visée en direct (corrigée comme l'aperçu de la caméra), ✕, « + Pointeur ».
+    function majBarre() {
+      barrePointeurs.replaceChildren(...pointeurs.map((p, i) => {
+        const mesure = mesurerPoint(photoCourante, p.x, p.y);
+        const rgb = mesure.rgb && corriger ? corriger(mesure.rgb, 'photo') : mesure.rgb;
+        return el('span', { class: 'couleur-mesure' },
+          el('button', {
+            type: 'button', class: 'puce-pointeur', 'data-index': i, 'aria-pressed': String(i === actif),
+            'aria-label': `Pointeur ${i + 1}${rgb ? `, ${rgbVersHex(rgb)}` : ''}`,
+            onclick: () => { actif = i; dessinerPointeurs(); majBarre(); },
+          }, el('span', { class: 'pastille', style: { backgroundColor: rgb ? rgbVersHex(rgb) : 'transparent' } }), String(i + 1)),
+          i > 0 ? el('button', {
+            type: 'button', class: 'retirer-puce', 'data-action': 'retirer-pointeur', 'data-index': i, 'aria-label': `Retirer le pointeur ${i + 1}`,
+            onclick: () => { pointeurs.splice(i, 1); if (actif >= i) actif -= 1; majPointeurs(); },
+          }, icone('fermer')) : null);
+      }), ...(pointeurs.length < pointeursMax ? [el('button', {
+        type: 'button', class: 'ajouter-puce', 'data-action': 'ajouter-pointeur', 'aria-label': 'Ajouter un pointeur pour une autre couleur',
+        onclick: () => {
+          const libre = PLACES_POINTEURS.find((place) => !pointeurs.some((p) => Math.hypot(p.x - place.x, p.y - place.y) < 0.05)) ?? PLACES_POINTEURS[0];
+          pointeurs.push({ ...libre });
+          actif = pointeurs.length - 1;
+          majPointeurs();
+        },
+      }, icone('plus'), 'Pointeur')] : []));
+    }
+
+    function majPointeurs() {
+      majBarre();
+      placerPhoto();
+    }
+
+    // Toucher la photo y pose le pointeur actif (toucher un pointeur le rend actif) ; glisser le déplace.
+    let glisse = false;
+    let barrePrevue = false;
+    function deplacerVers(evenement) {
+      const cadre = cadrePhoto();
+      pointeurs[actif] = {
+        x: Math.min(1, Math.max(0, (evenement.clientX - cadre.gauche) / cadre.largeur)),
+        y: Math.min(1, Math.max(0, (evenement.clientY - cadre.haut) / cadre.hauteur)),
+      };
+      dessinerPointeurs();
+      if (!barrePrevue) {
+        barrePrevue = true;
+        requestAnimationFrame(() => { barrePrevue = false; if (photoCourante) majBarre(); });
+      }
+    }
+    placement.addEventListener('pointerdown', (evenement) => {
+      if (dialogue.dataset.etape !== 'placement' || !photoCourante) return;
+      const cible = evenement.target.closest('[data-pointeur]');
+      if (cible) actif = Number(cible.dataset.pointeur);
+      glisse = true;
+      try { placement.setPointerCapture(evenement.pointerId); } catch { /* pointeur déjà relâché */ }
+      deplacerVers(evenement);
+    });
+    placement.addEventListener('pointermove', (evenement) => { if (glisse) deplacerVers(evenement); });
+    const lacher = () => {
+      if (!glisse) return;
+      glisse = false;
+      if (photoCourante) majBarre();
+    };
+    placement.addEventListener('pointerup', lacher);
+    placement.addEventListener('pointercancel', lacher);
+
+    // Photo prête : caméra coupée, photo entière et pointeurs. nouveaux : un seul pointeur, au centre (photo nouvelle,
+    // ou couleur de plus) ; sinon les pointeurs d'avant (« Recommencer »).
+    function afficherPlacement({ nouveaux = true } = {}) {
+      clearInterval(intervalle);
+      camera?.arreter();
+      camera = null;
+      dialogue.dataset.etape = 'placement';
+      for (const element of [feuille, figee, reticule, capsuleDirect, panneauAide, boutonTorche]) element.hidden = true;
+      relancer.hidden = mode === 'photo'; // retour à la caméra en direct
+      retourFeuille.hidden = !suite;
+      cacherPhoto(false); // changer de photo
+      pointeursMax = mode ? 1 : (suite ? restantesSuite : POINTEURS_MAX);
+      if (nouveaux || pointeurs.length === 0) pointeurs = [{ ...PLACES_POINTEURS[0] }];
+      pointeurs = pointeurs.slice(0, pointeursMax);
+      actif = Math.min(actif, pointeurs.length - 1);
+      if (nouveaux) actif = 0;
+      placement.hidden = false;
+      barrePointeurs.hidden = false;
+      imagePlacement.src = photoCourante.adresse;
+      mesurer.disabled = false;
+      etat.textContent = suite ? 'Place le pointeur sur la couleur suivante du vêtement (ou choisis une autre photo).'
+        : pointeursMax > 1 ? 'Place le pointeur sur le vêtement (un toucher ou glisse-le) ; « Pointeur » pour une autre couleur.'
+          : 'Place le pointeur sur le vêtement (un toucher ou glisse-le), puis touche le déclencheur.';
+      majPointeurs();
+      rearmerDialogue(dialogue);
+    }
+
+    // Déclencheur sur une photo : une couleur par pointeur, dans l'ordre des pointeurs.
+    function mesurerPointeurs() {
+      const mesures = pointeurs.map((p) => mesurerPoint(photoCourante, p.x, p.y));
+      const rate = mesures.findIndex((m) => m.erreur);
+      if (rate >= 0) {
+        etat.textContent = mesures[rate].erreur === 'reflet'
+          ? `Reflet trop fort sous le pointeur ${rate + 1} : déplace-le un peu.`
+          : `Rien à mesurer sous le pointeur ${rate + 1}.`;
+        return;
+      }
+      const [premiere, ...autres] = mesures.map((m) => ({ rgb: m.rgb, source: 'photo', mode: 'photo' }));
+      afficherResultat({ ...premiere, ...(autres.length > 0 ? { autres } : {}) });
     }
 
     // Le réticule couvre exactement la zone mesurée (vidéo affichée en object-fit: cover, centrée).
@@ -162,7 +329,9 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
       delete dialogue.dataset.etape;
       feuille.hidden = true;
       figee.hidden = true;
-      photoFigee.hidden = true;
+      placement.hidden = true;
+      barrePointeurs.hidden = true;
+      cacherPhoto(Boolean(mode));
       mesurer.disabled = true;
       relancer.hidden = true;
       boutonTorche.hidden = true;
@@ -233,6 +402,7 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
       capsuleDirect.hidden = true;
       panneauAide.hidden = true;
       retourFeuille.hidden = true;
+      barrePointeurs.hidden = true;
       dialogue.dataset.etape = 'resultat';
       feuille.dataset.images = String(mesure.images ?? 1);
       feuille.hidden = false;
@@ -244,11 +414,18 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
         feuille.replaceChildren();
         resultat(mesure, feuille, {
           valider: (valeur) => terminer(valeur),
-          recommencer: () => { suite = null; lancer(); },
-          mesurerAutre: (rappel) => {
+          // Photo : on revient à ses pointeurs ; sinon à la caméra.
+          recommencer: () => {
+            suite = null;
+            if (photoCourante) afficherPlacement({ nouveaux: false });
+            else lancer();
+          },
+          mesurerAutre: (rappel, restantes = 1) => {
             suite = rappel;
-            imageAvant = [figee, photoFigee].find((image) => !image.hidden) ?? null;
-            lancer();
+            restantesSuite = restantes;
+            imageAvant = [figee, placement].find((image) => !image.hidden) ?? null;
+            if (photoCourante) afficherPlacement();
+            else lancer();
           },
         });
         feuille.scrollTop = 0;
@@ -264,6 +441,7 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
       reticule.hidden = true;
       capsuleDirect.hidden = true;
       retourFeuille.hidden = true;
+      barrePointeurs.hidden = true;
       if (imageAvant) imageAvant.hidden = false;
       dialogue.dataset.etape = 'resultat';
       feuille.hidden = false;
@@ -281,6 +459,7 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
 
     // Mesure stable : SCAN_IMAGES_PAR_MESURE images en une seconde environ, combinées par médiane (js/mesure.js).
     mesurer.addEventListener('click', async () => {
+      if (dialogue.dataset.etape === 'placement') { mesurerPointeurs(); return; }
       if (mode === 'photo') { prendrePhoto(); return; } // pendant le geste : iOS ouvre l'appareil photo
       if (mesureEnCours) return;
       mesureEnCours = true;
@@ -312,19 +491,21 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
       afficherResultat({ rgb: mesure.rgb, source: 'camera', mode: facon, images: mesure.images });
     });
 
-    relancer.addEventListener('click', () => lancer());
+    relancer.addEventListener('click', () => { libererPhoto(); lancer(); });
 
     // Photo : à appeler pendant le geste (iOS n'ouvre la photothèque ou l'appareil photo qu'ainsi).
     async function prendrePhoto() {
       const promesse = choisirImage();
-      // Une seule capture à la fois sur iOS : on libère la caméra pour l'appareil photo.
+      // Une seule capture à la fois sur iOS : on libère la caméra pour l'appareil photo. camera = null : un démarrage de
+      // la caméra encore en cours s'arrête là, sans réécrire l'écran de la photo.
       camera?.arreter();
+      camera = null;
       clearInterval(intervalle);
       mesurer.disabled = true;
-      // Échec : en mode photo, le déclencheur reste là pour réessayer ; sinon, on peut relancer la caméra.
+      // Échec : avec une photo déjà là ou en mode photo, le déclencheur reste utilisable ; sinon, on relance la caméra.
       const echec = (message) => {
         etat.textContent = message;
-        if (mode === 'photo') mesurer.disabled = false;
+        if (mode === 'photo' || photoCourante) mesurer.disabled = false;
         else relancer.hidden = false;
       };
       const fichier = await promesse;
@@ -334,15 +515,11 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
         return;
       }
       try {
-        const { mesure } = await mesurerPhoto(fichier);
-        if (mesure.erreur) {
-          echec(MESSAGES_MESURE[mesure.erreur]);
-          return;
-        }
-        if (photoFigee.src) URL.revokeObjectURL(photoFigee.src);
-        photoFigee.src = URL.createObjectURL(fichier);
-        photoFigee.hidden = false;
-        afficherResultat({ rgb: mesure.rgb, source: 'photo', mode: 'photo' });
+        const nouvelle = await preparerPhoto(fichier);
+        if (!dialogue.isConnected) { URL.revokeObjectURL(nouvelle.adresse); return; }
+        libererPhoto();
+        photoCourante = nouvelle;
+        afficherPlacement();
       } catch {
         echec('Impossible de lire cette photo. Réessaie, ou choisis la couleur dans le catalogue.');
       }
@@ -351,6 +528,7 @@ export function ouvrirScan({ mediaDevices, titre = 'Mesurer une couleur', consig
 
     video.addEventListener('resize', placerReticule);
     window.addEventListener('resize', placerReticule);
+    window.addEventListener('resize', placerPhoto);
     document.body.append(dialogue);
     armerDialogue(dialogue);
     dialogue.showModal();
@@ -389,7 +567,8 @@ export function remplirResultatVetement(app, actions, mesure, feuille, { valider
       neutres: neutresCatalogue.map((c) => ({ couleur: c, ecart: deltaE00(labMesure, c.lab) })),
     };
   }
-  const couleurs = [entree(mesure)];
+  // Photo à plusieurs pointeurs : une couleur par pointeur, la première est la principale.
+  const couleurs = [entree(mesure), ...(mesure.autres ?? []).map((autre) => entree(corrigerMesure(autre)))];
   let actif = 0;
   let type = typeImpose;
   let onglet = 'proches';
@@ -448,10 +627,10 @@ export function remplirResultatVetement(app, actions, mesure, feuille, { valider
     ...(couleurs.length < 3 && mesurerAutre ? [el('button', {
       type: 'button', class: 'ajouter-puce', 'data-action': 'ajouter-couleur-mesure', 'aria-label': 'Mesurer une autre couleur du vêtement',
       onclick: () => mesurerAutre((suivante) => {
-        couleurs.push(entree(corrigerMesure(suivante)));
+        for (const m of [suivante, ...(suivante.autres ?? [])].slice(0, 3 - couleurs.length)) couleurs.push(entree(corrigerMesure(m)));
         actif = couleurs.length - 1;
         remplirRangee();
-      }),
+      }, 3 - couleurs.length),
     }, icone('plus'), 'Autre couleur')] : []));
   }
 

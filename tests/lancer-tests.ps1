@@ -52,9 +52,9 @@ try {
         if ($ControleEchec) { $url += '?controle-echec' }
         if ($Fichiers) { $url += $(if ($url.Contains('?')) { '&' } else { '?' }) + 'fichiers=' + $Fichiers }
         $profil = Join-Path $tmp 'profil-edge'
-        $arguments = "--headless=new --disable-gpu --no-first-run --no-default-browser-check --use-fake-device-for-media-stream --use-fake-ui-for-media-stream --user-data-dir=`"$profil`" --virtual-time-budget=60000 --dump-dom $url"
+        $arguments = "--headless=new --disable-gpu --no-first-run --no-default-browser-check --use-fake-device-for-media-stream --use-fake-ui-for-media-stream --user-data-dir=`"$profil`" --virtual-time-budget=120000 --dump-dom $url"
         $navigateur = Start-Process -FilePath $edge -ArgumentList $arguments -PassThru -WindowStyle Hidden -RedirectStandardOutput $domFichier -RedirectStandardError (Join-Path $tmp 'edge.err')
-        if (-not $navigateur.WaitForExit(120000)) {
+        if (-not $navigateur.WaitForExit(240000)) {
             Stop-Process -Id $navigateur.Id -Force
             Write-Output 'Delai depasse'
             $code = 2

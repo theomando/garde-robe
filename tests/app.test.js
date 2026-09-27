@@ -2,7 +2,7 @@
 // réservé (?espace=tests-ui) vidé au départ. Les tests s'enchaînent sur la même instance.
 // Le lanceur démarre Edge avec une caméra simulée (--use-fake-device-for-media-stream), sans torche.
 import { test, vrai, egal, egalProfond, attendre } from './mini-test.js';
-import { photoSynthetique, photoUnie, attendreReel, avecTempsReel } from './aides.js';
+import { photoSynthetique, photoUnie, photoDeuxCouleurs, attendreReel, avecTempsReel } from './aides.js';
 import { ouvrirPhotos } from '../js/photos.js';
 import { labDepuisHex } from '../js/couleur.js';
 import { lireExport } from '../js/donnees.js';
@@ -358,6 +358,17 @@ test('app : données affichées en texte, puis réimportées après confirmation
 const resultatPret = () => [...doc.querySelectorAll('dialog.scan[open]')]
   .find((d) => d.dataset.etape === 'resultat' && 'pret' in d.dataset);
 const cartesChoix = (feuille) => [...feuille.querySelectorAll('.rangee-choix [data-couleur]:not([data-couleur="mesure"])')];
+// Photo choisie : elle s'affiche entière avec ses pointeurs, prête (anti double tape écoulé).
+const placementPret = (scan) => attendreReel(() => (scan.dataset.etape === 'placement' && 'pret' in scan.dataset ? scan : null), 'photo et pointeurs');
+// Photo fournie, puis déclencheur : une mesure sous chaque pointeur. On attend la nouvelle photo (une photo peut déjà
+// être affichée : « Autre couleur », changer de photo).
+async function mesurerPhotoFournie(scan, blob) {
+  const avant = scan.querySelector('.photo-placement')?.getAttribute('src') ?? null;
+  await fournirPhoto(blob);
+  await attendreReel(() => (scan.dataset.etape === 'placement' && 'pret' in scan.dataset
+    && scan.querySelector('.photo-placement').getAttribute('src') !== avant ? scan : null), 'nouvelle photo et ses pointeurs');
+  cliquer('[data-action="mesurer"]', scan);
+}
 
 // La caméra simulée d'Edge montre une forme vert vif qui tourne : quand elle couvre le réticule pendant la mesure,
 // l'app répond (à raison) « reflet trop fort ». On recommence alors, comme le ferait l'utilisateur (5 essais au plus).
@@ -387,12 +398,17 @@ test('app : mesure par photo, feuille tout-en-un (couleur, ajustement, type) san
   // Sans attribut capture : iOS propose la photothèque ou l'appareil photo (demande de Théo, 2026-09-27).
   egal(champ.getAttribute('capture'), null, 'photothèque ou appareil photo au choix');
   egal(champ.accept, 'image/*');
-  await attendreReel(() => scan.dataset.etape === 'resultat', 'décodage de la photo');
+  await placementPret(scan);
+  egal(scan.querySelectorAll('.pointeur').length, 1, 'un pointeur, au centre de la photo');
+  egal(scan.querySelector('[data-action="photo"]').style.visibility, '', 'changer de photo possible');
+  vrai(!scan.querySelector('[data-action="relancer"]').hidden, 'retour à la caméra possible');
+  cliquer('[data-action="mesurer"]', scan);
+  await attendre(() => scan.dataset.etape === 'resultat', 'mesure sous le pointeur');
   const feuille = scan.querySelector('.feuille-resultat');
   cliquer('[data-type="pull"]', feuille);
   egal(feuille.querySelector('[data-type="pull"]').getAttribute('aria-pressed'), 'false', 'toucher trop rapide ignoré');
   await attendre(() => resultatPret(), 'feuille prête');
-  vrai(!feuille.hidden && scan.querySelector('img.image-figee').hidden === false, 'photo figée en fond, feuille visible');
+  vrai(!feuille.hidden && scan.querySelector('.placement').hidden === false, 'photo en fond, feuille visible');
   egal(scan.querySelector('.aide-scan').hidden, true, 'aide refermée');
   vrai(feuille.scrollHeight <= feuille.clientHeight + 1, `tout tient sans défiler (${feuille.scrollHeight} ≤ ${feuille.clientHeight})`);
   vrai(feuille.querySelector('.resultat-entete').textContent.includes('#a07e56'), 'couleur mesurée affichée');
@@ -416,6 +432,54 @@ test('app : mesure par photo, feuille tout-en-un (couleur, ajustement, type) san
   egalProfond(vetement, { type: 'chaussures', hex: '#a07e56', origine: 'scan', marque: 'Lacoste', photo: true });
   vrai(doc.querySelector('[data-type="chaussures"] .visuel-vetement img'), 'photo dans la liste');
   vrai(doc.querySelector('[data-type="chaussures"] .nom').textContent.includes('#a07e56'));
+});
+
+// Pointeurs sur une photo (demande de Théo, 2026-09-27) : sur une photo de la photothèque, le centre tombe souvent
+// sur le fond ; un pointeur par couleur du vêtement, posé d'un toucher ou glissé. Rien n'est enregistré ici.
+test('app : photo bicolore, deux pointeurs posés et glissés, une couleur par pointeur', async () => {
+  await menuAjout('scanner');
+  const scan = await dialogueOuvert('dialog.scan[open]');
+  cliquer('[data-action="photo"]', scan);
+  await fournirPhoto(await photoDeuxCouleurs('#c0392b', '#2e5fa3'));
+  await placementPret(scan);
+  const zone = scan.querySelector('.placement');
+  const point = (x, y) => {
+    const r = zone.getBoundingClientRect();
+    const echelle = Math.min(r.width / 400, r.height / 200);
+    return { clientX: r.left + (r.width - 400 * echelle) / 2 + x * 400 * echelle, clientY: r.top + (r.height - 200 * echelle) / 2 + y * 200 * echelle };
+  };
+  const geste = (...etapes) => etapes.forEach(([type, x, y]) => zone.dispatchEvent(new fenetre.PointerEvent(type, { bubbles: true, pointerId: 21, ...point(x, y) })));
+  const puces = () => [...scan.querySelectorAll('.puce-pointeur')];
+  const couleurPuce = (i) => puces()[i].querySelector('.pastille').style.backgroundColor;
+  // Un toucher pose le pointeur sur la moitié rouge.
+  geste(['pointerdown', 0.25, 0.5], ['pointerup', 0.25, 0.5]);
+  egal(couleurPuce(0), 'rgb(192, 57, 43)', 'couleur visée en direct');
+  // « + Pointeur », puis on le fait glisser sur la moitié bleue.
+  cliquer('[data-action="ajouter-pointeur"]', scan);
+  egal(scan.querySelectorAll('.pointeur').length, 2);
+  egal(puces()[1].getAttribute('aria-pressed'), 'true', 'le nouveau pointeur est actif');
+  geste(['pointerdown', 0.35, 0.5], ['pointermove', 0.6, 0.4], ['pointermove', 0.8, 0.3], ['pointerup', 0.8, 0.3]);
+  egal(couleurPuce(1), 'rgb(46, 95, 163)');
+  egal(couleurPuce(0), 'rgb(192, 57, 43)', 'le premier pointeur n\'a pas bougé');
+  // Trois pointeurs au plus ; ✕ retire un pointeur.
+  cliquer('[data-action="ajouter-pointeur"]', scan);
+  egal(scan.querySelector('[data-action="ajouter-pointeur"]'), null, '3 pointeurs au plus');
+  cliquer('[data-action="retirer-pointeur"][data-index="2"]', scan);
+  egal(puces().length, 2);
+  vrai(scan.querySelector('[data-action="ajouter-pointeur"]'), '« Pointeur » de retour');
+  cliquer('[data-action="mesurer"]', scan);
+  await attendreReel(() => resultatPret() === scan, 'une couleur par pointeur');
+  const feuille = scan.querySelector('.feuille-resultat');
+  egal(feuille.querySelectorAll('.puce-couleur').length, 2, 'deux couleurs dans la feuille');
+  vrai(feuille.querySelector('.resultat-entete .discret').textContent.startsWith('#c0392b'), 'la principale : premier pointeur');
+  egal(feuille.querySelector('.puce-couleur[data-index="1"] .pastille').style.backgroundColor, 'rgb(46, 95, 163)');
+  vrai(feuille.scrollHeight <= feuille.clientHeight + 1, 'toujours sans défiler');
+  // « Recommencer » revient aux pointeurs de la même photo.
+  cliquer('[data-action="recommencer"]', feuille);
+  await placementPret(scan);
+  egal(scan.querySelectorAll('.pointeur').length, 2, 'pointeurs gardés');
+  cliquer('[data-action="annuler-scan"]', scan);
+  await dialoguesFermes();
 });
 
 test('app : mesure à la caméra (simulée, sans torche), plein écran, Recommencer, ajustement d\'un toucher, enregistrement', async () => {
@@ -486,6 +550,9 @@ async function etalonnerParPhoto(titre, hex) {
   vrai(!scan.querySelector('[data-action="mesurer"]').disabled, 'déclencheur prêt, sans caméra');
   cliquer('[data-action="mesurer"]', scan);
   await fournirPhoto(await photoUnie(hex));
+  await placementPret(scan);
+  egal(scan.querySelector('[data-action="ajouter-pointeur"]'), null, 'un seul pointeur pour l\'étalonnage');
+  cliquer('[data-action="mesurer"]', scan);
   await attendreReel(() => resultatPret() === scan, `résultat « ${titre} »`);
   cliquer('[data-action="utiliser-mesure"]', scan);
 }
@@ -547,7 +614,7 @@ test('app : étalonnage par photos (blanc, noir), puis un vêtement noir corrig�
   await menuAjout('scanner');
   const scan = await dialogueOuvert('dialog.scan[open]');
   cliquer('[data-action="photo"]', scan);
-  await fournirPhoto(await photoUnie('#46464f'));
+  await mesurerPhotoFournie(scan, await photoUnie('#46464f'));
   await attendreReel(() => resultatPret(), 'résultat corrigé');
   const feuille = scan.querySelector('.feuille-resultat');
   egal(feuille.querySelector('.resultat-pastille').style.backgroundColor, 'rgb(17, 19, 20)', 'noir mesuré recalé sur Black');
@@ -890,7 +957,7 @@ test('app : vêtement bicolore mesuré, « Autre couleur » relance la caméra
   await menuAjout('scanner');
   const scan = await dialogueOuvert('dialog.scan[open]');
   cliquer('[data-action="photo"]', scan);
-  await fournirPhoto(await photoUnie('#b03a2e'));
+  await mesurerPhotoFournie(scan, await photoUnie('#b03a2e'));
   await attendreReel(() => resultatPret() === scan, 'première couleur');
   const feuille = scan.querySelector('.feuille-resultat');
   const puces = () => [...feuille.querySelectorAll('.puce-couleur')];
@@ -900,13 +967,14 @@ test('app : vêtement bicolore mesuré, « Autre couleur » relance la caméra
   const hexPrincipal = hexEntete();
   cliquer('[data-type="short"]', feuille);
 
-  // Deuxième couleur : la caméra repart (« Retour à la fiche » possible), mesure par photo d'un noir.
+  // Deuxième couleur : retour aux pointeurs de la photo (« Retour à la fiche » possible), puis une autre photo, d'un noir.
   cliquer('[data-action="ajouter-couleur-mesure"]', feuille);
-  vrai(feuille.hidden, 'caméra relancée, feuille masquée');
-  egal(scan.querySelector('.etat-scan').textContent, 'Vise la couleur suivante du vêtement.');
+  vrai(feuille.hidden, 'pointeurs de la photo, feuille masquée');
+  egal(scan.querySelector('.etat-scan').textContent, 'Place le pointeur sur la couleur suivante du vêtement (ou choisis une autre photo).');
   vrai(!scan.querySelector('[data-action="retour-feuille"]').hidden, 'retour à la fiche possible');
+  await placementPret(scan);
   cliquer('[data-action="photo"]', scan);
-  await fournirPhoto(await photoUnie('#46464f'));
+  await mesurerPhotoFournie(scan, await photoUnie('#46464f'));
   await attendreReel(() => resultatPret() === scan && puces().length === 2, 'deuxième couleur');
   vrai(scan.querySelector('[data-action="retour-feuille"]').hidden);
   egal(puces()[1].getAttribute('aria-pressed'), 'true', 'la nouvelle couleur est celle qui s\'ajuste');
@@ -924,16 +992,18 @@ test('app : vêtement bicolore mesuré, « Autre couleur » relance la caméra
 
   // « Autre couleur » puis « Retour à la fiche » : rien ne change.
   cliquer('[data-action="ajouter-couleur-mesure"]', feuille);
+  await placementPret(scan);
   cliquer('[data-action="retour-feuille"]', scan);
   vrai(!feuille.hidden && scan.dataset.etape === 'resultat', 'feuille revenue');
-  egal(scan.querySelector('img.image-figee').hidden, false, 'image figée remontrée');
+  egal(scan.querySelector('.placement').hidden, false, 'photo toujours en fond');
   egal(puces().length, 2);
 
   // Troisième couleur, puis plus de « + » ; ✕ retire la deuxième.
   await attendre(() => resultatPret(), 'feuille prête');
   cliquer('[data-action="ajouter-couleur-mesure"]', feuille);
+  await placementPret(scan);
   cliquer('[data-action="photo"]', scan);
-  await fournirPhoto(await photoUnie('#d8b040'));
+  await mesurerPhotoFournie(scan, await photoUnie('#d8b040'));
   await attendreReel(() => resultatPret() === scan && puces().length === 3, 'troisième couleur');
   egal(feuille.querySelector('[data-action="ajouter-couleur-mesure"]'), null, '3 couleurs au plus');
   const hexJaune = hexEntete();

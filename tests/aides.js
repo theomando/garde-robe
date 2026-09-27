@@ -14,6 +14,19 @@ export function photoSynthetique(largeur = 200, hauteur = 100) {
   return new Promise((resoudre) => canvas.toBlob(resoudre, 'image/png'));
 }
 
+// Photo en deux moitiés (vêtement bicolore sur une photo : pointeurs), gauche et droite.
+export function photoDeuxCouleurs(gauche, droite, largeur = 400, hauteur = 200) {
+  const canvas = document.createElement('canvas');
+  canvas.width = largeur;
+  canvas.height = hauteur;
+  const contexte = canvas.getContext('2d');
+  contexte.fillStyle = gauche;
+  contexte.fillRect(0, 0, largeur / 2, hauteur);
+  contexte.fillStyle = droite;
+  contexte.fillRect(largeur / 2, 0, largeur / 2, hauteur);
+  return new Promise((resoudre) => canvas.toBlob(resoudre, 'image/png'));
+}
+
 // Image PNG unie (vêtement uni pour les tests de scan et d'étalonnage).
 export function photoUnie(hex, largeur = 120, hauteur = 80) {
   const canvas = document.createElement('canvas');

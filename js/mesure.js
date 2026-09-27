@@ -2,13 +2,32 @@
 // Mesure stable (demande de Théo, 2026-09-26) : plusieurs images d'une même visée combinées par médiane, et
 // indicateur « stable » quand les dernières mesures en direct ne bougent plus.
 
-import { SCAN_FRACTION_CARRE, SCAN_SEUIL_SATURE, SCAN_PART_VALIDE_MIN, SCAN_STABLE_DELTA_E } from './constantes.js';
+import { SCAN_FRACTION_CARRE, SCAN_FRACTION_POINTEUR, SCAN_SEUIL_SATURE, SCAN_PART_VALIDE_MIN, SCAN_STABLE_DELTA_E } from './constantes.js';
 import { deltaE00 } from './couleur.js';
 
 // Carré centré dont le côté vaut une fraction du plus petit côté de l'image (en pixels de l'image).
 export function carreCentral(largeur, hauteur, fraction = SCAN_FRACTION_CARRE) {
   const cote = Math.max(1, Math.round(Math.min(largeur, hauteur) * fraction));
   return { x: Math.floor((largeur - cote) / 2), y: Math.floor((hauteur - cote) / 2), cote };
+}
+
+// Carré de mesure centré sur un point (pointeur posé sur une photo), côté en fraction du plus petit côté de l'image,
+// gardé entier dans l'image (un pointeur au bord mesure le carré collé au bord).
+export function carreAutour(x, y, largeur, hauteur, fraction = SCAN_FRACTION_POINTEUR) {
+  const petit = Math.min(largeur, hauteur);
+  const cote = Math.max(1, Math.min(petit, Math.round(petit * fraction)));
+  const borne = (centre, taille) => Math.min(Math.max(0, Math.round(centre - cote / 2)), taille - cote);
+  return { x: borne(x, largeur), y: borne(y, hauteur), cote };
+}
+
+// Pixels RGBA d'un carré d'une image { data, width } (ImageData), ligne par ligne.
+export function pixelsDuCarre({ data, width }, { x, y, cote }) {
+  const sortie = new Uint8ClampedArray(cote * cote * 4);
+  for (let ligne = 0; ligne < cote; ligne++) {
+    const debut = ((y + ligne) * width + x) * 4;
+    sortie.set(data.subarray(debut, debut + cote * 4), ligne * cote * 4);
+  }
+  return sortie;
 }
 
 // Médiane basse par canal (valeur réellement observée) des pixels RGBA, en excluant les pixels saturés
