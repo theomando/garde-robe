@@ -1,11 +1,11 @@
-// Écran Tenue du jour : cases des types (pantalon et short exclusifs), bouton « Proposer » (enregistre la tenue
+// Écran Tenue du jour : cases des types (un seul bas ; la robe exclut bas et t-shirt), bouton « Proposer » (enregistre la tenue
 // type), avatar, au plus 20 propositions avec source et référence, filtre « avec mes favoris ».
 // Toucher une proposition met l'avatar à jour et affiche son détail (vêtements à porter, manques, favoris).
 // « Partir d'un vêtement » (demande de Théo, 2026-09-26) : un vêtement épinglé est porté dans toutes les propositions.
 
 import { el, pastille, pastilleJoker, barreNavigation, interrupteur, tuile, ouvrirDialogue, annoncer, nouvelIdentifiant } from '../ui.js';
 import { icone } from '../icones.js';
-import { TYPES, LIBELLES_TYPES, BAS, MST, PROPOSITIONS_MAX } from '../constantes.js';
+import { TYPES, LIBELLES_TYPES, INCOMPATIBLES, MST, PROPOSITIONS_MAX } from '../constantes.js';
 import { enregistrerTenueType, basculerFavori, garderTenue, retirerTenueGardee } from '../donnees.js';
 import { instantaneTenue, signatureTenue, referenceCombinaison } from '../tenues.js';
 import { proposer, selectionner, piecesVisibles } from '../moteur.js';
@@ -24,9 +24,12 @@ function etatEcran(app) {
   return app.tenue;
 }
 
-// Ajoute (ou retire) un type à la tenue : un seul bas ; un type retiré perd son épingle.
+// Ajoute (ou retire) un type à la tenue ; ajouter un type retire ceux qui lui sont incompatibles (un seul bas ;
+// la robe écarte bas et t-shirt). Un type retiré perd son épingle.
 function basculerType(ecran, type, present) {
-  const retires = present ? ecran.types.filter((t) => t !== type && BAS.includes(type) && BAS.includes(t)) : [type];
+  const retires = present
+    ? ecran.types.filter((t) => t !== type && INCOMPATIBLES.some((groupe) => groupe.includes(type) && groupe.includes(t)))
+    : [type];
   ecran.types = present ? [...ecran.types.filter((t) => !retires.includes(t)), type] : ecran.types.filter((t) => t !== type);
   ecran.epingles = Object.fromEntries(Object.entries(ecran.epingles).filter(([t]) => !retires.includes(t)));
   ecran.propose = false;
@@ -126,7 +129,7 @@ export function rendreTenue(conteneur, app, actions) {
     el('summary', {}, ecran.types.length > 0
       ? `Tenue : ${TYPES.filter((t) => ecran.types.includes(t)).map((t) => libelle(t).toLowerCase()).join(', ')}${noms.length > 0 ? ` · avec ${noms.join(', ')}` : ''}`
       : 'Choisis les pièces de ta tenue'),
-    el('p', { class: 'discret' }, 'Pantalon et short ne vont pas ensemble. Sous un pull, le t-shirt ne compte pas.'),
+    el('p', { class: 'discret' }, 'Un seul bas (pantalon, short ou jupe) ; la robe remplace le bas et le t-shirt. Sous un pull, le t-shirt ne compte pas.'),
     grilleTypes, blocEpingles);
 
   const contenu = [...barreNavigation({ titre: 'Tenue du jour' }), choix];

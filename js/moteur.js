@@ -11,7 +11,7 @@
 // entier exact (< 2⁵³) : ((manques × 2 + peauNonUtilisée) × 32 + manquesColorés) × 2³² + somme en micro-ΔE.
 
 import {
-  TYPES, BAS, MST, OCCULTATIONS, MANQUES_MAX, PROPOSITIONS_MAX, COUT_JOKER_EN_TOLERANCES,
+  TYPES, conflitTypes, MST, OCCULTATIONS, MANQUES_MAX, PROPOSITIONS_MAX, COUT_JOKER_EN_TOLERANCES,
 } from './constantes.js';
 import { labDepuisHex, deltaE00, estNoir, estBlanc } from './couleur.js';
 
@@ -39,7 +39,8 @@ const micro = (ecart) => Math.round(ecart * 1e6);
 export function piecesVisibles(types) {
   for (const type of types) if (!TYPES.includes(type)) throw new Error(`type inconnu : ${type}`);
   const presents = new Set(types);
-  if (BAS.every((bas) => presents.has(bas))) throw new Error('tenue invalide : pantalon et short ensemble');
+  const conflit = conflitTypes(types);
+  if (conflit) throw new Error(`tenue invalide : ${conflit.join(' et ')} ensemble`);
   return TYPES.filter((type) => presents.has(type) && !(OCCULTATIONS[type] ?? []).some((m) => presents.has(m)));
 }
 

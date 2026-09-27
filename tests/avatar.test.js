@@ -1,5 +1,6 @@
 import { test, vrai, egal, egalProfond } from './mini-test.js';
 import { dessinerAvatar, planAvatar, FORMES, ORDRE_DESSIN } from '../js/avatar.js';
+import { TYPES } from '../js/constantes.js';
 
 // Point dans un polygone (tracé de rayon) : sert à vérifier ce que couvrent les pans des vêtements ouverts.
 function dansPolygone([x, y], points) {
@@ -86,4 +87,21 @@ test('avatar : plan tiré d\'une proposition du moteur (vêtement porté, manque
     { type: 'chaussures', hex: '#ae5224', manque: true },
     { type: 'ceinture', hex: '#000000', manque: true },
   ]);
+});
+
+test('avatar : chaque type a sa forme et sa place dans l\'ordre de dessin (jupe, robe, chaussettes, sac compris)', () => {
+  egalProfond([...ORDRE_DESSIN].sort(), [...TYPES].sort(), 'tous les types, une fois chacun');
+  for (const type of TYPES) vrai(FORMES[type]?.length > 0, `forme de ${type}`);
+  const svg = dessinerAvatar({ peau: '#d7bd96', pieces: ['jupe', 'chaussettes', 'sac'].map((type) => ({ type, hex: '#445566' })) });
+  egalProfond([...svg.querySelectorAll('g[data-type]')].map((g) => g.dataset.type), ['jupe', 'chaussettes', 'chaussures'].filter((t) => t !== 'chaussures').concat('sac'));
+  vrai(svg.querySelector('g[data-type="sac"] > path').getAttribute('stroke') === '#445566', 'anse du sac');
+});
+
+test('avatar : chaussettes hautes sans pantalon, fine bande à la cheville sous un pantalon', () => {
+  const hauteur = (pieces) => Number(dessinerAvatar({ peau: '#d7bd96', pieces }).querySelector('g[data-type="chaussettes"] > rect').getAttribute('height'));
+  const seules = hauteur([{ type: 'chaussettes', hex: '#aa0000' }, { type: 'short', hex: '#222222' }]);
+  const sousPantalon = hauteur([{ type: 'chaussettes', hex: '#aa0000' }, { type: 'pantalon', hex: '#222222' }]);
+  vrai(sousPantalon > 0 && sousPantalon < seules / 2, `bande de ${sousPantalon} contre ${seules}`);
+  const robe = dessinerAvatar({ peau: '#d7bd96', pieces: [{ type: 'robe', hex: '#aa3366' }, { type: 'pull', hex: '#223344' }] });
+  egalProfond([...robe.querySelectorAll('g[data-type]')].map((g) => g.dataset.type), ['robe', 'pull'], 'le pull se dessine par-dessus la robe');
 });

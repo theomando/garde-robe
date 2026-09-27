@@ -2,7 +2,7 @@
 // déjà saisies en suggestion, choix d'une photo (appareil photo ou photothèque), vignette ou pastille du vêtement.
 // Utilisés par la Garde-robe, la feuille de mesure et Mes tenues.
 
-import { el, pastille, choisirImage, annoncer } from '../ui.js';
+import { el, pastille, choisirImage, annoncer, ouvrirDialogue } from '../ui.js';
 import { MARQUE_MAX } from '../constantes.js';
 import { marquesConnues } from '../donnees.js';
 import { vignetteDepuisFichier } from '../photos.js';
@@ -29,6 +29,24 @@ export async function choisirPhoto() {
     annoncer('Impossible de lire cette photo. Essaie une autre image.', 'erreur');
     return null;
   }
+}
+
+// Nouveau vêtement sans photo (demande de Théo, 2026-09-27) : on propose d'en ajouter une, car c'est plus simple
+// pour le retrouver ensuite. Renvoie la vignette choisie, ou null (« Sans photo », ou appareil photo refermé).
+export async function proposerPhoto() {
+  let photo = null;
+  const choix = await ouvrirDialogue({
+    titre: 'Ajouter une photo ?',
+    forme: 'alerte',
+    classe: 'alerte-photo',
+    contenu: [el('p', {}, 'Une photo du vêtement t\'aidera à le retrouver ensuite dans ta garde-robe.')],
+    boutons: [
+      { libelle: 'Sans photo', valeur: 'sans' },
+      // L'appareil photo s'ouvre pendant le toucher (iOS ne l'ouvre que sur un geste).
+      { libelle: 'Ajouter', valeur: 'photo', style: 'principal', surClic: () => { photo = choisirPhoto(); } },
+    ],
+  });
+  return choix === 'photo' ? photo : null;
 }
 
 // Visuel d'un vêtement : sa photo (avec la pastille de sa couleur dans un coin) ou, à défaut, la pastille seule.

@@ -156,12 +156,12 @@ test('données : opérations sans modifier l\'état reçu', () => {
 
 test('données : opérations invalides refusées', () => {
   const etat = etatExemple();
-  leve(() => ajouterVetement(etat, { type: 'robe', hex: '#000000', origine: 'manuel' }, { id: 'x', date: DATE }));
+  leve(() => ajouterVetement(etat, { type: 'kimono', hex: '#000000', origine: 'manuel' }, { id: 'x', date: DATE }));
   leve(() => ajouterVetement(etat, { type: 'pull', hex: '#00000', origine: 'manuel' }, { id: 'x', date: DATE }));
   leve(() => ajouterVetement(etat, { type: 'pull', hex: '#000000', origine: 'photo' }, { id: 'x', date: DATE }));
   leve(() => ajouterVetement(etat, { type: 'pull', hex: '#000000', origine: 'manuel' }, { id: 'v1', date: DATE }), 'id en double');
   leve(() => modifierVetement(etat, 'absent', { type: 'pull' }));
-  leve(() => modifierVetement(etat, 'v1', { type: 'robe' }));
+  leve(() => modifierVetement(etat, 'v1', { type: 'kimono' }));
   leve(() => supprimerVetement(etat, 'absent'));
   leve(() => modifierReglages(etat, { mst: 11 }));
   leve(() => modifierReglages(etat, { tolerance: 0.5 }));
@@ -212,7 +212,7 @@ test('import : chaque document invalide est refusé avec un message', () => {
     ['version absente', (d) => { delete d.version; }, '« version » doit valoir 1'],
     ['champ inconnu', (d) => { d.extra = 1; }, 'champ inconnu « extra »'],
     ['date d\'export', (d) => { d.dateExport = 'hier'; }, '« dateExport » invalide'],
-    ['type inconnu', (d) => { d.vetements[0].type = 'robe'; }, 'type « robe » inconnu'],
+    ['type inconnu', (d) => { d.vetements[0].type = 'kimono'; }, 'type « kimono » inconnu'],
     ['hex à 5 chiffres', (d) => { d.vetements[0].hex = '#12345'; }, 'couleur « #12345 » invalide'],
     ['origine inconnue', (d) => { d.vetements[0].origine = 'photo'; }, 'origine « photo » inconnue'],
     ['identifiant en double', (d) => { d.vetements[1].id = d.vetements[0].id; }, 'identifiant « v1 » en double'],
@@ -286,4 +286,14 @@ test('import : étalonnage invalide refusé avec un message', () => {
     egal(etat, null, `${nom} : refusé`);
     vrai(erreurs.some((e) => e.includes(attendu)), `${nom} : message « ${attendu} » absent de ${JSON.stringify(erreurs)}`);
   }
+});
+
+test('données : jupe, robe, chaussettes et sac ; un seul bas, robe sans bas ni t-shirt', () => {
+  egalProfond(normaliserTenue(['sac', 'robe', 'chaussettes', 'veste']), ['chaussettes', 'robe', 'veste', 'sac']);
+  egalProfond(normaliserTenue(['jupe', 't-shirt']), ['jupe', 't-shirt']);
+  vrai(leve(() => normaliserTenue(['jupe', 'short'])).message.includes('short et jupe ensemble'));
+  vrai(leve(() => normaliserTenue(['robe', 'jupe'])).message.includes('jupe et robe ensemble'));
+  vrai(leve(() => normaliserTenue(['t-shirt', 'robe'])).message.includes('t-shirt et robe ensemble'));
+  const etat = ajouterVetement(etatExemple(), { type: 'sac', hex: '#3a2a1a', origine: 'manuel' }, { id: 'v9', date: DATE });
+  egalProfond(lireExport(exporterEtat(etat, DATE)).erreurs, [], 'nouveau type exporté et relu');
 });

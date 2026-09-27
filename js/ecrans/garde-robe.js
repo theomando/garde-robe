@@ -10,7 +10,7 @@ import { ouvrirSelecteur } from './selecteur-catalogue.js';
 import { ouvrirScan, remplirResultatVetement } from './scan.js';
 import { correcteur } from './etalonnage.js';
 import { epinglerVetement } from './tenue.js';
-import { champMarque, choisirPhoto, visuelVetement } from './fiche-vetement.js';
+import { champMarque, choisirPhoto, proposerPhoto, visuelVetement } from './fiche-vetement.js';
 
 // Mesure tout-en-un : caméra plein écran, puis feuille du résultat (ajustement, type, Enregistrer). La couleur
 // mesurée est gardée par défaut (origine « scan ») ; un choix dans le catalogue la remplace (hex du catalogue,
@@ -39,7 +39,7 @@ async function scanner(app, actions) {
     return;
   }
   if (choix.photo) actions.enregistrerPhoto(id, choix.photo); // en mémoire tout de suite : la liste l'affiche
-  if (actions.mettreAJour(nouvelEtat)) annoncer(`${LIBELLES_TYPES[choix.type]} ajouté : ${choix.couleur?.nom ?? choix.hex}`);
+  if (actions.mettreAJour(nouvelEtat)) annoncer(`Ajouté à ta garde-robe : ${LIBELLES_TYPES[choix.type]}, ${choix.couleur?.nom ?? choix.hex}`);
   else if (choix.photo) actions.supprimerPhoto(id);
 }
 
@@ -62,10 +62,14 @@ async function ajouter(app, actions) {
     catalogue: app.catalogue, titre: `${LIBELLES_TYPES[type]} : choisis la couleur`, ...actions.favorisPourSelecteur(),
   });
   if (!couleur) return;
+  const photo = await proposerPhoto();
+  const id = nouvelIdentifiant();
   const nouvelEtat = ajouterVetement(app.etat,
-    { type, hex: couleur.hex, origine: 'manuel', idCouleurCatalogue: couleur.id },
-    { id: nouvelIdentifiant(), date: new Date() });
-  if (actions.mettreAJour(nouvelEtat)) annoncer(`${LIBELLES_TYPES[type]} ajouté : ${couleur.nom}`);
+    { type, hex: couleur.hex, origine: 'manuel', idCouleurCatalogue: couleur.id, photo: Boolean(photo) },
+    { id, date: new Date() });
+  if (photo) actions.enregistrerPhoto(id, photo);
+  if (actions.mettreAJour(nouvelEtat)) annoncer(`Ajouté à ta garde-robe : ${LIBELLES_TYPES[type]}, ${couleur.nom}`);
+  else if (photo) actions.supprimerPhoto(id);
 }
 
 // « + » : menu près du bouton, comme dans les apps d'iOS 26.

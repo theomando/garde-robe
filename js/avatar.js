@@ -63,12 +63,23 @@ export const FORMES = {
     ['polygon', { points: '65,90 52,95 40,158 57,163 63,124' }], ['polygon', { points: '135,90 148,95 160,158 143,163 137,124' }]],
   bijoux: [['path', { d: 'M86,90 Q100,108 114,90', trait: 3.5 }]],
   chapeau: [['path', { d: 'M64,30 Q64,4 100,4 Q136,4 136,30 Z' }, 'cylindre'], ['rect', { x: 58, y: 28, width: 84, height: 8, rx: 3 }]],
+  // Demande de Théo, 2026-09-27 : jupe évasée (jambes visibles dessous), robe d'une pièce, chaussettes à la cheville
+  // (hautes sans pantalon ; sous un pantalon, voir CHAUSSETTES_SOUS_PANTALON), sac tenu à la main droite.
+  jupe: [['polygon', { points: '58,166 142,166 152,218 48,218' }]],
+  robe: [['polygon', { points: '70,88 130,88 135,92 141,166 154,232 46,232 59,166 65,92' }],
+    ['polygon', { points: '66,92 54,96 50,118 62,121' }], ['polygon', { points: '134,92 146,96 150,118 138,121' }]],
+  chaussettes: [['rect', { x: 59, y: 226, width: 39, height: 26, rx: 2 }], ['rect', { x: 102, y: 226, width: 39, height: 26, rx: 2 }]],
+  sac: [['rect', { x: 144, y: 178, width: 42, height: 34, rx: 6 }], ['path', { d: 'M154,180 Q165,160 176,180', trait: 3 }]],
 };
+
+// Sous un pantalon, les chaussettes ne dépassent que d'une fine bande à la cheville (peu visibles, mais visibles).
+const CHAUSSETTES_SOUS_PANTALON = [['rect', { x: 59, y: 244, width: 39, height: 8, rx: 1 }], ['rect', { x: 102, y: 244, width: 39, height: 8, rx: 1 }]];
 
 // Où poser le panneau d'avertissement d'une pièce manquante.
 const ANCRES_AVERTISSEMENT = {
   chaussures: [122, 259], pantalon: [121, 222], short: [121, 199], 't-shirt': [100, 128], pull: [100, 128],
   ceinture: [100, 170], chemise: [78, 128], veste: [72, 150], manteau: [67, 205], bijoux: [100, 100], chapeau: [100, 16],
+  chaussettes: [120, 238], jupe: [100, 198], robe: [100, 150], sac: [165, 196],
 };
 
 // Ombres que les pans ouverts projettent sur la couche du dessous (dessinées juste avant les pans).
@@ -97,7 +108,9 @@ const REFLETS = [
 ];
 
 // Ordre de dessin, du dessous vers le dessus (couches du haut dans l'ordre de CLAUDE.md).
-export const ORDRE_DESSIN = ['pantalon', 'short', 'chaussures', 't-shirt', 'pull', 'ceinture', 'chemise', 'veste', 'manteau', 'bijoux', 'chapeau'];
+// Les chaussettes passent sur l'ourlet du pantalon et sous les chaussures ; la robe sous les couches ouvertes.
+export const ORDRE_DESSIN = ['pantalon', 'short', 'jupe', 'robe', 'chaussettes', 'chaussures', 't-shirt', 'pull', 'ceinture',
+  'chemise', 'veste', 'manteau', 'bijoux', 'chapeau', 'sac'];
 
 // Pièces d'une proposition du moteur → { type, hex, manque }. Une pièce manquante prend la couleur qui manque
 // (noir pour un joker : « noir avant blanc »).
@@ -225,14 +238,15 @@ export function dessinerAvatar({ peau, pieces = [], description = 'Avatar' }) {
     if (!piece) continue;
     if (piece.manque) manquantes.push(type);
     if (OMBRES_PANS[type]) figure.append(calqueOmbrage(OMBRES_PANS[type], { 'data-ombre-pans': type }));
-    if (type !== 'bijoux') figure.append(epaisseur(FORMES[type], piece.hex, { 'data-epaisseur': type }));
+    const formes = type === 'chaussettes' && parType.has('pantalon') ? CHAUSSETTES_SOUS_PANTALON : FORMES[type];
+    if (type !== 'bijoux') figure.append(epaisseur(formes, piece.hex, { 'data-epaisseur': type }));
     const groupe = noeud('g', { 'data-type': type, 'data-etat': piece.manque ? 'manque' : 'porte' });
-    for (const [forme, { trait: largeur, ...attributs }] of FORMES[type]) {
+    for (const [forme, { trait: largeur, ...attributs }] of formes) {
       groupe.append(largeur
         ? noeud(forme, { ...attributs, fill: 'none', stroke: piece.hex, 'stroke-width': largeur, 'stroke-linecap': 'round' })
         : noeud(forme, { ...attributs, fill: piece.hex, stroke: CONTOUR, 'stroke-width': 1, 'stroke-linejoin': 'round' }));
     }
-    figure.append(groupe, calqueOmbrage(FORMES[type], { 'data-ombrage': type }));
+    figure.append(groupe, calqueOmbrage(formes, { 'data-ombrage': type }));
   }
 
   const reflets = noeud('g', { 'data-zone': 'reflet', 'pointer-events': 'none' });

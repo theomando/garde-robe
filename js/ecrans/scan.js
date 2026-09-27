@@ -14,7 +14,7 @@ import { carreCentral, combinerMesures, viseeStable } from '../mesure.js';
 import { plusProches } from '../catalogue.js';
 import { creerCamera, ErreurCamera, mesurerSource, mesurerPhoto } from '../scan.js';
 import { ouvrirSelecteur } from './selecteur-catalogue.js';
-import { champMarque, choisirPhoto } from './fiche-vetement.js';
+import { champMarque, choisirPhoto, proposerPhoto } from './fiche-vetement.js';
 
 const MESSAGES_MESURE = {
   reflet: 'Reflet trop fort : incline un peu le vêtement ou éloigne le téléphone, puis recommence.',
@@ -327,6 +327,11 @@ export function remplirResultatVetement(app, actions, mesure, feuille, { valider
   let type = typeImpose;
   let onglet = 'proches';
   let photo = null;
+  let photoProposee = false;
+  const montrerPhoto = (choisie) => {
+    boutonPhoto.replaceChildren(el('img', { src: choisie, alt: '' }));
+    boutonPhoto.classList.add('avec-photo');
+  };
   const [champ, suggestions] = champMarque(app, '', { classe: 'champ champ-marque', placeholder: 'Marque (facultatif)' });
   const boutonPhoto = el('button', {
     type: 'button', class: 'bouton-photo', 'data-action': 'photo-resultat', 'aria-label': 'Photo du vêtement (facultatif)',
@@ -334,8 +339,7 @@ export function remplirResultatVetement(app, actions, mesure, feuille, { valider
       const choisie = await choisirPhoto();
       if (!choisie) return;
       photo = choisie;
-      boutonPhoto.replaceChildren(el('img', { src: choisie, alt: '' }));
-      boutonPhoto.classList.add('avec-photo');
+      montrerPhoto(choisie);
     },
   }, icone('camera'));
 
@@ -345,7 +349,15 @@ export function remplirResultatVetement(app, actions, mesure, feuille, { valider
   const rangee = el('div', { class: 'rangee-choix', role: 'listbox', 'aria-label': 'Couleur retenue' });
   const enregistrer = el('button', {
     type: 'button', class: 'bouton principal', 'data-action': 'enregistrer-scan',
-    onclick: () => valider({ type, hex: couleur?.hex ?? hexMesure, couleur, marque: champ.value, photo }),
+    // Sans photo : on la propose une fois (plus simple pour retrouver le vêtement), puis on enregistre.
+    onclick: async () => {
+      if (!photo && !photoProposee) {
+        photoProposee = true;
+        const choisie = await proposerPhoto();
+        if (choisie) { photo = choisie; montrerPhoto(choisie); }
+      }
+      valider({ type, hex: couleur?.hex ?? hexMesure, couleur, marque: champ.value, photo });
+    },
   }, 'Enregistrer');
 
   function majEntete() {

@@ -7,7 +7,7 @@
 // Un document de version 1 reste lisible (sans ces champs).
 
 import {
-  TYPES, BAS, TOLERANCE_DEFAUT, TOLERANCE_MIN, TOLERANCE_MAX, TOLERANCE_PAS, MODES_SCAN,
+  TYPES, conflitTypes, TOLERANCE_DEFAUT, TOLERANCE_MIN, TOLERANCE_MAX, TOLERANCE_PAS, MODES_SCAN,
   MARQUE_MAX, NOM_TENUE_MAX, PHOTO_TAILLE_MAX, RAPPEL_SAUVEGARDE_JOURS, RAPPEL_PREMIER_JOURS, RAPPEL_REPORT_JOURS,
 } from './constantes.js';
 import { estHexValide } from './couleur.js';
@@ -97,7 +97,8 @@ export function normaliserTenue(types) {
   if (!Array.isArray(types) || types.length === 0) throw new Error('tenue vide');
   for (const type of types) if (!TYPES.includes(type)) throw new Error(`type « ${type} » inconnu`);
   if (new Set(types).size !== types.length) throw new Error('type en double dans la tenue');
-  if (BAS.every((bas) => types.includes(bas))) throw new Error('pantalon et short ensemble');
+  const conflit = conflitTypes(types);
+  if (conflit) throw new Error(`${conflit.join(' et ')} ensemble`);
   return TYPES.filter((type) => types.includes(type));
 }
 

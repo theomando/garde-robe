@@ -12,7 +12,7 @@ let etape = 'bienvenue'; // gardée d'un rendu à l'autre tant que l'accueil n'e
 const ATOUTS = [
   ['camera', 'Mesure tes vêtements', 'La caméra relève leur couleur, ou choisis-la sur la carte des couleurs.'],
   ['t-shirt', 'Des tenues qui vont ensemble', 'Pour la tenue du jour, l\'app propose des combinaisons de couleurs harmonieuses.'],
-  ['sac', 'Ce qui te manque', 'Elle repère les couleurs qui manquent le plus souvent à ta garde-robe.'],
+  ['achats', 'Ce qui te manque', 'Elle repère les couleurs qui manquent le plus souvent à ta garde-robe.'],
 ];
 
 function bienvenue(conteneur, app, actions) {

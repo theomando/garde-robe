@@ -52,7 +52,8 @@ Monk, Ellis. « Monk Skin Tone Scale », 2019. https://skintone.google. Licence 
 - Import : validation complète en mémoire, puis remplacement total en une écriture. Champ inconnu ou version plus récente : refus.
 
 ## Types de vêtements
-Constante unique, extensible : chaussures, pantalon, short, ceinture, t-shirt, chemise, pull, veste, manteau, chapeau, bijoux. Une tenue contient au plus une pièce par type et un seul bas (pantalon ou short).
+Constante unique, extensible : chaussures, chaussettes, pantalon, short, jupe, robe, ceinture, t-shirt, chemise, pull, veste, manteau, chapeau, bijoux, sac (chaussettes, jupe, robe et sac : demande de Théo, 2026-09-27). Une tenue contient au plus une pièce par type et un seul bas (pantalon, short ou jupe) ; la robe est à la fois le bas et le haut de base : ni bas ni t-shirt avec elle, pull, chemise, veste et manteau par-dessus (INCOMPATIBLES dans js/constantes.js ; cocher un type décoche ceux qui lui sont incompatibles). Chaussettes toujours visibles : fine bande à la cheville sous un pantalon, plus hautes avec short, jupe ou robe (dessin seulement ; le calcul les compte toujours). Sac : accessoire toujours visible, tenu à la main sur l'avatar.
+- Nouveau vêtement sans photo (mesure ou catalogue) : alerte « Ajouter une photo ? » (Sans photo / Ajouter, qui ouvre l'appareil photo ou la photothèque pendant le toucher), une fois par ajout (demande de Théo, 2026-09-27).
 
 ## Colorimétrie (module pur, sans DOM, testé)
 - hex → sRGB (IEC 61966-2-1 : décodage avec seuil 0,04045, pente 12,92, exposant 2,4 ; matrice à 4 décimales 0,4124 0,3576 0,1805 / 0,2126 0,7152 0,0722 / 0,0193 0,1192 0,9505, reprise dans l'article Wikipédia « sRGB ») → XYZ (D65 ; blanc de référence = matrice × (1, 1, 1), pour que #ffffff donne exactement L* = 100, a* = b* = 0) → CIELAB (fonction f de la CIE, seuil (6/29)³) → ΔE00 (CIEDE2000, kL = kC = kH = 1).

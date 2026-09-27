@@ -107,7 +107,8 @@ export function ouvrirMenu(ancre, options) {
 
 // Dialogue modal. forme 'feuille' (monte du bas : poignée, ✕ à gauche, action principale à droite, glisser vers
 // le bas pour fermer) ou 'alerte' (au centre, texte à gauche, boutons en capsule).
-// boutons : [{ libelle, valeur, style: 'principal' | 'danger' | 'secondaire' }] ; valeur null : fermeture.
+// boutons : [{ libelle, valeur, style: 'principal' | 'danger' | 'secondaire', surClic? }] ; valeur null : fermeture.
+// surClic s'exécute pendant le toucher (utile pour ouvrir l'appareil photo, qu'iOS n'ouvre que sur un geste).
 // Un élément du contenu portant data-choix ferme aussi le dialogue et renvoie sa valeur.
 // Renvoie une promesse résolue avec la valeur choisie, ou null si le dialogue est fermé autrement.
 export function ouvrirDialogue({ titre, contenu = [], boutons = [{ libelle: 'Fermer', valeur: null }], classe = '', forme = 'feuille' }) {
@@ -115,7 +116,7 @@ export function ouvrirDialogue({ titre, contenu = [], boutons = [{ libelle: 'Fer
     let terminer = null;
     const bouton = (b, classes = '') => el('button', {
       type: 'button', class: `bouton ${b.style ?? 'secondaire'} ${classes}`.trim(), 'data-valeur': b.valeur ?? '',
-      onclick: () => terminer(b.valeur ?? null),
+      onclick: () => { b.surClic?.(); terminer(b.valeur ?? null); },
     }, b.libelle);
     // Le titre reçoit le focus à l'ouverture : ni cadre sur un bouton, ni clavier iOS ouvert d'office.
     const titreElement = el('h2', { id: 'titre-dialogue', tabindex: '-1', autofocus: true }, titre);

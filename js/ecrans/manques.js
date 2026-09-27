@@ -38,7 +38,7 @@ const ECRAN = 'mes-tenues';
 
 // Éléments de la section, à placer dans l'écran.
 export function sectionManques(app, actions) {
-  const entete = [el('h2', { class: 'titre-section', id: 'ce-qui-te-manque' }, icone('sac'), 'Ce qui te manque')];
+  const entete = [el('h2', { class: 'titre-section', id: 'ce-qui-te-manque' }, icone('achats'), 'Ce qui te manque')];
   const { tenuesTypes } = app.etat;
 
   if (tenuesTypes.length === 0) {

@@ -2,18 +2,32 @@
 // ce sont des points de départ, à ajuster à l'usage.
 
 // Types de vêtements. L'ordre sert au départage dans le moteur et à l'affichage.
+// Chaussettes, jupe, robe et sac : demande de Théo, 2026-09-27 (insérés sans changer l'ordre des types existants).
 export const TYPES = [
-  'chaussures', 'pantalon', 'short', 'ceinture', 't-shirt', 'chemise',
-  'pull', 'veste', 'manteau', 'chapeau', 'bijoux',
+  'chaussures', 'chaussettes', 'pantalon', 'short', 'jupe', 'robe', 'ceinture', 't-shirt', 'chemise',
+  'pull', 'veste', 'manteau', 'chapeau', 'bijoux', 'sac',
 ];
-export const BAS = ['pantalon', 'short'];
+export const BAS = ['pantalon', 'short', 'jupe'];
+// Au plus un type de chaque groupe par tenue : un seul bas ; la robe est à la fois le bas et le haut de base
+// (ni bas, ni t-shirt avec elle ; pull, chemise, veste et manteau se portent par-dessus).
+export const INCOMPATIBLES = [['pantalon', 'short', 'jupe', 'robe'], ['t-shirt', 'robe']];
 export const LIBELLES_TYPES = {
-  chaussures: 'Chaussures', pantalon: 'Pantalon', short: 'Short', ceinture: 'Ceinture', 't-shirt': 'T-shirt',
-  chemise: 'Chemise', pull: 'Pull', veste: 'Veste', manteau: 'Manteau', chapeau: 'Chapeau', bijoux: 'Bijoux',
+  chaussures: 'Chaussures', chaussettes: 'Chaussettes', pantalon: 'Pantalon', short: 'Short', jupe: 'Jupe', robe: 'Robe',
+  ceinture: 'Ceinture', 't-shirt': 'T-shirt', chemise: 'Chemise', pull: 'Pull', veste: 'Veste', manteau: 'Manteau',
+  chapeau: 'Chapeau', bijoux: 'Bijoux', sac: 'Sac',
 };
 
+// Types incompatibles présents ensemble dans une liste de types (premier conflit trouvé), ou null.
+export function conflitTypes(types) {
+  for (const groupe of INCOMPATIBLES) {
+    const presents = groupe.filter((type) => types.includes(type));
+    if (presents.length > 1) return presents;
+  }
+  return null;
+}
+
 // Version affichée dans les réglages (numéro de l'étape du plan tant que l'app est en construction).
-export const VERSION_APP = '0.15.0'; // à reporter dans sw.js (VERSION), vérifié par les tests
+export const VERSION_APP = '0.16.0'; // à reporter dans sw.js (VERSION), vérifié par les tests
 
 // Couches du haut, du corps vers l'extérieur (avatar). Chemise, veste et manteau sont portés ouverts.
 export const COUCHES = ['t-shirt', 'pull', 'chemise', 'veste', 'manteau'];

@@ -59,6 +59,13 @@ async function menuAjout(action) {
   option.click();
 }
 
+// Nouveau vêtement sans photo : l'app propose d'en ajouter une (demande de Théo, 2026-09-27) ; ici, « Sans photo ».
+async function sansPhoto() {
+  const alerte = await attendre(() => [...doc.querySelectorAll('dialog.alerte-photo[open]')].find((d) => 'pret' in d.dataset), 'proposition de photo');
+  egal(alerte.querySelector('h2').textContent, 'Ajouter une photo ?');
+  cliquer('[data-valeur="sans"]', alerte);
+}
+
 // Partage d'iOS simulé dans l'app : les données partagées sont gardées pour vérification.
 function simulerPartage() {
   const partages = [];
@@ -171,6 +178,7 @@ test('app : ajout d\'un pull choisi dans le catalogue (recherche « burnt sienn
   const carte = await attendre(() => [...selecteur.querySelectorAll('[data-action="choisir-couleur"]')]
     .find((b) => b.querySelector('.nom').textContent === 'Burnt Sienna'), 'carte Burnt Sienna');
   carte.click();
+  await sansPhoto();
   await dialoguesFermes();
   await quand(() => doc.querySelector('[data-type="pull"] .nom'), 'pull affiché');
   egal(doc.querySelector('[data-type="pull"] .nom').textContent, 'Burnt Sienna');
@@ -277,7 +285,13 @@ test('app : import du catalogue Papier Tigre, puis choix d\'une de ses couleurs'
   vrai(selecteur.querySelector('.mosaique'), 'retour à la carte');
   await rechercher(selecteur, 'exemple a, dominante 1');
   cliquer('[data-action="choisir-couleur"]', selecteur);
+  // Proposition de photo : « Ajouter » ouvre l'appareil photo ou la photothèque, et la photo est gardée.
+  const alerte = await attendre(() => [...doc.querySelectorAll('dialog.alerte-photo[open]')].find((d) => 'pret' in d.dataset), 'proposition de photo');
+  cliquer('[data-valeur="photo"]', alerte);
+  await fournirPhoto(await photoUnie('#224466', 200, 200));
   await dialoguesFermes();
+  await attendreReel(() => stocke().vetements.length === 2, 'chaussures enregistrées avec leur photo');
+  egal(stocke().vetements[1].photo, true, 'photo gardée');
   await quand(() => doc.querySelector('[data-type="chaussures"] .nom'), 'chaussures affichées');
   egal(doc.querySelector('[data-type="chaussures"] .nom').textContent, 'Exemple A, dominante 1');
   egal(stocke().vetements.length, 2);
@@ -422,6 +436,7 @@ test('app : mesure à la caméra (simulée, sans torche), plein écran, Recommen
   vrai(feuille.querySelector('[data-action="tout-catalogue"]'), 'accès à tout le catalogue');
   cliquer('[data-type="pull"]', feuille);
   cliquer('[data-action="enregistrer-scan"]', feuille);
+  await sansPhoto();
   await dialoguesFermes();
   await quand(() => stocke().vetements.length === 2, 'second vêtement mesuré enregistré');
   const vetement = stocke().vetements[1];
@@ -466,6 +481,7 @@ test('app : étalonnage par photos (blanc, noir), puis un vêtement noir corrig�
   vrai(feuille.querySelector('[data-info="etalonnage"]').textContent.includes('#46464f'), 'mesure brute affichée');
   cliquer('[data-type="pantalon"]', feuille);
   cliquer('[data-action="enregistrer-scan"]', feuille);
+  await sansPhoto();
   await dialoguesFermes();
   await quand(() => stocke().vetements.length === 3, 'pantalon enregistré');
   egal(stocke().vetements[2].hex, '#111314');
@@ -477,6 +493,15 @@ test('app : tenue du jour, propositions, avatar, sélection, favoris et filtre',
   egal(doc.querySelector('[data-type-tenue="pantalon"]').getAttribute('aria-pressed'), 'false', 'short et pantalon exclusifs');
   cliquer('[data-type-tenue="pantalon"]');
   egal(doc.querySelector('[data-type-tenue="short"]').getAttribute('aria-pressed'), 'false');
+  // La robe écarte le bas et le t-shirt ; un bas écarte la robe.
+  const presse = (type) => doc.querySelector(`[data-type-tenue="${type}"]`).getAttribute('aria-pressed');
+  cliquer('[data-type-tenue="robe"]');
+  vrai(presse('robe') === 'true' && presse('pantalon') === 'false' && presse('t-shirt') === 'false', 'robe : ni bas ni t-shirt');
+  cliquer('[data-type-tenue="jupe"]');
+  vrai(presse('jupe') === 'true' && presse('robe') === 'false', 'jupe : plus de robe');
+  cliquer('[data-type-tenue="pantalon"]');
+  egal(presse('jupe'), 'false', 'un seul bas');
+  cliquer('[data-type-tenue="t-shirt"]'); // on revient à la tenue de départ (t-shirt coché)
   cliquer('[data-type-tenue="t-shirt"]');
   cliquer('[data-type-tenue="pull"]');
   vrai(doc.querySelector('[data-action="proposer"]').classList.contains('bouton-flottant'), '« Proposer » flotte en bas');

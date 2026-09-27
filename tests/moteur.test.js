@@ -1,7 +1,7 @@
 // Tests du moteur. Les couleurs des fixtures sont des données de test synthétiques (bornes du codage sRGB,
 // teintes MST de constantes.js), pas des couleurs de catalogue réelles.
 import { test, vrai, egal, egalProfond, leve } from './mini-test.js';
-import { TYPES, MST } from '../js/constantes.js';
+import { TYPES, MST, conflitTypes } from '../js/constantes.js';
 import { labDepuisHex, deltaE00, estNoir, estBlanc } from '../js/couleur.js';
 import { fusionnerCatalogues } from '../js/catalogue.js';
 import { piecesVisibles, proposer, selectionner, comparerPropositions, creerCacheEcarts } from '../js/moteur.js';
@@ -70,7 +70,14 @@ test('occultation : le pull masque le t-shirt, ordre des TYPES, tenues invalides
   egalProfond(piecesVisibles(['chemise', 't-shirt']), ['t-shirt', 'chemise'], 'la chemise ne masque rien');
   egalProfond(piecesVisibles(['manteau', 'veste', 'chemise', 'pull', 't-shirt']), ['chemise', 'pull', 'veste', 'manteau']);
   vrai(leve(() => piecesVisibles(['pantalon', 'short'])).message.includes('tenue invalide'));
-  vrai(leve(() => piecesVisibles(['robe'])).message.includes('type inconnu'));
+  vrai(leve(() => piecesVisibles(['kimono'])).message.includes('type inconnu'));
+  // Nouveaux types (2026-09-27) : un seul bas ; la robe exclut bas et t-shirt ; chaussettes et sac toujours visibles.
+  egalProfond(piecesVisibles(['sac', 'chaussettes', 'pantalon', 'chaussures']), ['chaussures', 'chaussettes', 'pantalon', 'sac'],
+    'chaussettes visibles même sous un pantalon (fine bande à la cheville)');
+  egalProfond(piecesVisibles(['robe', 'pull', 'chaussettes']), ['chaussettes', 'robe', 'pull'], 'pull par-dessus la robe');
+  vrai(leve(() => piecesVisibles(['jupe', 'pantalon'])).message.includes('pantalon et jupe ensemble'));
+  vrai(leve(() => piecesVisibles(['robe', 'short'])).message.includes('short et robe ensemble'));
+  vrai(leve(() => piecesVisibles(['robe', 't-shirt'])).message.includes('t-shirt et robe ensemble'));
 });
 
 test('cas limite : garde-robe vide, rien au-delà de 2 pièces visibles', () => {
@@ -325,10 +332,10 @@ test('programmation dynamique identique à l\'énumération exhaustive sur 400 t
       roles = hex.map(() => (alea() < 0.6 ? 'dominante' : 'soutien'));
       if (!roles.includes('dominante')) roles[0] = 'dominante';
     }
-    const candidats = TYPES.filter((t) => t !== 'short');
+    // Tenue valide : un type n'est ajouté que s'il est compatible avec ceux déjà tirés (un seul bas, robe…).
     const types = [];
     const nbTypes = 1 + Math.floor(alea() * 5);
-    while (types.length < nbTypes) { const t = tirer(candidats); if (!types.includes(t)) types.push(t); }
+    while (types.length < nbTypes) { const t = tirer(TYPES); if (!types.includes(t) && !conflitTypes([...types, t])) types.push(t); }
     const vetements = [];
     const nbVet = Math.floor(alea() * 9);
     for (let v = 0; v < nbVet; v++) vetements.push(vet(tirer(types), tirer(PALETTE)));
