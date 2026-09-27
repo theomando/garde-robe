@@ -1273,3 +1273,64 @@ test('app : photo d\'un vêtement en grand (fiche, « Voir les vêtements »),
   cliquer('[data-action="fermer-photo"]', grande);
   await attendre(() => !doc.querySelector('dialog.visionneuse'), 'photo refermée');
 });
+
+// Catalogue des combinaisons (demande de Théo, 2026-09-27) : bouton dans l'onglet Tenue, couleurs seules, favorites.
+test('app : catalogue des combinaisons, filtres, favorite en tête des propositions et filtre de l\'onglet Tenue', async () => {
+  cliquer('#onglets [data-ecran="tenue"]');
+  cliquer('.barre-nav [data-action="catalogue-combinaisons"]');
+  const catalogue = await dialogueOuvert('dialog.catalogue-combinaisons[open]');
+  const cartes = () => [...catalogue.querySelectorAll('.carte-combinaison')];
+  egal(cartes().length, 60, 'par pages de 60');
+  vrai(/^\d{3} combinaisons$/.test(catalogue.querySelector('[data-info="compte-combinaisons"]').textContent), catalogue.querySelector('[data-info="compte-combinaisons"]').textContent);
+  vrai(cartes()[0].classList.contains('pour-vetements'), 'celles pour s\'habiller d\'abord, en or');
+  egal(cartes()[0].querySelector('.noms-combinaison').textContent, 'Marron chocolat · Bleu clair', 'rien que les couleurs, noms du relevé');
+  egal(cartes()[0].querySelectorAll('.bande').length, 2, 'une bande par couleur');
+  // Recherche et nombre de couleurs.
+  catalogue.querySelector('[data-action="rechercher-combinaison"]').value = 'bordeaux';
+  catalogue.querySelector('[data-action="rechercher-combinaison"]').dispatchEvent(new fenetre.Event('input'));
+  vrai(cartes().length > 0 && cartes().every((c) => c.textContent.toLowerCase().includes('bordeaux')), 'recherche par couleur');
+  catalogue.querySelector('[data-action="rechercher-combinaison"]').value = '';
+  catalogue.querySelector('[data-action="rechercher-combinaison"]').dispatchEvent(new fenetre.Event('input'));
+  cliquer('[data-nombre="3"]', catalogue);
+  vrai(cartes().every((c) => c.querySelectorAll('.bande').length === 3), '3 couleurs seulement');
+  cliquer('[data-nombre="0"]', catalogue);
+  // Favorites : ★ sur une combinaison, puis filtre.
+  cliquer('[data-filtre="favorites"]', catalogue);
+  egal(catalogue.querySelector('[data-info="compte-combinaisons"]').textContent, 'Aucune combinaison favorite : touche ☆ sur celles que tu aimes.');
+  cliquer('[data-filtre="toutes"]', catalogue);
+  const choisie = cartes()[2];
+  const idChoisie = choisie.dataset.combinaison;
+  cliquer('[data-action="favori-combinaison"]', choisie);
+  egal(choisie.querySelector('[data-action="favori-combinaison"]').getAttribute('aria-pressed'), 'true');
+  await quand(() => stocke().reglages.favorisCombinaisons?.includes(idChoisie), 'favorite enregistrée');
+  cliquer('[data-filtre="favorites"]', catalogue);
+  egalProfond(cartes().map((c) => c.dataset.combinaison), [idChoisie]);
+  cliquer('[data-action="fermer-combinaisons"]', catalogue);
+  await dialoguesFermes();
+
+  // Onglet Tenue : filtre « Mes combinaisons favorites » ; étoile de la proposition.
+  doc.querySelector('[data-action="proposer"]')?.click();
+  await quand(() => doc.getElementById('filtre-combinaisons-favorites'), 'filtre des combinaisons favorites');
+  doc.getElementById('filtre-combinaisons-favorites').click();
+  await quand(() => doc.getElementById('filtre-combinaisons-favorites')?.checked, 'filtre actif');
+  const affichees = [...doc.querySelectorAll('.proposition')];
+  vrai(affichees.every((p) => p.dataset.combinaison === idChoisie), 'seulement la favorite');
+  if (affichees.length === 1) {
+    vrai(affichees[0].querySelector('.etoile-titre'), '★ devant son nom');
+    affichees[0].click();
+    const bouton = await attendre(() => doc.querySelector('[data-action="favori-combinaison-proposition"]'), 'bouton favorite');
+    egal(bouton.getAttribute('aria-pressed'), 'true');
+  } else {
+    vrai(doc.querySelector('[data-info="compte"]').textContent.startsWith('Aucune de tes combinaisons favorites'), 'la favorite ne convient pas à cette tenue');
+  }
+  doc.getElementById('filtre-combinaisons-favorites').click();
+  await quand(() => !doc.getElementById('filtre-combinaisons-favorites')?.checked, 'filtre retiré');
+  // Étoile depuis une proposition : la combinaison devient favorite, puis ne l'est plus.
+  const premiere = doc.querySelector('.proposition');
+  premiere.click();
+  const idPremiere = doc.querySelector('.proposition[aria-pressed="true"]').dataset.combinaison;
+  const etoile = await attendre(() => doc.querySelector('[data-action="favori-combinaison-proposition"]'), 'étoile de la proposition');
+  const avant = stocke().reglages.favorisCombinaisons?.includes(idPremiere) ?? false;
+  etoile.click();
+  await quand(() => (stocke().reglages.favorisCombinaisons?.includes(idPremiere) ?? false) !== avant, 'favorite basculée');
+});

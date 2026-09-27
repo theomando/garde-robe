@@ -153,3 +153,15 @@ test('manques fréquents : coupe à MANQUES_FREQUENTS_MAX (10) ; accord avec le 
     vrai(ordre < 0, `ordre des lignes ${i - 1} et ${i}`);
   }
 });
+
+test('manques fréquents : une combinaison favorite compte (poids 2) dans la tenue demandée où elle va le mieux', () => {
+  // Garde-robe : t-shirt rouge. k2 (rouge, vert) favorite : sur [pantalon, t-shirt], le pantalon vert manque (1 manque) ;
+  // sur [chaussures, pantalon, t-shirt], 2 manques : c'est la première tenue qui compte.
+  const vetements = [vet('t-shirt', ROUGE)];
+  const tenuesTypes = [['chaussures', 'pantalon', 't-shirt'], ['pantalon', 't-shirt']];
+  const r = manquesFrequents({ tenuesTypes, vetements, catalogue: CATALOGUE, reglages: reglages({ favorisCombinaisons: ['k2', 'inconnue'] }) });
+  egal(r.nbFavorites, 1, 'une favorite évaluée (l\'inconnue est ignorée)');
+  const pantalonVert = r.manques.find((m) => m.type === 'pantalon' && m.couleurId === id(VERT));
+  egalProfond([pantalonVert.favorites, pantalonVert.score >= 2], [1, true]);
+  egal(r.manques.some((m) => m.type === 'chaussures' && m.favorites > 0), false, 'pas la tenue à 2 manques');
+});

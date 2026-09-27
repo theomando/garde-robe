@@ -37,6 +37,8 @@ const DESSINS = {
     ['circle', { cx: 15.5, cy: 9.3, r: 1.5 }]],
   aide: [['circle', { cx: 12, cy: 12, r: 9 }], ['path', { d: 'M9.6 9.6a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.2.9-1.2 1.7v.6' }],
     ['circle', { cx: 12, cy: 17, r: 0.4, plein: true }]],
+  combinaisons: [['rect', { x: 3.5, y: 4.5, width: 5, height: 15, rx: 1.5 }], ['rect', { x: 9.5, y: 4.5, width: 5, height: 15, rx: 1.5 }],
+    ['rect', { x: 15.5, y: 4.5, width: 5, height: 15, rx: 1.5 }]],
   cadeau: [['rect', { x: 3.5, y: 8, width: 17, height: 4, rx: 1 }], ['path', { d: 'M5 12v8.5h14V12M12 8v12.5' }],
     ['path', { d: 'M12 8c-1-3.3-5.3-4.4-5.3-1.7C6.7 7.6 9 8 12 8Zm0 0c1-3.3 5.3-4.4 5.3-1.7 0 1.3-2.3 1.7-5.3 1.7Z' }]],
   pause: [['path', { d: 'M8.5 5.5v13M15.5 5.5v13' }]],

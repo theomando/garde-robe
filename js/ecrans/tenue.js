@@ -6,7 +6,7 @@
 import { el, pastille, pastilleJoker, barreNavigation, interrupteur, tuile, ouvrirDialogue, annoncer, nouvelIdentifiant, ouvrirPhotoEnGrand } from '../ui.js';
 import { icone } from '../icones.js';
 import { TYPES, LIBELLES_TYPES, INCOMPATIBLES, MST, PROPOSITIONS_MAX } from '../constantes.js';
-import { enregistrerTenueType, basculerFavori, garderTenue, retirerTenueGardee, vetementsEnService } from '../donnees.js';
+import { enregistrerTenueType, basculerFavori, basculerFavoriCombinaison, garderTenue, retirerTenueGardee, vetementsEnService } from '../donnees.js';
 import { instantaneTenue, signatureTenue, referenceCombinaison } from '../tenues.js';
 import { proposer, selectionner, piecesVisibles } from '../moteur.js';
 import { dessinerAvatar, planAvatar } from '../avatar.js';
@@ -14,6 +14,7 @@ import { nomCouleurVetement } from './garde-robe.js';
 import { partagerTenue } from './partage-tenue.js';
 import { pastilleCouleurs, hexDuVetement } from './fiche-vetement.js';
 import { boutonEnvie } from './wishlist.js';
+import { ouvrirCatalogueCombinaisons } from './catalogue-combinaisons.js';
 import { envieDuManque } from './manques.js';
 
 
@@ -137,7 +138,12 @@ export function rendreTenue(conteneur, app, actions) {
     el('p', { class: 'discret' }, 'Un seul bas (pantalon, short ou jupe) ; la robe remplace le bas et le t-shirt. Sous un pull, le t-shirt ne compte pas.'),
     grilleTypes, blocEpingles);
 
-  const contenu = [...barreNavigation({ titre: 'Tenue du jour' }), choix];
+  // Catalogue des combinaisons (demande de Théo, 2026-09-27 : un bouton dans l'onglet Tenue).
+  const boutonCombinaisons = el('button', {
+    type: 'button', class: 'verre bouton-capsule', 'data-action': 'catalogue-combinaisons', 'aria-label': 'Catalogue des combinaisons',
+    onclick: () => ouvrirCatalogueCombinaisons(app, actions),
+  }, icone('combinaisons'), el('span', {}, 'Combinaisons'));
+  const contenu = [...barreNavigation({ titre: 'Tenue du jour', droite: [boutonCombinaisons] }), choix];
   if (!ecran.propose) {
     contenu.push(el('p', { class: 'vide' }, ecran.types.length === 0
       ? 'Choisis les pièces de ta tenue, puis touche « Proposer ».'
@@ -152,7 +158,7 @@ export function rendreTenue(conteneur, app, actions) {
     epingles: ecran.epingles,
   });
   app.cacheEcarts = resultat.cache;
-  const affichees = selectionner(resultat.retenues, { avecFavoris: ecran.avecFavoris });
+  const affichees = selectionner(resultat.retenues, { avecFavoris: ecran.avecFavoris, avecCombinaisonsFavorites: ecran.avecCombinaisonsFavorites });
   if (!affichees.some((p) => p.combinaison.id === ecran.selection)) ecran.selection = affichees[0]?.combinaison.id ?? null;
 
   const panneau = el('section', { class: 'panneau-avatar', 'aria-label': 'Avatar de la tenue' });
@@ -252,6 +258,13 @@ export function rendreTenue(conteneur, app, actions) {
       proposition.peau
         ? el('p', {}, `Peau : ${couleur(proposition.peau.couleurId).nom}`)
         : null,
+      el('button', {
+        type: 'button', class: 'bouton petit bouton-favorite', 'data-action': 'favori-combinaison-proposition', 'aria-pressed': String(Boolean(proposition.favorite)),
+        onclick: () => {
+          actions.mettreAJour(basculerFavoriCombinaison(app.etat, combinaison.id), { sansRendu: true });
+          actions.rafraichir();
+        },
+      }, proposition.favorite ? '★ Combinaison favorite' : '☆ Mettre la combinaison en favorite'),
       el('p', { class: 'sous-titre' }, 'Couleurs de la combinaison'),
       el('div', { class: 'couleurs-combinaison' }, couleurs.map((c, j) => el('button', {
         type: 'button', class: 'favori', 'data-action': 'etoile-proposition', 'data-couleur': c.id,
@@ -285,7 +298,9 @@ export function rendreTenue(conteneur, app, actions) {
         el('span', { class: 'bandes', 'aria-hidden': 'true' }, couleurs.map((c, j) => el('span', {
           class: `bande${proposition.combinaison.roles?.[j] === 'soutien' ? ' soutien' : ''}`, style: { backgroundColor: c.hex }, title: c.nom,
         }))),
-        el('span', { class: 'infos' }, el('strong', {}, reference(proposition.combinaison)), el('span', { class: 'discret' }, resume(proposition)))),
+        el('span', { class: 'infos' },
+          el('strong', {}, proposition.favorite ? el('span', { class: 'etoile-titre', 'aria-label': 'Combinaison favorite' }, '★ ') : null, reference(proposition.combinaison)),
+          el('span', { class: 'discret' }, resume(proposition)))),
         choisie ? details(proposition) : null);
     }));
   }
@@ -294,7 +309,11 @@ export function rendreTenue(conteneur, app, actions) {
     id: 'filtre-favoris', checked: ecran.avecFavoris,
     onchange: (e) => { ecran.avecFavoris = e.target.checked; actions.rafraichir(); },
   });
-  const candidates = selectionner(resultat.retenues, { avecFavoris: ecran.avecFavoris, max: Infinity }).length;
+  const filtreCombinaisons = interrupteur({
+    id: 'filtre-combinaisons-favorites', checked: Boolean(ecran.avecCombinaisonsFavorites),
+    onchange: (e) => { ecran.avecCombinaisonsFavorites = e.target.checked; actions.rafraichir(); },
+  });
+  const candidates = selectionner(resultat.retenues, { avecFavoris: ecran.avecFavoris, avecCombinaisonsFavorites: ecran.avecCombinaisonsFavorites, max: Infinity }).length;
   const total = resultat.retenues.length;
   contenu.push(
     resultat.gardeRobeVide
@@ -303,9 +322,13 @@ export function rendreTenue(conteneur, app, actions) {
         : 'Ta garde-robe est vide : ajoute tes vêtements (onglet Garde-robe) pour obtenir des propositions.')
       : null,
     panneau,
-    el('label', { class: 'ligne ligne-interrupteur ligne-filtre', for: 'filtre-favoris' }, el('span', { class: 'texte-ligne' }, 'Avec mes couleurs favorites'), filtre),
+    el('div', { class: 'groupe filtres-propositions' },
+      el('label', { class: 'ligne ligne-interrupteur', for: 'filtre-favoris' }, el('span', { class: 'texte-ligne' }, 'Avec mes couleurs favorites'), filtre),
+      el('label', { class: 'ligne ligne-interrupteur', for: 'filtre-combinaisons-favorites' }, el('span', { class: 'texte-ligne' }, 'Mes combinaisons favorites'), filtreCombinaisons)),
     el('p', { class: 'discret compte', 'data-info': 'compte' }, affichees.length === 0
-      ? (ecran.avecFavoris && total > 0
+      ? (ecran.avecCombinaisonsFavorites && total > 0
+        ? 'Aucune de tes combinaisons favorites ne convient à cette tenue. Ajoute-en depuis « Combinaisons ».'
+        : ecran.avecFavoris && total > 0
         ? 'Aucune proposition ne contient tes couleurs favorites.'
         : epingles.length > 0
           ? 'Aucune combinaison ne va avec le vêtement choisi. Change de vêtement ou de tenue, ou augmente la tolérance (Réglages).'

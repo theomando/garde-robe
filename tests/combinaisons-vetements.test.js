@@ -21,6 +21,7 @@ test('vêtements : 61 combinaisons (42 « mode », 19 personnelles), 2 ou 3 coul
   egalProfond(premiere.couleurs.map((id) => wada.couleurs.find((c) => c.id === id).nom), ['Mars Brown Tobacco', 'Pale King\'s Blue'], 'marron chocolat + bleu clair');
   egal(referenceCombinaison(premiere), 'Mode n° 1', 'libellé court ; les maisons citées sont dans le détail');
   egal(premiere.nom, 'Tory Burch, Staud (P4), Patou porté par K. Holmes (C1)');
+  egalProfond(premiere.noms, ['marron chocolat', 'bleu clair'], 'noms français du relevé');
   egal(referenceCombinaison(combinaisons.find((c) => c.ref === 'Perso U01')), 'Perso U01');
 });
 

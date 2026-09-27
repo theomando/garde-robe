@@ -5,8 +5,8 @@
 // ajoute les photos des vêtements (photos: { id: data URL }), gardées à part sur l'appareil (js/photos.js).
 // Version 2 (2026-09-26) : marque et photo des vêtements, tenues gardées (« Mes tenues »), dates de sauvegarde.
 // Version 3 (2026-09-27) : jusqu'à deux couleurs secondaires par vêtement (vêtements multicolores), gardées aussi
-// dans les tenues. Version 4 : vêtement en pause. Version 5 : wishlist (envies : type, couleur, note). Un document
-// d'une version antérieure reste lisible (sans ces champs).
+// dans les tenues. Version 4 : vêtement en pause. Version 5 : wishlist (envies : type, couleur, note). Version 6 :
+// combinaisons favorites (réglages). Un document d'une version antérieure reste lisible (sans ces champs).
 
 import {
   TYPES, conflitTypes, TOLERANCE_DEFAUT, TOLERANCE_MIN, TOLERANCE_MAX, TOLERANCE_PAS, MODES_SCAN,
@@ -17,7 +17,7 @@ import { estHexValide } from './couleur.js';
 import { verifierMesuresEtalonnage } from './etalonnage.js';
 
 export const FORMAT_DONNEES = 'garde-robe-chromatique';
-export const VERSION_DONNEES = 5;
+export const VERSION_DONNEES = 6;
 export const COULEURS_SECONDAIRES_MAX = 2; // un vêtement a au plus 3 couleurs
 export const ORIGINES = ['scan', 'manuel'];
 
@@ -27,6 +27,7 @@ const CLES_DOCUMENT = {
   3: ['format', 'version', 'dateExport', 'vetements', 'reglages', 'tenuesTypes', 'tenuesGardees', 'photos'],
   4: ['format', 'version', 'dateExport', 'vetements', 'reglages', 'tenuesTypes', 'tenuesGardees', 'photos'],
   5: ['format', 'version', 'dateExport', 'vetements', 'reglages', 'tenuesTypes', 'tenuesGardees', 'wishlist', 'photos'],
+  6: ['format', 'version', 'dateExport', 'vetements', 'reglages', 'tenuesTypes', 'tenuesGardees', 'wishlist', 'photos'],
 };
 const CLES_VETEMENT = {
   1: ['id', 'type', 'hex', 'origine', 'idCouleurCatalogue', 'dateAjout'],
@@ -34,6 +35,7 @@ const CLES_VETEMENT = {
   3: ['id', 'type', 'hex', 'origine', 'idCouleurCatalogue', 'dateAjout', 'marque', 'photo', 'couleursSecondaires'],
   4: ['id', 'type', 'hex', 'origine', 'idCouleurCatalogue', 'dateAjout', 'marque', 'photo', 'couleursSecondaires', 'enPause'],
   5: ['id', 'type', 'hex', 'origine', 'idCouleurCatalogue', 'dateAjout', 'marque', 'photo', 'couleursSecondaires', 'enPause'],
+  6: ['id', 'type', 'hex', 'origine', 'idCouleurCatalogue', 'dateAjout', 'marque', 'photo', 'couleursSecondaires', 'enPause'],
 };
 const CLES_REGLAGES = {
   1: ['mst', 'teintActif', 'tolerance', 'favoris', 'etalonnage'],
@@ -41,6 +43,7 @@ const CLES_REGLAGES = {
   3: ['mst', 'teintActif', 'tolerance', 'favoris', 'etalonnage', 'derniereSauvegarde', 'rappelSauvegarde'],
   4: ['mst', 'teintActif', 'tolerance', 'favoris', 'etalonnage', 'derniereSauvegarde', 'rappelSauvegarde'],
   5: ['mst', 'teintActif', 'tolerance', 'favoris', 'etalonnage', 'derniereSauvegarde', 'rappelSauvegarde'],
+  6: ['mst', 'teintActif', 'tolerance', 'favoris', 'etalonnage', 'derniereSauvegarde', 'rappelSauvegarde', 'favorisCombinaisons'],
 };
 const CLES_ETALONNAGE = ['blanc', 'noir', 'date'];
 const CLES_TENUE_GARDEE = ['id', 'nom', 'date', 'types', 'combinaison', 'pieces', 'peau'];
@@ -51,6 +54,7 @@ const CLES_PIECE_GARDEE = {
   3: ['type', 'hex', 'manque', 'joker', 'couleurId', 'vetementId', 'hexSecondaires'],
   4: ['type', 'hex', 'manque', 'joker', 'couleurId', 'vetementId', 'hexSecondaires'],
   5: ['type', 'hex', 'manque', 'joker', 'couleurId', 'vetementId', 'hexSecondaires'],
+  6: ['type', 'hex', 'manque', 'joker', 'couleurId', 'vetementId', 'hexSecondaires'],
 };
 const CLES_ENVIE = ['id', 'type', 'hex', 'idCouleurCatalogue', 'note', 'dateAjout'];
 const CLES_COULEUR_SECONDAIRE = ['hex', 'idCouleurCatalogue'];
@@ -264,6 +268,13 @@ export function validerEtat({ vetements, reglages, tenuesTypes, tenuesGardees = 
     } else if (new Set(reglages.favoris).size !== reglages.favoris.length) {
       erreurs.push('réglages : favori en double');
     }
+    if (reglages.favorisCombinaisons !== undefined) {
+      if (!Array.isArray(reglages.favorisCombinaisons) || !reglages.favorisCombinaisons.every(estTexteNonVide)) {
+        erreurs.push('réglages : « favorisCombinaisons » doit être une liste d\'identifiants de combinaisons');
+      } else if (new Set(reglages.favorisCombinaisons).size !== reglages.favorisCombinaisons.length) {
+        erreurs.push('réglages : combinaison favorite en double');
+      }
+    }
     // Étalonnage facultatif : { torche?, sans-torche?, photo? : { blanc: [r, v, b], noir: [r, v, b], date } }.
     if (reglages.etalonnage !== undefined) {
       if (!estObjet(reglages.etalonnage)) erreurs.push('réglages : « etalonnage » doit être un objet');
@@ -362,6 +373,7 @@ export function validerEtat({ vetements, reglages, tenuesTypes, tenuesGardees = 
         ...(reglages.etalonnage !== undefined ? { etalonnage: copierEtalonnage(reglages.etalonnage) } : {}),
         ...(reglages.derniereSauvegarde !== undefined ? { derniereSauvegarde: reglages.derniereSauvegarde } : {}),
         ...(reglages.rappelSauvegarde !== undefined ? { rappelSauvegarde: reglages.rappelSauvegarde } : {}),
+        ...(reglages.favorisCombinaisons !== undefined ? { favorisCombinaisons: [...reglages.favorisCombinaisons] } : {}),
       },
       tenuesTypes: tenues,
       tenuesGardees: gardees,
@@ -543,6 +555,16 @@ export function basculerFavori(etat, couleurId) {
     ? etat.reglages.favoris.filter((f) => f !== couleurId)
     : [...etat.reglages.favoris, couleurId];
   return { ...etat, reglages: { ...etat.reglages, favoris } };
+}
+
+// Combinaison favorite (demande de Théo, 2026-09-27, catalogue des combinaisons) : ajoutée ou retirée ; la liste vide
+// disparaît des réglages.
+export function basculerFavoriCombinaison(etat, combinaisonId) {
+  if (!estTexteNonVide(combinaisonId)) throw new Error('identifiant de combinaison invalide');
+  const actuelles = etat.reglages.favorisCombinaisons ?? [];
+  const favorisCombinaisons = actuelles.includes(combinaisonId) ? actuelles.filter((id) => id !== combinaisonId) : [...actuelles, combinaisonId];
+  const { favorisCombinaisons: ancien, ...reglages } = etat.reglages;
+  return { ...etat, reglages: favorisCombinaisons.length > 0 ? { ...reglages, favorisCombinaisons } : reglages };
 }
 
 // modifications : { mst?, teintActif?, tolerance? }.

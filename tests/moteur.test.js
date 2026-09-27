@@ -428,3 +428,14 @@ test('tri : à manques égaux, une combinaison pour s\'habiller passe avant les 
   const loin = { ...base, combinaisons: base.combinaisons.map((k) => (k.id === 'k3' ? { ...k, source: 'vetements' } : k)) };
   egal(proposer({ types, vetements, catalogue: loin, reglages: reglages() }).retenues.at(-1).combinaison.id, 'k3', '2 manques : derrière malgré tout');
 });
+
+test('tri : à manques égaux, une combinaison favorite passe avant celles pour s\'habiller ; filtre des favorites', () => {
+  const types = ['pantalon', 't-shirt'];
+  const vetements = [vet('pantalon', BLEU), vet('t-shirt', ROUGE_PROCHE)];
+  const base = catalogueDe([[ROUGE, BLEU], [ROUGE_PROCHE, BLEU], [VERT, JAUNE]]);
+  // k2 pour s'habiller, k1 favorite : k1 d'abord, puis k2, puis k3 (2 manques).
+  const catalogue = { ...base, combinaisons: base.combinaisons.map((k) => (k.id === 'k2' ? { ...k, source: 'vetements' } : k)) };
+  const { retenues } = proposer({ types, vetements, catalogue, reglages: reglages({ favorisCombinaisons: ['k1', 'k3'] }) });
+  egalProfond(retenues.map((p) => [p.combinaison.id, p.favorite]), [['k1', true], ['k2', false], ['k3', true]]);
+  egalProfond(selectionner(retenues, { avecCombinaisonsFavorites: true }).map((p) => p.combinaison.id), ['k1', 'k3']);
+});

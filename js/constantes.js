@@ -27,7 +27,7 @@ export function conflitTypes(types) {
 }
 
 // Version affichée dans les réglages (numéro de l'étape du plan tant que l'app est en construction).
-export const VERSION_APP = '0.24.0'; // à reporter dans sw.js (VERSION), vérifié par les tests
+export const VERSION_APP = '0.25.0'; // à reporter dans sw.js (VERSION), vérifié par les tests
 
 // Couches du haut, du corps vers l'extérieur (avatar). Chemise, veste et manteau sont portés ouverts.
 export const COUCHES = ['t-shirt', 'pull', 'chemise', 'veste', 'manteau'];

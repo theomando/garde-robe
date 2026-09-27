@@ -38,6 +38,7 @@ export function construireCombinaisonsVetements(donnees, wada) {
     return {
       id: `vetements-${c.id}`, source: SOURCE_VETEMENTS, ref: c.ref, ...(c.note ? { nom: c.note } : {}), couleurs: ids,
       origine: c.origine, sources: [...(c.sources ?? [])], ...(c.remarque ? { remarque: c.remarque } : {}),
+      noms: [...c.couleurs], // noms français du relevé (catalogue des combinaisons)
     };
   });
   const ids = combinaisons.map((c) => c.id);

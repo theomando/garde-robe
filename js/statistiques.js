@@ -4,6 +4,8 @@
 //   réglages actuels, poids POIDS_MANQUE_AIMEE. Combinaison absente du catalogue (Papier Tigre retiré) ou écartée
 //   aujourd'hui : les manques figés de la tenue gardée (couleurs encore au catalogue).
 // - Tenues types (tenues demandées) : les manques de la première proposition du moteur, poids POIDS_MANQUE_PREMIERE.
+// - Combinaisons favorites (catalogue des combinaisons) : ce qui manque pour la porter dans la tenue demandée où elle
+//   va le mieux (le moins de manques ; à égalité, la première tenue type), poids POIDS_MANQUE_AIMEE.
 // Score d'un couple (couleur, type) : somme des poids. Module pur, sans DOM.
 // Règles : CLAUDE.md, section « Favoris et statistiques ».
 
@@ -11,10 +13,10 @@ import { TYPES, MANQUES_FREQUENTS_MAX, POIDS_MANQUE_AIMEE, POIDS_MANQUE_PREMIERE
 import { proposer, creerCacheEcarts } from './moteur.js';
 
 // Entrée : { tenuesTypes, tenuesGardees, vetements, catalogue, reglages, cache?, max? }.
-// Sortie : { manques: [{ couleurId (null pour le joker), type, score, aimees, premieres }] (au plus max, triés),
-//            nbDistincts (couples avant la coupe), nbAimees, nbTenues, nbPremieres (tenues types avec une
-//            proposition), cache }.
-// Tri : score décroissant, puis tenues aimées décroissantes, puis ordre du catalogue (joker en dernier), puis TYPES.
+// Sortie : { manques: [{ couleurId (null pour le joker), type, score, aimees, favorites, premieres }] (au plus max,
+//            triés), nbDistincts (couples avant la coupe), nbAimees, nbFavorites (combinaisons favorites évaluées),
+//            nbTenues, nbPremieres (tenues types avec une proposition), cache }.
+// Tri : score décroissant, puis tenues aimées et combinaisons favorites, puis ordre du catalogue (joker en dernier), puis TYPES.
 export function manquesFrequents({ tenuesTypes, tenuesGardees = [], vetements, catalogue, reglages, cache, max = MANQUES_FREQUENTS_MAX }) {
   let cacheCourant = cache && cache.catalogue === catalogue ? cache : creerCacheEcarts(catalogue);
   const comptes = new Map();
@@ -22,7 +24,7 @@ export function manquesFrequents({ tenuesTypes, tenuesGardees = [], vetements, c
     const cle = `${type} ${couleurId ?? ''}`;
     let entree = comptes.get(cle);
     if (!entree) {
-      entree = { couleurId: couleurId ?? null, type, score: 0, aimees: 0, premieres: 0 };
+      entree = { couleurId: couleurId ?? null, type, score: 0, aimees: 0, favorites: 0, premieres: 0 };
       comptes.set(cle, entree);
     }
     entree.score += poids;
@@ -31,6 +33,20 @@ export function manquesFrequents({ tenuesTypes, tenuesGardees = [], vetements, c
 
   for (const tenue of tenuesGardees) {
     for (const manque of manquesDeLaTenue(tenue, { vetements, catalogue, reglages })) noter(manque, POIDS_MANQUE_AIMEE, 'aimees');
+  }
+  let nbFavorites = 0;
+  for (const id of reglages.favorisCombinaisons ?? []) {
+    const combinaison = catalogue.combinaisonParId?.get(id);
+    if (!combinaison) continue;
+    const seule = { ...catalogue, combinaisons: [combinaison] };
+    let meilleure = null;
+    for (const types of tenuesTypes) {
+      const [proposition] = proposer({ types, vetements, catalogue: seule, reglages }).retenues;
+      if (proposition && (!meilleure || proposition.nbManques < meilleure.nbManques)) meilleure = proposition;
+    }
+    if (!meilleure) continue;
+    nbFavorites++;
+    for (const manque of meilleure.manques) noter(manque, POIDS_MANQUE_AIMEE, 'favorites');
   }
   let nbPremieres = 0;
   for (const types of tenuesTypes) {
@@ -45,13 +61,14 @@ export function manquesFrequents({ tenuesTypes, tenuesGardees = [], vetements, c
   const rang = new Map(catalogue.couleurs.map((c, i) => [c.id, i]));
   const rangCouleur = (id) => (id === null ? Infinity : rang.get(id));
   const manques = [...comptes.values()].sort((a, b) => b.score - a.score
-    || b.aimees - a.aimees
+    || (b.aimees + b.favorites) - (a.aimees + a.favorites)
     || rangCouleur(a.couleurId) - rangCouleur(b.couleurId)
     || TYPES.indexOf(a.type) - TYPES.indexOf(b.type));
   return {
     manques: manques.slice(0, max),
     nbDistincts: manques.length,
     nbAimees: tenuesGardees.length,
+    nbFavorites,
     nbTenues: tenuesTypes.length,
     nbPremieres,
     cache: cacheCourant,

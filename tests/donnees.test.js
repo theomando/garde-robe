@@ -4,7 +4,7 @@ import {
   ajouterVetement, modifierVetement, supprimerVetement, basculerFavori, modifierReglages, enregistrerTenueType,
   enregistrerEtalonnage, supprimerEtalonnage, retirerTenueType,
   garderTenue, retirerTenueGardee, renommerTenueGardee, marquesConnues, noterSauvegarde, reporterRappelSauvegarde, rappelSauvegardeDu,
-  couleursDuVetement, vetementsEnService, ajouterEnvie, retirerEnvie, obtenirEnvie, estDansWishlist,
+  couleursDuVetement, vetementsEnService, ajouterEnvie, retirerEnvie, obtenirEnvie, estDansWishlist, basculerFavoriCombinaison,
 } from '../js/donnees.js';
 import { signatureTenue } from '../js/tenues.js';
 
@@ -196,7 +196,7 @@ test('export puis import : mêmes données', () => {
   const texte = exporterEtat(etat, DATE, 2);
   const doc = JSON.parse(texte);
   egal(doc.format, 'garde-robe-chromatique');
-  egal(doc.version, 5);
+  egal(doc.version, 6);
   egal(doc.dateExport, '2026-09-24T10:00:00.000Z');
   const { erreurs, etat: relu } = lireExport(texte);
   egalProfond(erreurs, []);
@@ -314,7 +314,7 @@ test('données v3 : couleurs secondaires (2 au plus), exportées, relues ; une v
   const relu = lireExport(exporterEtat(etat, DATE));
   egalProfond(relu.erreurs, []);
   egalProfond(relu.etat, etat);
-  egal(JSON.parse(exporterEtat(etat, DATE)).version, 5);
+  egal(JSON.parse(exporterEtat(etat, DATE)).version, 6);
   const v2 = JSON.parse(exporterEtat(etatExemple(), DATE));
   v2.version = 2;
   delete v2.wishlist;
@@ -348,7 +348,7 @@ test('données v4 : vêtement en pause (demande de Théo), exporté, relu ; une 
   mauvais.vetements[0].enPause = false;
   vrai(lireExport(JSON.stringify(mauvais)).erreurs.some((e) => e.includes('« enPause » doit valoir true ou être absent')), 'false refusé');
   vrai(lireExport(JSON.stringify({ ...mauvais, version: 7 })).erreurs[0].includes('plus récente'));
-  vrai(lireExport(JSON.stringify({ ...mauvais, version: 0 })).erreurs[0].includes('« version » doit valoir 1, 2, 3, 4 ou 5'));
+  vrai(lireExport(JSON.stringify({ ...mauvais, version: 0 })).erreurs[0].includes('« version » doit valoir 1, 2, 3, 4, 5 ou 6'));
 });
 
 test('données v5 : wishlist (demande de Théo), envies ajoutées, retirées, obtenues ; une version 4 reste lisible', () => {
@@ -385,4 +385,26 @@ test('données v5 : wishlist (demande de Théo), envies ajoutées, retirées, ob
   mauvais.wishlist[1].id = mauvais.wishlist[0].id;
   const erreurs = lireExport(JSON.stringify(mauvais)).erreurs;
   vrai(erreurs.some((e) => e.includes('envie 1 : champ inconnu « taille »')) && erreurs.some((e) => e.includes('en double')), erreurs.join(' ; '));
+});
+
+test('données v6 : combinaisons favorites (demande de Théo), ajoutées, retirées, exportées ; une version 5 reste lisible', () => {
+  let etat = etatExemple();
+  egal(etat.reglages.favorisCombinaisons, undefined, 'aucune au départ');
+  etat = basculerFavoriCombinaison(etat, 'wada-n12');
+  etat = basculerFavoriCombinaison(etat, 'vetements-mode-02');
+  egalProfond(etat.reglages.favorisCombinaisons, ['wada-n12', 'vetements-mode-02']);
+  const relu = lireExport(exporterEtat(etat, DATE));
+  egalProfond(relu.erreurs, []);
+  egalProfond(relu.etat, etat, 'exportées et relues');
+  egalProfond(basculerFavoriCombinaison(etat, 'wada-n12').reglages.favorisCombinaisons, ['vetements-mode-02'], 'retirée');
+  egal('favorisCombinaisons' in basculerFavoriCombinaison(basculerFavoriCombinaison(etat, 'wada-n12'), 'vetements-mode-02').reglages, false, 'liste vide : plus de champ');
+  leve(() => basculerFavoriCombinaison(etat, ''));
+  const v5 = JSON.parse(exporterEtat(etat, DATE));
+  v5.version = 5;
+  vrai(lireExport(JSON.stringify(v5)).erreurs.some((e) => e.includes('champ inconnu « favorisCombinaisons »')), 'absentes de la version 5');
+  delete v5.reglages.favorisCombinaisons;
+  egalProfond(lireExport(JSON.stringify(v5)).erreurs, [], 'version 5 lisible');
+  const double = JSON.parse(exporterEtat(etat, DATE));
+  double.reglages.favorisCombinaisons.push('wada-n12');
+  vrai(lireExport(JSON.stringify(double)).erreurs.some((e) => e.includes('combinaison favorite en double')));
 });

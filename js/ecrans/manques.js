@@ -71,15 +71,16 @@ export function sectionManques(app, actions) {
     return [...entete, el('p', { class: 'vide', role: 'status', 'data-info': 'calcul' }, 'Calcul des manques…')];
   }
 
-  const { manques, nbAimees, nbTenues, nbPremieres } = resultat;
+  const { manques, nbAimees, nbFavorites, nbTenues, nbPremieres } = resultat;
   const bases = [
     nbAimees > 0 ? `tes ${pluriel(nbAimees, 'tenue aimée')} (♡, poids ${POIDS_MANQUE_AIMEE})` : null,
+    nbFavorites > 0 ? `tes ${pluriel(nbFavorites, 'combinaison favorite')} (★, poids ${POIDS_MANQUE_AIMEE})` : null,
     nbTenues > 0 ? `la première proposition de ${nbTenues === 1 ? 'ta tenue demandée' : `tes ${nbTenues} tenues demandées`} (poids ${POIDS_MANQUE_PREMIERE})` : null,
   ].filter(Boolean);
   const intro = el('p', { class: 'discret', 'data-info': 'bilan' }, `D'après ${bases.join(' et ')}, avec ta garde-robe actuelle.`);
 
   let corps;
-  if (nbAimees === 0 && nbPremieres === 0) {
+  if (nbAimees === 0 && nbFavorites === 0 && nbPremieres === 0) {
     corps = el('p', { class: 'vide', 'data-info': 'sans-proposition' },
       'Aucune proposition retenue pour tes tenues (plus de 2 manques partout). Ajoute des vêtements ou augmente la tolérance (Réglages).');
   } else if (manques.length === 0) {
@@ -98,6 +99,7 @@ export function sectionManques(app, actions) {
       // D'où vient le manque : tenues aimées (♡) et premières propositions (1ʳᵉ).
       el('span', { class: 'nombre' },
         manque.aimees > 0 ? el('span', { class: 'poids-manque', 'aria-label': `dans ${pluriel(manque.aimees, 'tenue aimée')}` }, `♡ ${manque.aimees}`) : null,
+        manque.favorites > 0 ? el('span', { class: 'poids-manque', 'aria-label': `dans ${pluriel(manque.favorites, 'combinaison favorite')}` }, `★ ${manque.favorites}`) : null,
         manque.premieres > 0 ? el('span', { class: 'poids-manque', 'aria-label': `dans ${pluriel(manque.premieres, 'première proposition')}` }, `1ʳᵉ ${manque.premieres}`) : null),
       boutonEnvie(app, actions, envieDuManque(app, manque), `${LIBELLES_TYPES[manque.type]}, ${couleur ? couleur.nom : 'noir ou blanc'}`));
     }));

@@ -216,12 +216,13 @@ function evaluer(combinaison, rang, pieces, peau, tolerance, index, favoris) {
   };
 }
 
-// Tri : manques croissants, combinaisons pour s'habiller d'abord (demande de Théo, 2026-09-27), peau utilisée
-// d'abord, favoris décroissants, vêtements multicolores « en harmonie » décroissants, ΔE00 moyen croissant, ordre du
-// catalogue.
+// Tri : manques croissants, combinaisons favorites d'abord, puis combinaisons pour s'habiller (demandes de Théo,
+// 2026-09-27), peau utilisée d'abord, favoris décroissants, vêtements multicolores « en harmonie » décroissants, ΔE00
+// moyen croissant, ordre du catalogue.
 const pourVetements = (proposition) => Number(proposition.combinaison?.source === 'vetements');
 export function comparerPropositions(a, b) {
   return a.nbManques - b.nbManques
+    || Number(Boolean(b.favorite)) - Number(Boolean(a.favorite))
     || pourVetements(b) - pourVetements(a)
     || Number(b.peauUtilisee) - Number(a.peauUtilisee)
     || b.nbFavoris - a.nbFavoris
@@ -239,6 +240,7 @@ export function proposer({ types, vetements, catalogue, reglages, cache, epingle
   const pieces = preparerPieces(visibles, vetements, cacheValide, epingles);
   const peau = reglages.teintActif ? ligneEcarts(cacheValide, MST[reglages.mst - 1]) : null;
   const favoris = new Set(reglages.favoris ?? []);
+  const favorites = new Set(reglages.favorisCombinaisons ?? []);
   const retenues = [];
   // Bonus multicolore : chaque couleur du vêtement porté est dans la combinaison (à la tolérance près) ou neutre.
   const neutre = new Map();
@@ -254,6 +256,7 @@ export function proposer({ types, vetements, catalogue, reglages, cache, epingle
     const indices = combinaison.couleurs.map((id) => cacheValide.index.get(id));
     proposition.nbHarmonieux = proposition.pieces
       .filter((p) => p.vetement?.couleursSecondaires?.length > 0 && enHarmonie(p.vetement, indices)).length;
+    proposition.favorite = favorites.has(combinaison.id);
     retenues.push(proposition);
   });
   retenues.sort(comparerPropositions);
@@ -261,6 +264,7 @@ export function proposer({ types, vetements, catalogue, reglages, cache, epingle
 }
 
 // Propositions affichées : filtre « avec mes favoris » (au moins une couleur favorite), puis coupe.
-export function selectionner(retenues, { avecFavoris = false, max = PROPOSITIONS_MAX } = {}) {
-  return (avecFavoris ? retenues.filter((p) => p.nbFavoris > 0) : retenues).slice(0, max);
+// avecCombinaisonsFavorites : seulement les combinaisons favorites (catalogue des combinaisons).
+export function selectionner(retenues, { avecFavoris = false, avecCombinaisonsFavorites = false, max = PROPOSITIONS_MAX } = {}) {
+  return retenues.filter((p) => (!avecFavoris || p.nbFavoris > 0) && (!avecCombinaisonsFavorites || p.favorite)).slice(0, max);
 }
