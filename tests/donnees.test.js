@@ -4,7 +4,7 @@ import {
   ajouterVetement, modifierVetement, supprimerVetement, basculerFavori, modifierReglages, enregistrerTenueType,
   enregistrerEtalonnage, supprimerEtalonnage, retirerTenueType,
   garderTenue, retirerTenueGardee, renommerTenueGardee, marquesConnues, noterSauvegarde, reporterRappelSauvegarde, rappelSauvegardeDu,
-  couleursDuVetement,
+  couleursDuVetement, vetementsEnService,
 } from '../js/donnees.js';
 import { signatureTenue } from '../js/tenues.js';
 
@@ -195,7 +195,7 @@ test('export puis import : mêmes données', () => {
   const texte = exporterEtat(etat, DATE, 2);
   const doc = JSON.parse(texte);
   egal(doc.format, 'garde-robe-chromatique');
-  egal(doc.version, 3);
+  egal(doc.version, 4);
   egal(doc.dateExport, '2026-09-24T10:00:00.000Z');
   const { erreurs, etat: relu } = lireExport(texte);
   egalProfond(erreurs, []);
@@ -313,7 +313,7 @@ test('données v3 : couleurs secondaires (2 au plus), exportées, relues ; une v
   const relu = lireExport(exporterEtat(etat, DATE));
   egalProfond(relu.erreurs, []);
   egalProfond(relu.etat, etat);
-  egal(JSON.parse(exporterEtat(etat, DATE)).version, 3);
+  egal(JSON.parse(exporterEtat(etat, DATE)).version, 4);
   const v2 = JSON.parse(exporterEtat(etatExemple(), DATE));
   v2.version = 2;
   egalProfond(lireExport(JSON.stringify(v2)).erreurs, [], 'version 2 lisible');
@@ -322,4 +322,28 @@ test('données v3 : couleurs secondaires (2 au plus), exportées, relues ; une v
   const mauvais = JSON.parse(exporterEtat(etat, DATE));
   mauvais.vetements[2].couleursSecondaires = [{ hex: 'blanc' }];
   vrai(lireExport(JSON.stringify(mauvais)).erreurs.some((e) => e.includes('couleur 2 : couleur « blanc » invalide')), 'hex secondaire vérifié');
+});
+
+test('données v4 : vêtement en pause (demande de Théo), exporté, relu ; une version 3 reste lisible', () => {
+  const etat = etatExemple();
+  const [premier] = etat.vetements;
+  const enPause = modifierVetement(etat, premier.id, { enPause: true });
+  egal(enPause.vetements[0].enPause, true);
+  egalProfond(vetementsEnService(enPause).map((v) => v.id), etat.vetements.slice(1).map((v) => v.id), 'hors service');
+  egal(enPause.vetements.length, etat.vetements.length, 'toujours dans la garde-robe');
+  egal('enPause' in modifierVetement(enPause, premier.id, { enPause: false }).vetements[0], false, 'repris : plus de champ');
+  egal(modifierVetement(enPause, premier.id, { marque: 'Uniqlo' }).vetements[0].enPause, true, 'une autre modification garde la pause');
+  const relu = lireExport(exporterEtat(enPause, DATE));
+  egalProfond(relu.erreurs, []);
+  egalProfond(relu.etat, enPause);
+  const v3 = JSON.parse(exporterEtat(etat, DATE));
+  v3.version = 3;
+  egalProfond(lireExport(JSON.stringify(v3)).erreurs, [], 'version 3 lisible');
+  v3.vetements[0].enPause = true;
+  vrai(lireExport(JSON.stringify(v3)).erreurs.some((e) => e.includes('champ inconnu « enPause »')), 'absent de la version 3');
+  const mauvais = JSON.parse(exporterEtat(enPause, DATE));
+  mauvais.vetements[0].enPause = false;
+  vrai(lireExport(JSON.stringify(mauvais)).erreurs.some((e) => e.includes('« enPause » doit valoir true ou être absent')), 'false refusé');
+  vrai(lireExport(JSON.stringify({ ...mauvais, version: 7 })).erreurs[0].includes('plus récente'));
+  vrai(lireExport(JSON.stringify({ ...mauvais, version: 0 })).erreurs[0].includes('« version » doit valoir 1, 2, 3 ou 4'));
 });

@@ -6,7 +6,7 @@
 import { el, pastille, pastilleJoker, barreNavigation, interrupteur, tuile, ouvrirDialogue, annoncer, nouvelIdentifiant } from '../ui.js';
 import { icone } from '../icones.js';
 import { TYPES, LIBELLES_TYPES, INCOMPATIBLES, MST, PROPOSITIONS_MAX } from '../constantes.js';
-import { enregistrerTenueType, basculerFavori, garderTenue, retirerTenueGardee } from '../donnees.js';
+import { enregistrerTenueType, basculerFavori, garderTenue, retirerTenueGardee, vetementsEnService } from '../donnees.js';
 import { instantaneTenue, signatureTenue, referenceCombinaison } from '../tenues.js';
 import { proposer, selectionner, piecesVisibles } from '../moteur.js';
 import { dessinerAvatar, planAvatar } from '../avatar.js';
@@ -81,19 +81,23 @@ export function rendreTenue(conteneur, app, actions) {
         actions.rafraichir();
       },
     })));
-  // Épingles valides : vêtement toujours présent, type dans la tenue. Masqué (t-shirt sous un pull) : sans effet.
-  const vetementParId = new Map(app.etat.vetements.map((v) => [v.id, v]));
+  // Épingles valides : vêtement toujours présent et en service, type dans la tenue. Masqué (t-shirt sous un pull) :
+  // sans effet. Les vêtements en pause n'entrent ni dans les propositions ni dans « Partir d'un vêtement ».
+  const enService = vetementsEnService(app.etat);
+  const vetementParId = new Map(enService.map((v) => [v.id, v]));
   ecran.epingles = Object.fromEntries(Object.entries(ecran.epingles)
     .filter(([type, id]) => ecran.types.includes(type) && vetementParId.get(id)?.type === type));
   const visibles = ecran.types.length > 0 ? piecesVisibles(ecran.types) : [];
   const epingles = TYPES.filter((type) => ecran.epingles[type]).map((type) => ({ type, vetement: vetementParId.get(ecran.epingles[type]) }));
 
   async function choisirEpingle() {
-    const groupes = TYPES.map((type) => ({ type, siens: app.etat.vetements.filter((v) => v.type === type) })).filter((g) => g.siens.length > 0);
+    const groupes = TYPES.map((type) => ({ type, siens: enService.filter((v) => v.type === type) })).filter((g) => g.siens.length > 0);
     const id = await ouvrirDialogue({
       titre: 'Quel vêtement veux-tu porter ?',
       contenu: groupes.length === 0
-        ? [el('p', { class: 'discret' }, 'Ta garde-robe est vide : ajoute d\'abord des vêtements.')]
+        ? [el('p', { class: 'discret' }, app.etat.vetements.length > 0
+          ? 'Tous tes vêtements sont en pause : reprends-en d\'abord (onglet Garde-robe).'
+          : 'Ta garde-robe est vide : ajoute d\'abord des vêtements.')]
         : groupes.map(({ type, siens }) => [
           el('h3', { class: 'titre-groupe' }, libelle(type)),
           el('div', { class: 'groupe' }, siens.map((v) => el('button', {
@@ -144,7 +148,7 @@ export function rendreTenue(conteneur, app, actions) {
 
   // ---- Propositions ----
   const resultat = proposer({
-    types: ecran.types, vetements: app.etat.vetements, catalogue: app.catalogue, reglages: app.etat.reglages, cache: app.cacheEcarts,
+    types: ecran.types, vetements: enService, catalogue: app.catalogue, reglages: app.etat.reglages, cache: app.cacheEcarts,
     epingles: ecran.epingles,
   });
   app.cacheEcarts = resultat.cache;
@@ -264,7 +268,9 @@ export function rendreTenue(conteneur, app, actions) {
   const total = resultat.retenues.length;
   contenu.push(
     resultat.gardeRobeVide
-      ? el('p', { class: 'encart', 'data-info': 'garde-robe-vide' }, 'Ta garde-robe est vide : ajoute tes vêtements (onglet Garde-robe) pour obtenir des propositions.')
+      ? el('p', { class: 'encart', 'data-info': 'garde-robe-vide' }, app.etat.vetements.length > 0
+        ? 'Tous tes vêtements sont en pause : reprends-en (onglet Garde-robe) pour obtenir des propositions.'
+        : 'Ta garde-robe est vide : ajoute tes vêtements (onglet Garde-robe) pour obtenir des propositions.')
       : null,
     panneau,
     el('label', { class: 'ligne ligne-interrupteur ligne-filtre', for: 'filtre-favoris' }, el('span', { class: 'texte-ligne' }, 'Avec mes couleurs favorites'), filtre),

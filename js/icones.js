@@ -37,6 +37,8 @@ const DESSINS = {
     ['circle', { cx: 15.5, cy: 9.3, r: 1.5 }]],
   aide: [['circle', { cx: 12, cy: 12, r: 9 }], ['path', { d: 'M9.6 9.6a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.2.9-1.2 1.7v.6' }],
     ['circle', { cx: 12, cy: 17, r: 0.4, plein: true }]],
+  pause: [['path', { d: 'M8.5 5.5v13M15.5 5.5v13' }]],
+  reprendre: [['path', { d: 'M8 5.2v13.6L18.5 12 8 5.2Z' }]],
   poubelle: [['path', { d: 'M4.5 6.5h15M9.5 6.5V4.8c0-.5.4-.8.8-.8h3.4c.4 0 .8.3.8.8v1.7M6.5 6.5l.9 13c.1.8.7 1.5 1.5 1.5h6.2c.8 0 1.4-.7 1.5-1.5l.9-13' }]],
   etoile: [['path', { d: 'M12 3.3l2.6 5.5 6 .8-4.4 4.1 1.1 5.9L12 16.7l-5.3 2.9 1.1-5.9-4.4-4.1 6-.8L12 3.3Z', 'stroke-linejoin': 'round' }]],
   'etoile-pleine': [['path', { d: 'M12 3.3l2.6 5.5 6 .8-4.4 4.1 1.1 5.9L12 16.7l-5.3 2.9 1.1-5.9-4.4-4.1 6-.8L12 3.3Z', 'stroke-linejoin': 'round', plein: true }]],

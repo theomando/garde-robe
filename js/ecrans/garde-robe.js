@@ -1,7 +1,9 @@
 // Écran Garde-robe : liste groupée par type, ajout (bouton « + » : mesure à la caméra ou choix dans le catalogue),
-// modification (type, couleur, marque, photo), suppression.
+// modification (type, couleur, marque, photo, pause), suppression.
+// Pause (demande de Théo, 2026-09-27) : un vêtement en pause (lavage, prêt…) reste dans la liste, grisé, mais
+// n'entre plus dans les propositions ; interrupteur dans la fiche, ou bouton « Pause » en balayant la ligne.
 
-import { el, pastille, ouvrirDialogue, confirmer, annoncer, nouvelIdentifiant, barreNavigation, boutonRond, ouvrirMenu, tuile } from '../ui.js';
+import { el, pastille, ouvrirDialogue, confirmer, annoncer, nouvelIdentifiant, barreNavigation, boutonRond, ouvrirMenu, tuile, interrupteur } from '../ui.js';
 import { icone } from '../icones.js';
 import { TYPES, LIBELLES_TYPES } from '../constantes.js';
 import { ajouterVetement, modifierVetement, supprimerVetement, rappelSauvegardeDu, couleursDuVetement } from '../donnees.js';
@@ -173,6 +175,7 @@ async function modifier(app, actions, vetement) {
   const [champ, suggestions] = champMarque(app, vetement.marque ?? '', { id: 'marque-vetement' });
   const choixType = el('select', { class: 'champ-ligne', id: 'type-vetement', 'data-action': 'type-vetement' },
     TYPES.map((t) => el('option', { value: t, selected: t === vetement.type }, LIBELLES_TYPES[t])));
+  const enPause = interrupteur({ id: 'pause-vetement', checked: Boolean(vetement.enPause) });
   const reponse = await ouvrirDialogue({
     titre: 'Modifier le vêtement',
     contenu: [
@@ -180,6 +183,9 @@ async function modifier(app, actions, vetement) {
       el('div', { class: 'groupe' },
         el('label', { class: 'ligne', for: 'marque-vetement' }, el('span', {}, 'Marque'), champ, suggestions),
         el('label', { class: 'ligne', for: 'type-vetement' }, el('span', { class: 'texte-ligne' }, 'Type'), choixType)),
+      el('div', { class: 'groupe' },
+        el('label', { class: 'ligne ligne-interrupteur', for: 'pause-vetement' }, el('span', { class: 'texte-ligne' }, 'En pause'), enPause)),
+      el('p', { class: 'pied-groupe' }, 'Au lavage, prêté… : un vêtement en pause n\'apparaît plus dans les propositions de tenues.'),
       el('h3', { class: 'titre-groupe' }, 'Couleurs'),
       blocCouleurs,
       el('div', { class: 'groupe' },
@@ -191,9 +197,19 @@ async function modifier(app, actions, vetement) {
     boutons: [{ libelle: 'Annuler', valeur: null }, { libelle: 'Enregistrer', valeur: 'ok', style: 'principal' }],
   });
   if (reponse === 'supprimer') { await supprimer(app, actions, vetement); return; }
-  if (reponse === 'composer') { epinglerVetement(app, vetement); actions.naviguer('tenue'); return; }
+  if (reponse === 'composer') {
+    // Un vêtement en pause n'entre pas dans les propositions : on le reprend d'abord (après accord s'il l'est encore).
+    if (vetement.enPause) {
+      if (enPause.checked && !(await confirmer('Reprendre ce vêtement ?', 'Il est en pause : pour composer une tenue avec lui, il revient dans les propositions.', 'Reprendre', 'principal'))) return;
+      if (!actions.mettreAJour(modifierVetement(app.etat, vetement.id, { enPause: false }))) return;
+    }
+    epinglerVetement(app, vetement);
+    actions.naviguer('tenue');
+    return;
+  }
   if (reponse !== 'ok') return;
   const modifications = { type: choixType.value, marque: champ.value };
+  if (enPause.checked !== Boolean(vetement.enPause)) modifications.enPause = enPause.checked;
   if (couleursModifiees) {
     const [principale, ...secondaires] = couleurs;
     Object.assign(modifications, { hex: principale.hex, idCouleurCatalogue: principale.idCouleurCatalogue ?? null, couleursSecondaires: secondaires });
@@ -222,9 +238,10 @@ async function supprimer(app, actions, vetement) {
   }
 }
 
-// Balayer une ligne vers la gauche découvre « Supprimer », comme dans Mail. Une seule ligne ouverte à la fois ;
-// toucher une ligne ouverte la referme. La suppression reste aussi dans la fenêtre de modification (VoiceOver).
-const LARGEUR_ACTION = 92; // px découverts par le balayage
+// Balayer une ligne vers la gauche découvre « Pause » (ou « Reprendre ») et « Supprimer », comme dans Mail. Une seule
+// ligne ouverte à la fois ; toucher une ligne ouverte la referme. Pause et suppression restent aussi dans la fenêtre
+// de modification (VoiceOver).
+const LARGEUR_ACTION = 160; // px découverts par le balayage (deux boutons de 80 px)
 const SEUIL_BALAYAGE = 10; // px avant de décider entre balayage horizontal et défilement vertical
 let ligneOuverte = null;
 
@@ -235,7 +252,7 @@ function fermerLigne(li) {
   if (ligneOuverte === li) ligneOuverte = null;
 }
 
-function balayerPourSupprimer(li, ligneBouton) {
+function balayerPourActions(li, ligneBouton) {
   let depart = null;
   let geste = null; // null (indécis), 'balayage' ou 'defilement'
   let decalage = 0;
@@ -285,10 +302,10 @@ function balayerPourSupprimer(li, ligneBouton) {
 // Toucher la ligne ouvre la modification (la suppression s'y trouve aussi).
 function ligne(app, actions, vetement) {
   const nom = nomCouleurVetement(vetement, app.catalogue);
-  const li = el('li', { class: 'vetement' });
+  const li = el('li', { class: vetement.enPause ? 'vetement en-pause' : 'vetement' });
   const ligneBouton = el('button', {
     type: 'button', class: 'ligne-vetement', 'data-vetement': vetement.id, 'data-action': 'modifier',
-    'aria-label': `Modifier : ${LIBELLES_TYPES[vetement.type]}, ${nom}`,
+    'aria-label': `Modifier : ${LIBELLES_TYPES[vetement.type]}, ${nom}${vetement.enPause ? ', en pause' : ''}`,
     onclick: () => {
       if ('balaye' in li.dataset) { delete li.dataset.balaye; return; }
       if (li.classList.contains('ouverte')) { fermerLigne(li); return; }
@@ -300,6 +317,7 @@ function ligne(app, actions, vetement) {
   el('span', { class: 'infos' },
     el('span', { class: 'nom' }, nom),
     el('span', { class: 'detail discret' },
+      vetement.enPause ? el('span', { class: 'mention-pause', 'data-info': 'en-pause' }, 'En pause · ') : null,
       vetement.marque ? el('span', { class: 'marque' }, `${vetement.marque} · `) : null,
       vetement.origine === 'scan' ? 'Mesurée à la caméra' : 'Choisie dans le catalogue')),
   icone('chevron-droite', { classe: 'chevron' }));
@@ -310,8 +328,17 @@ function ligne(app, actions, vetement) {
       fermerLigne(li);
     },
   }, icone('poubelle'), el('span', {}, 'Supprimer'));
-  balayerPourSupprimer(li, ligneBouton);
-  li.append(action, ligneBouton);
+  const pause = el('button', {
+    type: 'button', class: 'action-pause', 'data-action': 'pause-balayage', tabindex: '-1', 'aria-hidden': 'true',
+    onclick: () => {
+      fermerLigne(li);
+      if (actions.mettreAJour(modifierVetement(app.etat, vetement.id, { enPause: !vetement.enPause }))) {
+        annoncer(vetement.enPause ? 'Vêtement repris' : 'Vêtement en pause');
+      }
+    },
+  }, icone(vetement.enPause ? 'reprendre' : 'pause'), el('span', {}, vetement.enPause ? 'Reprendre' : 'Pause'));
+  balayerPourActions(li, ligneBouton);
+  li.append(pause, action, ligneBouton);
   return li;
 }
 
@@ -339,9 +366,10 @@ function carteAction({ icone: nom, titre, detail, action, onclick }) {
 export function rendreGardeRobe(conteneur, app, actions) {
   const { vetements } = app.etat;
   const n = vetements.length;
+  const enPause = vetements.filter((v) => v.enPause).length;
   const contenu = barreNavigation({
     titre: 'Garde-robe',
-    sousTitre: n > 0 ? `${n} vêtement${n > 1 ? 's' : ''}` : null,
+    sousTitre: n > 0 ? `${n} vêtement${n > 1 ? 's' : ''}${enPause > 0 ? `, dont ${enPause} en pause` : ''}` : null,
     droite: [boutonRond({ icone: 'plus', libelle: 'Ajouter un vêtement', action: 'ajouter', onclick: (e) => menuAjout(app, actions, e.currentTarget) })],
   });
   if (rappelSauvegardeDu(app.etat, new Date())) contenu.push(encartSauvegarde(app, actions));

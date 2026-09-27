@@ -15,7 +15,7 @@ import { estHexValide } from './couleur.js';
 import { verifierMesuresEtalonnage } from './etalonnage.js';
 
 export const FORMAT_DONNEES = 'garde-robe-chromatique';
-export const VERSION_DONNEES = 3;
+export const VERSION_DONNEES = 4;
 export const COULEURS_SECONDAIRES_MAX = 2; // un vêtement a au plus 3 couleurs
 export const ORIGINES = ['scan', 'manuel'];
 
@@ -23,16 +23,19 @@ const CLES_DOCUMENT = {
   1: ['format', 'version', 'dateExport', 'vetements', 'reglages', 'tenuesTypes'],
   2: ['format', 'version', 'dateExport', 'vetements', 'reglages', 'tenuesTypes', 'tenuesGardees', 'photos'],
   3: ['format', 'version', 'dateExport', 'vetements', 'reglages', 'tenuesTypes', 'tenuesGardees', 'photos'],
+  4: ['format', 'version', 'dateExport', 'vetements', 'reglages', 'tenuesTypes', 'tenuesGardees', 'photos'],
 };
 const CLES_VETEMENT = {
   1: ['id', 'type', 'hex', 'origine', 'idCouleurCatalogue', 'dateAjout'],
   2: ['id', 'type', 'hex', 'origine', 'idCouleurCatalogue', 'dateAjout', 'marque', 'photo'],
   3: ['id', 'type', 'hex', 'origine', 'idCouleurCatalogue', 'dateAjout', 'marque', 'photo', 'couleursSecondaires'],
+  4: ['id', 'type', 'hex', 'origine', 'idCouleurCatalogue', 'dateAjout', 'marque', 'photo', 'couleursSecondaires', 'enPause'],
 };
 const CLES_REGLAGES = {
   1: ['mst', 'teintActif', 'tolerance', 'favoris', 'etalonnage'],
   2: ['mst', 'teintActif', 'tolerance', 'favoris', 'etalonnage', 'derniereSauvegarde', 'rappelSauvegarde'],
   3: ['mst', 'teintActif', 'tolerance', 'favoris', 'etalonnage', 'derniereSauvegarde', 'rappelSauvegarde'],
+  4: ['mst', 'teintActif', 'tolerance', 'favoris', 'etalonnage', 'derniereSauvegarde', 'rappelSauvegarde'],
 };
 const CLES_ETALONNAGE = ['blanc', 'noir', 'date'];
 const CLES_TENUE_GARDEE = ['id', 'nom', 'date', 'types', 'combinaison', 'pieces', 'peau'];
@@ -41,6 +44,7 @@ const CLES_COULEUR_GARDEE = ['id', 'nom', 'hex', 'role'];
 const CLES_PIECE_GARDEE = {
   2: ['type', 'hex', 'manque', 'joker', 'couleurId', 'vetementId'],
   3: ['type', 'hex', 'manque', 'joker', 'couleurId', 'vetementId', 'hexSecondaires'],
+  4: ['type', 'hex', 'manque', 'joker', 'couleurId', 'vetementId', 'hexSecondaires'],
 };
 const CLES_COULEUR_SECONDAIRE = ['hex', 'idCouleurCatalogue'];
 const SOURCES = ['wada', 'papier-tigre'];
@@ -233,6 +237,7 @@ export function validerEtat({ vetements, reglages, tenuesTypes, tenuesGardees = 
       if (v.marque !== undefined && !estTexteLibre(v.marque, MARQUE_MAX)) erreurs.push(`${ou} : marque invalide (${MARQUE_MAX} caractères au plus)`);
       if (v.photo !== undefined && v.photo !== true) erreurs.push(`${ou} : « photo » doit valoir true ou être absent`);
       if (v.couleursSecondaires !== undefined) validerCouleursSecondaires(v.couleursSecondaires, ou, erreurs);
+      if (v.enPause !== undefined && v.enPause !== true) erreurs.push(`${ou} : « enPause » doit valoir true ou être absent`);
     });
   }
 
@@ -317,6 +322,7 @@ export function validerEtat({ vetements, reglages, tenuesTypes, tenuesGardees = 
         ...(v.marque !== undefined ? { marque: v.marque } : {}),
         ...(v.photo !== undefined ? { photo: true } : {}),
         ...(v.couleursSecondaires !== undefined ? { couleursSecondaires: validerCouleursSecondaires(v.couleursSecondaires, '', []) } : {}),
+        ...(v.enPause !== undefined ? { enPause: true } : {}),
       })),
       reglages: {
         mst: reglages.mst, teintActif: reglages.teintActif, tolerance: reglages.tolerance, favoris: [...reglages.favoris],
@@ -354,7 +360,10 @@ export function lireExport(texte) {
   if (Number.isInteger(doc.version) && doc.version > VERSION_DONNEES) {
     return refus(`version ${doc.version} plus récente que cette app (version ${VERSION_DONNEES}) : mets l'app à jour`);
   }
-  if (!Object.hasOwn(CLES_DOCUMENT, doc.version)) return refus(`« version » doit valoir 1, 2 ou ${VERSION_DONNEES}`);
+  if (!Object.hasOwn(CLES_DOCUMENT, doc.version)) {
+    const versions = Object.keys(CLES_DOCUMENT);
+    return refus(`« version » doit valoir ${versions.slice(0, -1).join(', ')} ou ${versions.at(-1)}`);
+  }
   const erreurs = [];
   champsInconnus(doc, CLES_DOCUMENT[doc.version], 'document', erreurs);
   if (!estDateIso(doc.dateExport)) erreurs.push('« dateExport » invalide');
@@ -429,6 +438,8 @@ export function modifierVetement(etat, id, modifications) {
   }
   if (modifications.photo === true) nouveau.photo = true;
   else if (modifications.photo === false) delete nouveau.photo;
+  if (modifications.enPause === true) nouveau.enPause = true;
+  else if (modifications.enPause === false) delete nouveau.enPause;
   verifierVetement(nouveau);
   nouveau.hex = nouveau.hex.toLowerCase();
   return { ...etat, vetements: etat.vetements.map((v) => (v.id === id ? nouveau : v)) };
@@ -442,6 +453,10 @@ function secondairesNettes(liste) {
   if (erreurs.length > 0) throw new Error(erreurs[0]);
   return { couleursSecondaires: nettes };
 }
+
+// Vêtements en service (demande de Théo, 2026-09-27) : un vêtement en pause (lavage, prêt…) n'entre pas dans les
+// propositions ; il compte toujours comme possédé pour les manques fréquents.
+export const vetementsEnService = (etat) => etat.vetements.filter((v) => !v.enPause);
 
 // Marques déjà saisies (suggestions), sans doublon ni différence de casse, dans l'ordre alphabétique français.
 export function marquesConnues(etat) {

@@ -19,6 +19,7 @@
   --danger: #ff3b30;                        /* systemRed */
   --succes: #34c759;                        /* systemGreen */
   --alerte: #ffcc00;                        /* systemYellow */
+  --orange: #ff9500;                        /* systemOrange */
   --verre: rgba(255, 255, 255, 0.7);
   --verre-epais: rgba(250, 250, 252, 0.9);
   --feuille: rgba(242, 242, 247, 0.94);     /* feuilles : fond groupé, translucide */
@@ -58,6 +59,7 @@
     --danger: #ff453a;
     --succes: #30d158;
     --alerte: #ffd60a;
+    --orange: #ff9f0a;
     --verre: rgba(40, 40, 42, 0.68);
     --verre-epais: rgba(44, 44, 46, 0.92);
     --feuille: rgba(28, 28, 30, 0.94);
@@ -351,16 +353,20 @@ input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--accent)
   touch-action: pan-y; transition: transform 0.28s var(--ressort);
 }
 .vetement.glisse .ligne-vetement { transition: none; }
-/* Action découverte par le balayage vers la gauche. */
-.action-supprimer {
-  position: absolute; top: 0; right: 0; bottom: 0; width: 92px; border: none; cursor: pointer;
+/* Actions découvertes par le balayage vers la gauche : Pause (orange) puis Supprimer (rouge). */
+.action-supprimer, .action-pause {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 80px; border: none; cursor: pointer;
   background: var(--danger); color: #ffffff; font: inherit; font-size: 0.76rem; font-weight: 600;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
 }
-.action-supprimer .icone { width: 22px; height: 22px; }
-/* Caché hors balayage : sinon un liseré rouge perce dans l'arrondi des coins de la liste. */
-.action-supprimer { visibility: hidden; }
-.vetement.ouverte .action-supprimer, .vetement.glisse .action-supprimer { visibility: visible; }
+.action-pause { right: 80px; background: var(--orange); }
+.action-supprimer .icone, .action-pause .icone { width: 22px; height: 22px; }
+/* Cachées hors balayage : sinon un liseré de couleur perce dans l'arrondi des coins de la liste. */
+.action-supprimer, .action-pause { visibility: hidden; }
+.vetement.ouverte :is(.action-supprimer, .action-pause), .vetement.glisse :is(.action-supprimer, .action-pause) { visibility: visible; }
+/* Vêtement en pause : grisé, avec la mention « En pause ». */
+.vetement.en-pause .ligne-vetement > :is(.visuel-vetement, .pastille), .vetement.en-pause .ligne-vetement .nom { opacity: 0.45; }
+.mention-pause { color: var(--orange); font-weight: 600; }
 .vetement + .vetement .ligne-vetement::before {
   content: ""; position: absolute; top: 0; right: 0; left: var(--retrait-separateur); border-top: 0.5px solid var(--separateur);
 }

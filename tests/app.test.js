@@ -978,3 +978,63 @@ test('app : vêtement bicolore mesuré, « Autre couleur » relance la caméra
   egal(modifie.hex, hexPrincipal, 'principale inchangée');
   egal(modifie.couleursSecondaires.length, 1);
 });
+
+// Pause (demande de Théo, 2026-09-27) : le short bicolore du test précédent est mis en pause, puis repris.
+test('app : vêtement en pause (fiche et balayage), grisé, absent des propositions, repris pour composer une tenue', async () => {
+  cliquer('#onglets [data-ecran="garde-robe"]');
+  cliquer('[data-type="short"] [data-action="modifier"]');
+  const fiche = await dialogueOuvert();
+  const interrupteurPause = fiche.querySelector('#pause-vetement');
+  egal(interrupteurPause.checked, false);
+  interrupteurPause.click();
+  cliquer('[data-valeur="ok"]', fiche);
+  await dialoguesFermes();
+  await quand(() => stocke().vetements.find((v) => v.type === 'short').enPause === true, 'short en pause');
+  const li = await attendre(() => doc.querySelector('[data-type="short"] .vetement.en-pause'), 'ligne grisée');
+  egal(li.querySelector('[data-info="en-pause"]').textContent.trim(), 'En pause ·');
+  vrai(doc.querySelector('.sous-titre-ecran').textContent.endsWith(', dont 1 en pause'), doc.querySelector('.sous-titre-ecran').textContent);
+
+  // Onglet Tenue : ni dans les propositions (un short manque), ni dans « Partir d'un vêtement ».
+  cliquer('#onglets [data-ecran="tenue"]');
+  await attendre(() => doc.querySelector('[data-action="epingler"]'), 'écran tenue');
+  cliquer('[data-action="epingler"]');
+  const choix = await dialogueOuvert();
+  const short = stocke().vetements.find((v) => v.type === 'short');
+  egal(choix.querySelector(`[data-vetement-choix="${short.id}"]`), null, 'short en pause absent du choix');
+  cliquer('[data-valeur=""]', choix);
+  await dialoguesFermes();
+
+  // « Composer une tenue » depuis la fiche d'un vêtement en pause : on le reprend d'abord.
+  cliquer('#onglets [data-ecran="garde-robe"]');
+  cliquer('[data-type="short"] [data-action="modifier"]');
+  cliquer('[data-action="composer-tenue"]', await dialogueOuvert());
+  const alerte = await attendre(() => [...doc.querySelectorAll('dialog.alerte[open]')].find((d) => 'pret' in d.dataset), 'reprendre ?');
+  egal(alerte.querySelector('h2').textContent, 'Reprendre ce vêtement ?');
+  cliquer('[data-valeur="oui"]', alerte);
+  await dialoguesFermes();
+  await quand(() => !('enPause' in stocke().vetements.find((v) => v.type === 'short')), 'short repris');
+  await attendre(() => doc.querySelector('[data-epingle="short"]'), 'short épinglé dans la tenue');
+
+  // Balayage : « Pause » puis « Reprendre ».
+  cliquer('#onglets [data-ecran="garde-robe"]');
+  const balayer = (ligne) => {
+    const pointeur = (type, x) => ligne.dispatchEvent(new fenetre.PointerEvent(type, { bubbles: true, pointerId: 11, clientX: x, clientY: 300 }));
+    pointeur('pointerdown', 300); pointeur('pointermove', 250); pointeur('pointermove', 120); pointeur('pointerup', 120);
+  };
+  let ligneShort = doc.querySelector('[data-type="short"] .vetement');
+  balayer(ligneShort.querySelector('.ligne-vetement'));
+  vrai(ligneShort.classList.contains('ouverte'), 'actions découvertes');
+  egal(ligneShort.querySelector('.action-pause').textContent, 'Pause');
+  cliquer('.action-pause', ligneShort);
+  await quand(() => stocke().vetements.find((v) => v.type === 'short').enPause === true, 'pause par balayage');
+  cliquer('#onglets [data-ecran="tenue"]');
+  await attendre(() => doc.querySelector('[data-action="epingler"]'), 'écran tenue');
+  egal(doc.querySelector('[data-epingle="short"]'), null, 'épingle retirée : le short est en pause');
+  cliquer('#onglets [data-ecran="garde-robe"]');
+  ligneShort = await attendre(() => doc.querySelector('[data-type="short"] .vetement.en-pause'), 'grisé');
+  balayer(ligneShort.querySelector('.ligne-vetement'));
+  egal(ligneShort.querySelector('.action-pause').textContent, 'Reprendre');
+  cliquer('.action-pause', ligneShort);
+  await quand(() => !('enPause' in stocke().vetements.find((v) => v.type === 'short')), 'repris par balayage');
+  await attendre(() => doc.querySelector('[data-type="short"] .vetement:not(.en-pause)'), 'plus grisé');
+});

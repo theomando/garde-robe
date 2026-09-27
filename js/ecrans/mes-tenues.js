@@ -46,7 +46,7 @@ function lignePiece(app, tenue, piece) {
   return el('div', { class: 'ligne piece-tenue', 'data-type': piece.type },
     vetement ? visuelVetement(app, vetement) : pastilleCouleurs([piece.hex, ...(piece.hexSecondaires ?? [])], { classe: 'moyenne' }),
     el('span', { class: 'texte-ligne' }, libelle,
-      vetement ? nomCouleurVetement(vetement, app.catalogue) : `vêtement supprimé de la garde-robe (${piece.hex})`,
+      vetement ? `${nomCouleurVetement(vetement, app.catalogue)}${vetement.enPause ? ' · en pause' : ''}` : `vêtement supprimé de la garde-robe (${piece.hex})`,
       vetement?.marque ? el('small', {}, vetement.marque) : null));
 }
 
